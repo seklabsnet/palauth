@@ -1,1458 +1,939 @@
-# Auth Server — Technical Specification
+# Auth Server - Technical Specification
 
-## 1. Overview
-
-Self-hosted, certification-ready authentication server built with NestJS. Designed to operate as a standalone auth service (like Firebase Auth / Supabase Auth) with Client SDK and Server SDK. Targets financial-grade security from Day 1 for future transaction approval, document signing, and payment authorization use cases.
-
-**Goal:** Become the most comprehensively certified auth provider in the market. No existing provider holds all target certifications simultaneously.
+> Self-hosted, certification-ready authentication & authorization platform.
+> NestJS backend, Client SDK + Server SDK, financial-grade security.
 
 ---
 
-## 2. Target Certifications
+## 1. Vizyon & Hedefler
 
-### 2.1 Certification Portfolio
+### 1.1 Ne Yapacagiz?
 
-| Certification | Type | Priority | Timeline | Estimated Cost (Audit) |
-|---------------|------|----------|----------|----------------------|
-| NIST SP 800-63B (AAL1-3) | Guideline | Day 1 design | - | Free |
-| GDPR | Regulation | Day 1 design | Continuous | Ongoing |
-| PSD2/PSD3 SCA | Regulation | Day 1 design | Continuous | Ongoing |
-| OpenID Certified (Basic + FAPI 2.0) | Self-certification | Month 1-3 | 1-4 weeks | ~$2,500 |
-| FIDO2 Server Certified | Automated test | Month 1-3 | 1-3 months | ~$5,000 + membership |
-| SOC 2 Type II | CPA audit | Month 6-18 | 9-18 months | $30K-$150K |
-| ISO 27001:2022 | Accredited CB | Month 6-18 | 6-18 months | $15K-$50K |
-| HIPAA | BAA | Month 6-18 | With SOC 2 | Included |
-| CSA STAR Level 2 | Certification | Month 12 | Post ISO 27001 | $10K-$30K |
-| PCI DSS v4.0 | QSA audit | Month 12-18 | 3-12 months | $30K-$200K |
-| FedRAMP (High) | US gov authorization | Month 18-24 | 12-18 months | $500K+ |
-| eIDAS LoA High | EU regulation | Month 12-18 | 2-6 months | $10K-$100K |
-| Common Criteria (EAL4) | CCTL evaluation | Month 24+ | 12-24 months | $150K-$500K |
+Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifikalara sahip, finansal islemleri destekleyen bir authentication platformu.
 
-### 2.2 Competitor Certification Comparison
+### 1.2 Temel Ilkeler
 
-| Provider | SOC 2 | ISO 27001 | HIPAA | PCI DSS | OpenID Cert | FIDO2 Cert | FedRAMP | CSA STAR |
-|----------|-------|-----------|-------|---------|-------------|------------|---------|----------|
-| Auth0 (Okta) | Yes | Yes | Yes | Yes | Yes + FAPI | No | No | Yes |
-| Firebase (Google) | Yes | Yes | Yes | Yes* | Yes* | No | Yes* | - |
-| Supabase | Yes | Pending | Yes | No | No | No | No | No |
-| Clerk | Yes | - | Yes | - | No | - | No | No |
-| Stytch | Yes | Yes | Yes | Partial | No | - | No | No |
-| Descope | Yes | Yes | Yes | Yes | No | Yes | Yes (High) | Yes |
-| Keycloak | N/A | N/A | N/A | N/A | Yes (most) | No | N/A | N/A |
-| Hanko | - | - | - | - | No | Yes | No | No |
-| FusionAuth | Yes | Yes | Yes | Partial | No | - | No | No |
+1. **Security-first**: Tum sertifikalari alabilecek seviyede guvenlik (SOC 2, ISO 27001, PCI DSS, FIDO2, OpenID FAPI, FedRAMP, eIDAS)
+2. **Blocking pipeline**: Event-based degil, backend "tamam" demeden islem tamamlanmaz
+3. **Entegrasyon kolayligi**: 3 satirda entegrasyon, developer-friendly SDK
+4. **Multi-tenant**: Farkli platformlara hizmet verebilecek izolasyon
+5. **Financial-grade**: Para transferi, transaction approval, document signing destegi
 
-*\* = inherited from Google Cloud*
+### 1.3 Hedef Sertifika Portfolyosu
 
-**No single provider currently holds all target certifications.**
+| Sertifika | Oncelik | Tahmini Sure | Maliyet (Audit) |
+|-----------|---------|-------------|-----------------|
+| NIST SP 800-63B (AAL1-3) | Day 1 tasarim | - | Ucretsiz (guideline) |
+| GDPR compliance | Day 1 tasarim | Surekli | Ongoing |
+| OpenID Certified (Basic + FAPI 2.0) | Ay 1-3 | 1-4 hafta | ~$2,500 |
+| FIDO2 Server Certified | Ay 1-3 | 1-3 ay | ~$5,000 + uyelik |
+| SOC 2 Type II | Ay 6-18 | 9-18 ay | $30K-$150K |
+| ISO 27001:2022 | SOC 2 ile paralel | 6-18 ay | $15K-$50K |
+| HIPAA | SOC 2 ile birlikte | - | SOC 2 icinde |
+| CSA STAR Level 2 | ISO 27001 sonrasi | 2-4 ay | $5K-$15K |
+| PCI DSS v4.0 | Ay 12-18 | 3-12 ay | $30K-$200K |
+| PSD2/PSD3 SCA | Finansal islem basladiginda | Day 1 tasarim | PSP lisansi ile |
+| FedRAMP (High) | Ay 18-24 | 12-18 ay | $250K+ |
+| eIDAS LoA High | Ay 12-18 | 2-6 ay | $10K-$100K |
+
+> Bu portfolyonun tamamina sahip sifir auth provider var. En yakini Descope (FedRAMP + SOC 2 + ISO + PCI + FIDO) ve Auth0 (SOC 2 + ISO + PCI + OpenID FAPI).
 
 ---
 
-## 3. Core Architecture
+## 2. Authentication Yontemleri
 
-### 3.1 Blocking Pipeline (Hook System)
+### 2.1 Email + Password
 
-The auth server uses a synchronous, blocking pipeline. The consuming backend MUST approve operations before they complete. This prevents race conditions where auth succeeds but the backend hasn't created its own user record yet.
+- Minimum 12 karakter (PCI DSS v4.0 Req 8.3.5)
+- Numerik + alfabetik zorunlu (PCI DSS v4.0 Req 8.3.5)
+- Son 4 sifre tekrar yasak (PCI DSS v4.0 Req 8.3.7)
+- Max 64 karakter ust limit, truncate yasak (NIST 800-63B)
+- Compromised password kontrolu: HaveIBeenPwned k-Anonymity API (NIST 800-63B zorunlu)
+- Hashing: **Argon2id** (m=64MB+, t=3, p=1, ~300ms target)
+- Pepper: HMAC-SHA256, HSM/KMS'te saklanir, DB'de tutulmaz
+- Salt: 16+ byte, her password'a unique, `crypto.randomBytes()`
+- Max 10 basarisiz deneme -> 30dk lockout (PCI DSS v4.0 Req 8.3.4)
+- Constant-time karsilastirma: `crypto.timingSafeEqual` (timing attack korunmasi)
+
+### 2.2 OTP (One-Time Password)
+
+**TOTP (Time-based)**
+- RFC 6238 uyumlu
+- 6 haneli, 30sn window
+- Clock drift toleransi: max 1-2 onceki/sonraki kod (30-60sn)
+- TOTP secret'lari AES-256-GCM ile sifreli saklanir (hash degil, dogrulama icin geri alinabilir olmali)
+- Authenticator app entegrasyonu: Google Authenticator, Authy, 1Password, vb.
+
+**Email OTP**
+- 6 haneli, 5dk gecerlilik (PSD2 RTS max 5dk)
+- Rate limit: 3 basarisiz deneme -> yeni OTP gerekli
+- Replay korumasi: her OTP tek kullanimlik, kullanilan OTP hash'i saklanir
+
+**SMS OTP (Restricted)**
+- NIST 800-63B "restricted" siniflandirmasi
+- Sadece fallback olarak sunulur
+- Kullanici SIM-swap riski hakkinda uyarilir
+- Yuksek guvenlik modunda devre disi birakilabilir
+
+### 2.3 WebAuthn / Passkeys (FIDO2)
+
+- FIDO2 Server sertifikasi hedeflenir
+- Desteklenen attestation formatlari: **packed** (zorunlu), **none** (zorunlu), fido-u2f, tpm, apple
+- Minimum algoritma: ES256 (zorunlu), EdDSA, RS256
+- Challenge: 16+ byte `crypto.randomBytes()`, tek kullanimlik
+- Counter validation: clone detection icin signCount kontrolu
+- FIDO MDS v3 entegrasyonu: compromised authenticator tespiti
+- rpId ve origin dogrulamasi
+- User Presence (UP) ve User Verification (UV) flag kontrolu
+- CBOR decoding/encoding
+- Passkey-first kayit akisi: sifre olusturmadan sadece passkey ile kayit
+- Cross-device QR code login: WebAuthn hybrid transport
+
+**NIST 800-63B AAL Seviyeleri:**
+- AAL1: Tek faktor (password veya single-factor OTP)
+- AAL2: Iki faktor, MitM direnci zorunlu. Passkey (synced) AAL2 karsilar
+- AAL3: Iki faktor + hardware cryptographic authenticator zorunlu. Device-bound passkey + PIN/biometric
+
+### 2.4 Social Login (OAuth 2.0 / OpenID Connect)
+
+**Desteklenen flow: Authorization Code + PKCE (tek flow)**
+- Implicit flow desteklenmez (OAuth 2.1 tarafindan kaldirildi)
+- PKCE tum client'lar icin zorunlu (FAPI 2.0 zorunlu)
+
+**Provider'lar:**
+- Google, Apple, Microsoft, GitHub, Facebook/Meta, X/Twitter, LinkedIn, Discord, Slack, Spotify
+- Generic OIDC: Issuer URL ile auto-discovery
+- Generic OAuth 2.0: Manuel endpoint konfigurasyonu
+
+**Akislar:**
+
+*Web SPA:*
+```
+Client SDK -> redirect/popup -> Provider consent -> callback -> Auth Server token exchange -> Session tokens
+```
+
+*Mobile Native:*
+```
+Native SDK (Google/Apple Sign-In) -> Provider token -> auth.signInWithCredential(token) -> Auth Server dogrulama -> Session tokens
+```
+
+*Backend-to-Backend:*
+```
+Server SDK -> provider token alir -> Auth Server API ile dogrular -> Session tokens
+```
+
+**Account Linking:**
+- Ayni verified email ile otomatik baglama
+- Farkli email'ler icin authenticated session uzerinden manuel baglama
+- Admin tarafindan baglama
+- Unverified email ile otomatik baglama YASAK
+
+### 2.5 Magic Link (Passwordless Email)
+
+- Tek kullanimlik, 15dk gecerlilik
+- Token: 256-bit `crypto.randomBytes()`, SHA-256 hash'i DB'de saklanir
+- Kullanildiktan sonra aninda invalidate
+- Rate limit: Kullanici basina 5dk'da 1 magic link
+
+### 2.6 Phone Auth
+
+- SMS ile dogrulama kodu
+- WhatsApp Business API entegrasyonu (opsiyonel)
+- Rate limit: Numara basina 1dk'da 1 kod
+- Ulke bazli beyaz/kara liste
+
+---
+
+## 3. Multi-Factor Authentication (MFA)
+
+### 3.1 Zorunluluk Matrisi
+
+| Senaryo | MFA Zorunlu mu? | Standart |
+|---------|-----------------|----------|
+| Admin paneli erisimi | Evet | SOC 2, PCI DSS 8.4.1 |
+| CDE (Cardholder Data) erisimi | Evet | PCI DSS 8.4.2 |
+| Uzaktan erisim | Evet | PCI DSS 8.4.3 |
+| Finansal islem onayi | Evet | PSD2 SCA |
+| Normal kullanici girisi | Tenant tarafindan yapilandirilabilir | - |
+
+### 3.2 MFA Faktorleri
+
+- **Knowledge**: Password, PIN
+- **Possession**: TOTP, SMS OTP, Email OTP, Hardware key (FIDO2), Trusted device
+- **Inherence**: Biometric (cihaz uzerinden, server'a biyometrik veri gonderilmez)
+
+### 3.3 MFA Kurallari
+
+- Iki farkli faktor kullanilmali, ayni faktorun iki ornegi kabul edilmez (PCI DSS)
+- Replay saldirilarina dayanikli olmali (PCI DSS)
+- MFA bypass yasak, istisna = yonetim onayi + sure limiti + dokumantasyon (PCI DSS 8.5.1)
+- Max 5 basarisiz MFA denemesi -> lockout (PSD2 RTS)
+- MFA tamamlandiktan sonra session ID yenilenir (OWASP)
+
+### 3.4 Step-Up Authentication
+
+- Hassas islemler icin mevcut session uzerinde ek dogrulama
+- ACR (Authentication Context Class Reference) ve AMR (Authentication Methods References) claim'leri ile yonetilir
+- Ornek: Kullanici giris yapti (AAL1) -> para transferi istedi -> passkey ile step-up (AAL2/AAL3) -> yeni token issued with higher ACR
+- Step-up token'lari kisa omurlu (5-15dk)
+
+---
+
+## 4. Token Mimarisi
+
+### 4.1 Access Token (JWT)
+
+- Format: JWT (RFC 7519)
+- Imzalama: Asimetrik — RS256 veya EdDSA (FAPI 2.0 uyumlu)
+- Omur: Kisa — 15-60dk (tenant tarafindan yapilandirilabilir)
+- Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `kid`, `acr`, `amr`, `tenant_id`, custom claims
+- JWKS endpoint: `/.well-known/jwks.json` — public key'ler burada yayinlanir
+
+### 4.2 Refresh Token (Opaque)
+
+- Format: Opaque string — 256-bit `crypto.randomBytes()`
+- Saklama: Server-side (DB), SHA-256 hash olarak
+- Rotation: Her kullanildiginda yeni refresh token uretilir, eski invalidate edilir
+- Family-based revocation: Eski bir refresh token tekrar kullanilirsa, tum token ailesi (descendants) iptal edilir (stolen token tespiti)
+- Reuse interval: Kisa bir pencere (2-5sn) concurrent request'ler icin izin verir (race condition onleme)
+
+### 4.3 DPoP (Demonstration of Proof-of-Possession)
+
+- RFC 9449 uyumlu
+- Finansal islemler ve yuksek guvenlik modunda zorunlu
+- Client ephemeral key pair uretir (ES256)
+- Her request'te DPoP proof JWT gonderir: `htm`, `htu`, `jti`, `iat`
+- Access token'a `cnf.jkt` claim'i eklenir (public key thumbprint)
+- Resource server hem token'i hem DPoP proof'u dogrular
+- Token calintisi durumunda private key olmadan kullanilamaz
+
+### 4.4 Key Rotation
+
+- 90 gunde bir asymmetric key rotation (PCI DSS, SOC 2)
+- Yeni public key JWKS endpoint'ine eklenir (eski + yeni birlikte listelenir)
+- Grace period: Client'lar JWKS cache'ini yeniler
+- Eski key imzalamayi durdurur ama dogrulama icin kalir
+- `retirement_time + max_token_lifetime + buffer` sonra eski key kaldirilir
+- Her JWT'de `kid` header'i hangi key ile imzalandigini belirtir
+- Cloud KMS (AWS KMS / GCP KMS) ile HSM-backed key storage
+
+### 4.5 Custom Token
+
+- Server SDK ile ozel token uretimi: `auth.admin.createCustomToken(uid, claims)`
+- Client bu token'i exchange ederek access + refresh token alir
+- Backend-to-backend senaryolari icin
+
+---
+
+## 5. Session Yonetimi
+
+### 5.1 Session Politikalari
+
+| Politika | Deger | Standart |
+|----------|-------|----------|
+| Idle timeout (yuksek guvenlik) | 15dk | PCI DSS 8.2.8, NIST AAL3 |
+| Idle timeout (standart) | 30dk | NIST AAL1-2 |
+| Absolute timeout | 8-24 saat | NIST 800-63B (max 12 saat) |
+| Auth code/OTP omru | Max 5dk | PSD2 RTS |
+| Concurrent session limiti | Yapilandirilabilir | SOC 2 best practice |
+
+### 5.2 Session Ozellikleri
+
+- Session'a device metadata baglama: IP, user-agent, device fingerprint
+- Aktif session listesi: Kullanici tum aktif session'larini gorebilir (cihaz, konum, son aktivite)
+- Uzaktan session sonlandirma: Kullanici herhangi bir session'i kapatabilir
+- Session regeneration: Privilege escalation sonrasi yeni session ID
+- Trusted device registry: "Bu cihazi hatirla" — device token ile tekrar MFA sorulmaz
+- Session transfer: Cihazlar arasi session aktarimi (QR code ile)
+
+### 5.3 Device Fingerprinting
+
+- Sinyaller: user-agent, screen resolution, timezone, WebGL renderer, canvas hash, audio context, hardware concurrency
+- Fingerprint hash session'a bind edilir
+- Her request'te karsilastirilir
+- Degisiklik = anomali flag'i -> step-up auth veya session sonlandirma
+
+### 5.4 Anomaly Detection
+
+- **Impossible travel**: Ardisik login'ler arasindaki mesafe/zaman orani (>500mph = flag)
+- **IP degisimi**: Session icinde IP degisikligi
+- **Device fingerprint drift**: Session icinde cihaz ozellikleri degisimi
+- **Unusual time**: Normal saat disinda erisim
+- **Velocity check**: Kisa surede cok fazla islem
+- Her anomali icin risk skoru hesaplanir -> esik degerine gore aksiyon
+
+---
+
+## 6. Device Attestation & Binding
+
+### 6.1 Android — Google Play Integrity API
 
 ```
-Client SDK                Auth Server               App Backend
-    |                         |                          |
-    |--signIn(email,pass)--->|                          |
-    |                         |--validate credentials-->|(internal)
-    |                         |                          |
-    |                         |--POST /hook ----------->|
-    |                         |   {event, user, meta}    |
-    |                         |   HMAC-SHA256 signed     |
-    |                         |                          |
-    |                         |<-- {allow: true/false} --|
-    |                         |     HMAC-SHA256 signed   |
-    |                         |                          |
-    |<--token OR error-------|                          |
+Client App -> Play Integrity API -> Google Server -> Encrypted Verdict Token
+                                                          |
+Auth Server <- Decrypted Verdict <- Google Server <- Verdict Token
 ```
 
-#### Hook Types
+**Verdict degerlendirme:**
+- `MEETS_STRONG_INTEGRITY` -> Tam guven (gercek cihaz + guncel yamalar)
+- `MEETS_DEVICE_INTEGRITY` -> Yuksek guven (gercek, sertifikali cihaz)
+- `MEETS_BASIC_INTEGRITY` -> Orta guven (bootloader acik olabilir)
+- `MEETS_VIRTUAL_INTEGRITY` -> Emulator (izin verilebilir veya reddedilebilir)
+- Bos -> Red (root'lu, hook'lu, sahte)
 
-**Blocking hooks (before.\*)** — Pipeline stops, waits for backend response:
+**Ek kontroller:**
+- `appRecognitionVerdict`: Uygulamanin Play Store'dan yuklendigini dogrular
+- `recentDeviceActivity`: Cihazin ne kadar aktif oldugunu gosterir (abuse tespiti)
+- `playProtectVerdict`: Zararli yazilim kontrolu
 
-| Hook | Trigger | Use Case |
-|------|---------|----------|
-| `before.user.create` | Signup attempt | Backend creates own user, can deny |
-| `before.login` | Every login | Ban check, business logic, custom validation |
-| `before.otp.verify` | OTP verification | Custom fraud checks |
-| `before.mfa.verify` | MFA verification | Device risk assessment |
-| `before.password.reset` | Password reset request | Rate limiting, fraud prevention |
-| `before.social.link` | Social account linking | Duplicate account prevention |
-| `before.transaction.approve` | Financial transaction | Amount/payee verification |
-| `before.token.refresh` | Token refresh | Session risk re-evaluation |
+### 6.2 iOS — Apple App Attest
 
-**Non-blocking hooks (after.\*)** — Fire-and-forget, informational:
+1. Secure Enclave'de ECDSA P-256 key pair uretilir (private key cihazdan cikmaz)
+2. `attestKey(keyId, clientDataHash)` ile Apple attestation object uretir
+3. Server 9 adimli dogrulama yapar:
+   - x5c sertifika zinciri -> Apple Root CA
+   - Nonce dogrulama (authData + challenge hash)
+   - Public key hash = keyId kontrolu
+   - rpIdHash = SHA256(teamID + "." + bundleID)
+   - signCount = 0 kontrolu (attestation'da)
+   - aaguid kontrolu (prod vs dev)
 
-| Hook | Trigger | Use Case |
-|------|---------|----------|
-| `after.user.create` | User created | CRM sync, welcome email |
-| `after.login` | Login succeeded | Analytics, audit |
-| `after.login.failed` | Login failed | Security monitoring |
-| `after.password.change` | Password changed | Notification |
-| `after.session.revoke` | Session revoked | Cleanup |
+**Assertion (sonraki request'ler):**
+- Her request Secure Enclave private key ile imzalanir
+- Server stored public key ile dogrular
+- signCount artisini kontrol eder (clone detection)
 
-#### Hook Security
+### 6.3 Emulator / Root / Jailbreak Tespiti
 
-- Bidirectional HMAC-SHA256 signing: auth server signs outgoing hooks, backend signs responses
-- Configurable timeout: 10-20 seconds (default: 15s)
-- Configurable failure mode: `deny_on_failure` (secure default) or `allow_on_failure`
-- Retry policy: configurable (0-3 retries with exponential backoff)
-- Hook endpoints must be HTTPS only
-- IP allowlisting for hook endpoints (optional)
+**Android:**
+- `su` binary, Magisk, KernelSU varligi
+- Frida tespiti (port 27042, frida-server process)
+- Xposed framework tespiti
+- Build tags "test-keys" kontrolu
+- Eksik hardware sensorleri
+- Pil anomalileri (her zaman %50)
+- RASP (Runtime Application Self-Protection) entegrasyonu
 
-### 3.2 Event System (Non-Blocking)
+**iOS:**
+- Cydia, Sileo, checkra1n path'leri
+- Sandbox disina yazma yetenegi testi
+- DYLD injection tespiti
+- Fork() davranisi kontrolu
+- URL scheme kontrolleri (cydia://)
 
-Separate from hooks. Events are emitted after operations complete. Used for analytics, monitoring, external integrations.
+### 6.4 Cryptographic Device Binding
 
-**Events emitted:**
-- `user.created`, `user.updated`, `user.deleted`
-- `auth.login.succeeded`, `auth.login.failed`, `auth.logout`
-- `otp.generated`, `otp.verified`, `otp.failed`, `otp.expired`
-- `mfa.enrolled`, `mfa.challenged`, `mfa.verified`, `mfa.failed`
-- `session.created`, `session.refreshed`, `session.revoked`
-- `token.issued`, `token.refreshed`, `token.revoked`
-- `password.changed`, `password.reset.requested`, `password.reset.completed`
-- `social.linked`, `social.unlinked`
-- `device.registered`, `device.revoked`, `device.suspicious`
-- `transaction.approve.requested`, `transaction.approve.completed`, `transaction.approve.denied`
+**Kayit (Enrollment):**
+1. Kullanici ilk kez dogrulanir (email + MFA)
+2. Cihaz hardware enclave'de key pair uretir (iOS Secure Enclave / Android Keystore StrongBox)
+3. Platform attestation ile key'in gercek donanim icinde uretildigi kanitlanir
+4. Public key + cihaz metadata -> server'a gonderilir, kullanici hesabina baglanir
 
-**Delivery mechanisms:**
-1. In-process EventEmitter (NestJS EventEmitter2)
-2. Webhook delivery (Standard Webhooks Specification — webhook-id, webhook-timestamp, webhook-signature)
-3. Pub/Sub (Redis Streams for horizontal scaling)
-
----
-
-## 4. Authentication Flows
-
-### 4.1 Email + Password
-
-#### Register
-1. Client: `auth.signUp({ email, password })`
-2. Server validates password against policy (see 6.1)
-3. Server checks email against compromised credential database
-4. **`before.user.create` hook** → backend approves/denies
-5. Server hashes password with Argon2id (peppered)
-6. Server creates user record
-7. Server sends verification email with signed token
-8. Server issues session tokens (access JWT + opaque refresh)
-9. Emits `user.created` event
-
-#### Login
-1. Client: `auth.signIn({ email, password })`
-2. Server retrieves user by email (constant-time even if user doesn't exist — timing attack prevention)
-3. Server verifies password hash (Argon2id, constant-time comparison)
-4. If MFA enrolled → server returns `mfa_required` challenge
-5. **`before.login` hook** → backend approves/denies
-6. Server creates session, issues tokens
-7. Emits `auth.login.succeeded` event
-
-#### Password Reset
-1. Client: `auth.resetPassword({ email })`
-2. **`before.password.reset` hook** → backend approves/denies
-3. Server generates cryptographically random reset token (256-bit)
-4. Token stored hashed (SHA-256), expires in 1 hour
-5. Server sends reset email
-6. User clicks link → Client: `auth.confirmPasswordReset({ token, newPassword })`
-7. Server validates token, checks new password against policy + last 4 passwords
-8. Server re-hashes with Argon2id, invalidates all existing sessions
-9. Emits `password.changed` event
-
-#### Password Change (Authenticated)
-1. Client: `auth.changePassword({ currentPassword, newPassword })`
-2. Server verifies current password
-3. Server validates new password against policy + last 4 passwords
-4. Server re-hashes, optionally invalidates other sessions
-5. Emits `password.changed` event
-
-### 4.2 OTP (Email / SMS)
-
-#### Request OTP
-1. Client: `auth.signInWithOtp({ email })` or `auth.signInWithOtp({ phone })`
-2. Server generates 6-digit TOTP (RFC 6238, 30-second window)
-3. Server stores OTP hashed (SHA-256) with metadata: attempts=0, created_at, expires_at
-4. Server sends OTP via email or SMS
-5. Emits `otp.generated` event
-
-#### Verify OTP
-1. Client: `auth.verifyOtp({ email, code })`
-2. Server checks rate limit (max 5 attempts per OTP, max 3 OTP requests per 15 minutes)
-3. Server verifies OTP with constant-time comparison
-4. **`before.otp.verify` hook** → backend approves/denies
-5. Server creates session, issues tokens
-6. Emits `otp.verified` event
-7. OTP is immediately invalidated (single-use)
-
-### 4.3 Social Login (OAuth2 / OIDC)
-
-#### Web Flow (Authorization Code + PKCE)
-1. Client SDK generates code_verifier (128-byte random) and code_challenge (SHA256)
-2. Client SDK redirects to: `auth-server/oauth/{provider}/authorize?code_challenge=...&redirect_uri=...`
-3. Auth server constructs provider-specific OAuth URL with PKCE + state parameter
-4. Auth server redirects user to provider consent screen
-5. Provider redirects back to auth server callback with authorization code
-6. Auth server exchanges code + code_verifier with provider for access token
-7. Auth server fetches user profile from provider
-8. **`before.user.create` hook** (if new user) → backend approves/denies
-9. **`before.login` hook** → backend approves/denies
-10. Auth server creates/updates user, issues own tokens
-11. Auth server redirects to client redirect_uri with session
-
-#### Mobile Native Flow (Credential Exchange)
-1. Mobile app uses native SDK (Google Sign-In, Apple Sign-In) to get provider token
-2. Client SDK: `auth.signInWithCredential({ provider: 'google', idToken: '...' })`
-3. Auth server verifies provider token directly with provider's API / JWKS
-4. Same flow as web from step 7 onward
-
-#### Backend-to-Backend Flow (Token Exchange)
-1. Backend receives provider token from its own flow
-2. Server SDK: `auth.admin.exchangeToken({ provider: 'google', accessToken: '...' })`
-3. Auth server verifies token with provider
-4. Auth server creates/updates user, returns admin-level session info
-
-#### Supported Providers (initial)
-- Google (OIDC)
-- Apple (OIDC)
-- GitHub (OAuth2)
-- Microsoft / Azure AD (OIDC)
-- Facebook (OAuth2)
-- Custom OIDC (any provider with .well-known/openid-configuration)
-- Custom OAuth2 (manual endpoint configuration)
-
-### 4.4 WebAuthn / Passkeys (FIDO2)
-
-#### Registration
-1. Client: `auth.mfa.enroll('webauthn')` or `auth.passkey.register()`
-2. Server generates challenge (16+ bytes, cryptographically random)
-3. Server returns PublicKeyCredentialCreationOptions (rpId, rpName, user info, challenge, supported algorithms)
-4. Client calls `navigator.credentials.create(options)`
-5. Browser/platform creates key pair in Secure Enclave / TPM / TEE
-6. Client sends attestation object to server
-7. Server verifies: certificate chain, nonce, rpIdHash, signCount=0, aaguid, credentialId, public key
-8. Server stores credential: public key, credential ID, sign count, attestation format
-9. Server queries FIDO MDS v3 for authenticator metadata and status
-
-#### Authentication
-1. Server generates challenge, returns PublicKeyCredentialRequestOptions
-2. Client calls `navigator.credentials.get(options)`
-3. User verifies (biometric / PIN) on device
-4. Client sends assertion (signature, authenticator data, client data)
-5. Server verifies: signature with stored public key, challenge match, rpIdHash, sign count increment (clone detection)
-6. If sign count regression detected → flag as potential cloned authenticator
-
-### 4.5 Magic Link
-1. Client: `auth.signInWithMagicLink({ email })`
-2. Server generates signed token (Ed25519, 256-bit random, expires 15 minutes)
-3. Server sends email with link containing token
-4. User clicks link → Client: `auth.verifyMagicLink({ token })`
-5. **`before.login` hook** → backend approves/denies
-6. Server validates signature, expiry, single-use
-7. Server creates session, issues tokens
-
-### 4.6 Transaction Approval (PSD2 SCA Dynamic Linking)
-
-1. Backend: `auth.admin.requestTransactionApproval({ userId, amount, payee, currency, metadata })`
-2. Auth server creates transaction challenge: `challenge = server_nonce || amount || payee_id || timestamp`
-3. Auth server sends push notification / in-app challenge to user's registered device
-4. Client SDK displays transaction details to user (WYSIWYS — What You See Is What You Sign)
-5. User confirms via biometric / PIN → device signs challenge with private key in TEE
-6. Client: `auth.transaction.approve({ transactionId, deviceSignature })`
-7. **`before.transaction.approve` hook** → backend final validation
-8. Auth server verifies: device signature with stored public key, challenge binding to amount+payee, device attestation freshness
-9. Auth server returns signed approval token containing transaction hash
-10. Emits `transaction.approve.completed` event
-
-**PSD2 RTS compliance:**
-- Payer sees amount + payee during auth (WYSIWYS)
-- Auth code is specific to amount + payee
-- Any change to amount or payee invalidates auth code
-- Max 5-minute lifetime for auth codes
-- Max 5 failed attempts before lockout
+**Kullanim (Ongoing):**
+1. Client request payload'u olusturur
+2. Private key (hardware enclave icinde) payload'u imzalar (ECDSA ES256)
+3. Request icerir: device ID + signature + payload
+4. Server stored public key ile dogrular, cihaz durumunu ve risk sinyallerini kontrol eder
 
 ---
 
-## 5. Token Architecture
+## 7. Transaction Authorization (PSD2/PSD3 SCA)
 
-### 5.1 Access Token (JWT)
+### 7.1 Dynamic Linking
 
-- **Format:** JWT (RFC 7519)
-- **Signing:** Asymmetric — RS256 or EdDSA (Ed25519)
-- **Lifetime:** 15 minutes (configurable, max 60 minutes)
-- **Key rotation:** Every 90 days via JWKS endpoint
-- **Claims:**
+**Zorunluluk (RTS Article 5):**
+1. Odeme yapan kisi **tutar + aliciyi** gormeli
+2. Auth kodu **tutar + aliciya spesifik** olmali
+3. Tutar veya alici degisirse auth kodu gecersiz olmali
+4. Islemin gizliligi, dogrulugu ve butunlugu korunmali
+
+**Kriptografik baglama (asimetrik imza):**
+```
+challenge = server_nonce || amount || payee_id || timestamp
+signature = Sign(private_key_in_TEE, SHA256(challenge))
+```
+
+- Private key cihazin Secure Element'inde
+- Imza, spesifik tutar + aliciya bagli
+- Tutar/alici degisirse imza gecersiz
+- Server stored public key ile dogrular
+
+### 7.2 Secure Payment Confirmation (SPC)
+
+- WebAuthn ceremony'sinde transaction detaylari challenge'a encode edilir
+- Kullanici biometric ile passkey'i acar
+- Sonuc imza kriptografik olarak transaction detaylarina bagli
+- PSD3 icin tercih edilen yaklasim
+
+### 7.3 Transaction Akisi
+
+```
+1. Client -> "100 EUR, Alice'e transfer" -> Auth Server
+2. Auth Server -> challenge olusturur (nonce + amount + payee) -> Client
+3. Client -> kullaniciya gosterir "100 EUR -> Alice" (WYSIWYS)
+4. Client -> TEE'de imzalar -> signed challenge -> Auth Server
+5. Auth Server -> imza dogrular + device attestation kontrol
+6. Auth Server -> blocking hook: before.transaction.approve -> App Backend
+7. App Backend -> {allow: true} veya {deny: true, reason: "insufficient_funds"}
+8. Auth Server -> Client'a sonuc doner
+```
+
+---
+
+## 8. Blocking Pipeline & Hook Sistemi
+
+### 8.1 Pipeline Mimarisi
+
+Auth server, islem tamamlamadan once app backend'e danisir. Backend "tamam" demeden hicbir islem tamamlanmaz.
+
+```
+Client SDK              Auth Server                 App Backend
+    |                       |                           |
+    |--signUp(email,pw)--->|                           |
+    |                       |--credentials dogrula----->|(internal)
+    |                       |                           |
+    |                       |--POST /hooks/endpoint---->|
+    |                       |   {event, user, meta}     |
+    |                       |   Headers:                |
+    |                       |     webhook-id            |
+    |                       |     webhook-timestamp     |
+    |                       |     webhook-signature     |
+    |                       |                           |
+    |                       |<-- {verdict: "allow"} ----|  (backend user olusturdu)
+    |                       |    VEYA                   |
+    |                       |<-- {verdict: "deny",  ----|  (reddetti)
+    |                       |     reason: "..."}        |
+    |                       |                           |
+    |<--token VEYA error---|                           |
+```
+
+### 8.2 Hook Tipleri
+
+**Blocking Hooks (Senkron):**
+Pipeline'i durdurur, backend'den cevap bekler.
+
+| Hook | Tetikleme | Kullanim Senaryosu |
+|------|-----------|---------------------|
+| `before.user.create` | Signup oncesi | Backend'de kullanici olusturma, ban kontrolu |
+| `before.login` | Her login denemesinde | IP/cihaz kontrolu, ozel business logic |
+| `before.token.issue` | Token uretilmeden once | Custom claims ekleme, tenant kontrolu |
+| `before.mfa.verify` | MFA dogrulama oncesi | Ek guvenlik kontrolleri |
+| `before.password.reset` | Sifre sifirlama oncesi | Identity verification |
+| `before.social.link` | Sosyal hesap baglama oncesi | Duplikat kontrolu |
+| `before.transaction.approve` | Finansal islem onayi oncesi | Bakiye kontrolu, fraud detection |
+
+**Non-Blocking Hooks (Asenkron):**
+Pipeline'i durdurmaz, bilgilendirme amacli.
+
+| Hook | Tetikleme | Kullanim Senaryosu |
+|------|-----------|---------------------|
+| `after.user.create` | Signup sonrasi | Welcome email, CRM sync |
+| `after.login` | Basarili login sonrasi | Analytics, session log |
+| `after.logout` | Logout sonrasi | Cleanup |
+| `after.password.change` | Sifre degisikligi sonrasi | Bildirim |
+| `after.mfa.enroll` | MFA aktiflestirilmesi sonrasi | Bildirim |
+| `after.transaction.approve` | Islem onayi sonrasi | Receipt, bildirim |
+
+### 8.3 Hook Guvenligi
+
+- **Bidirectional signing**: Auth server hook'u HMAC-SHA256 ile imzalar, backend response'u imzalar
+- **Replay korumasi**: `webhook-id` + `webhook-timestamp` ile (Standard Webhooks spec)
+- **Timeout**: 10-20sn, asarsa yapilandirilabilir davranis
+- **Failure mode**: Configurable — "deny on failure" (guvenli varsayilan) veya "allow on failure" (uptime oncelikli)
+- **Retry**: Blocking hook'larda retry yok (timeout = failure mode davranisi). Non-blocking hook'larda exponential backoff ile retry
+
+### 8.4 Hook Payload Formati
 
 ```json
 {
-  "iss": "https://auth.example.com",
-  "sub": "user_xxxxxxxxxxxx",
-  "aud": "https://api.example.com",
-  "exp": 1700000900,
-  "iat": 1700000000,
-  "jti": "unique-token-id",
-  "kid": "key-2026-01",
-  "scope": "openid profile email",
-  "tenant_id": "tenant_xxxx",
-  "session_id": "sess_xxxx",
-  "amr": ["pwd", "otp"],
-  "acr": "urn:nist:800-63:aal2",
-  "cnf": {
-    "jkt": "dpop-thumbprint-if-dpop-bound"
+  "event": "before.user.create",
+  "timestamp": "2026-03-30T12:00:00Z",
+  "request_id": "req_abc123",
+  "user": {
+    "id": "usr_xyz",
+    "email": "user@example.com",
+    "email_verified": true,
+    "auth_method": "password",
+    "metadata": {}
   },
-  "custom_claims": {}
+  "context": {
+    "ip": "1.2.3.4",
+    "user_agent": "...",
+    "device_fingerprint": "fp_...",
+    "geo": { "country": "TR", "city": "Istanbul" },
+    "risk_score": 0.15
+  },
+  "tenant": {
+    "id": "tenant_abc",
+    "name": "MyApp"
+  }
 }
 ```
 
-### 5.2 Refresh Token (Opaque)
-
-- **Format:** Opaque string (256-bit cryptographically random)
-- **Storage:** Server-side (hashed with SHA-256)
-- **Lifetime:** 30 days (configurable)
-- **Rotation:** On every use — new refresh token issued, old one invalidated
-- **Family-based revocation:** If a revoked refresh token is reused, the entire token family (all descendants) is revoked immediately — indicates token theft
-- **Reuse detection window:** 10-second grace period for concurrent requests
-
-### 5.3 DPoP (Demonstration of Proof-of-Possession)
-
-Required for financial-grade operations. Optional for standard auth.
-
-**DPoP Proof JWT:**
+**Beklenen response:**
 ```json
 {
-  "typ": "dpop+jwt",
-  "alg": "ES256",
-  "jwk": { "kty": "EC", "crv": "P-256", "x": "...", "y": "..." }
-}
-{
-  "htu": "https://auth.example.com/token",
-  "htm": "POST",
-  "jti": "unique-per-request",
-  "iat": 1700000000
+  "verdict": "allow",
+  "metadata": { "db_user_id": "123" },
+  "custom_claims": { "role": "admin" }
 }
 ```
 
-**Flow:**
-1. Client generates ephemeral ES256 key pair
-2. Client creates DPoP proof JWT signed with private key
-3. Auth server validates proof, binds access token to public key via `cnf.jkt` claim
-4. Every subsequent API request includes new DPoP proof + access token
-5. Resource server validates: proof signature, `cnf.jkt` match, `jti` uniqueness, `iat` freshness
-
-### 5.4 JWKS Endpoint
-
-- `GET /.well-known/jwks.json`
-- Always contains at least 2 keys during rotation (active + previous)
-- Each key identified by `kid`
-- Cache-Control headers control client refresh frequency
-- **Rotation procedure (Zalando pattern):**
-  1. Generate new key pair
-  2. Publish new public key to JWKS (both old + new listed)
-  3. Grace period (configurable, default 24 hours)
-  4. New key becomes active signer
-  5. Old key stops signing but remains in JWKS
-  6. Remove old key after: retirement_time + max_token_lifetime + buffer
-
-### 5.5 OpenID Connect Discovery
-
-- `GET /.well-known/openid-configuration`
-- Compliant with OpenID Connect Discovery 1.0
-- Includes all required metadata: issuer, authorization_endpoint, token_endpoint, userinfo_endpoint, jwks_uri, supported scopes, response types, grant types, signing algorithms
-
----
-
-## 6. Security Requirements (All Certifications Combined)
-
-### 6.1 Password Policy
-
-| Requirement | Standard | Value |
-|-------------|----------|-------|
-| Minimum length | PCI DSS v4.0 (8.3.5) | 12 characters |
-| Maximum length | NIST 800-63B | 64 characters (no truncation) |
-| Complexity | PCI DSS v4.0 (8.3.5) | Numeric + alphabetic required |
-| History | PCI DSS v4.0 (8.3.7) | Last 4 passwords cannot be reused |
-| Compromised check | NIST 800-63B | Check against breached password database (HaveIBeenPwned k-anonymity API) |
-| Hashing | NIST 800-63B, OWASP | Argon2id: m=64MB, t=3, p=1, ~300ms target |
-| Salt | All standards | 16+ bytes, unique per password, cryptographically random |
-| Pepper | SOC 2, best practice | HMAC-SHA256 applied before hashing, stored in HSM/KMS |
-| Lockout threshold | PCI DSS v4.0 (8.3.4) | Max 10 failed attempts |
-| Lockout duration | PCI DSS v4.0 (8.3.4) | Minimum 30 minutes |
-| Constant-time comparison | NIST, timing attack prevention | `crypto.timingSafeEqual` for all credential checks |
-| Rotation | PCI DSS v4.0 (8.3.6) | 90-day rotation OR dynamic risk-based analysis (v4.0 alternative) |
-
-### 6.2 MFA Requirements
-
-| Requirement | Standard | Value |
-|-------------|----------|-------|
-| Admin access | SOC 2, PCI DSS (8.4.1) | MFA mandatory |
-| CDE access | PCI DSS (8.4.2) | MFA mandatory |
-| Financial operations | PSD2 SCA | Two independent factors mandatory |
-| TOTP | NIST AAL2 | RFC 6238, 6-digit, 30-second window, 1-step drift tolerance |
-| WebAuthn/FIDO2 | NIST AAL3, FIDO2 cert | ES256 mandatory, packed + none attestation |
-| SMS OTP | NIST 800-63B | Restricted authenticator — fallback only, user warned of risk |
-| MFA bypass | PCI DSS (8.5.1) | Prohibited unless management-approved exception with time limit |
-| Failed MFA attempts | PSD2 RTS | Max 5 before lockout |
-| Replay prevention | PCI DSS, NIST | Each OTP/challenge single-use |
-| Factor independence | PSD2 | Compromise of one factor must not compromise another |
-
-### 6.3 Session Management
-
-| Requirement | Standard | Value |
-|-------------|----------|-------|
-| Idle timeout (high security) | PCI DSS (8.2.8), NIST AAL3 | 15 minutes |
-| Idle timeout (standard) | NIST AAL2 | 30 minutes |
-| Absolute timeout | NIST 800-63B | 12 hours maximum |
-| Auth code lifetime | PSD2 RTS | 5 minutes maximum |
-| Session regeneration | OWASP | After privilege escalation (MFA completion, role change) |
-| Concurrent sessions | SOC 2, best practice | Configurable limit per user |
-| Session binding | NIST 800-63B | 64+ bits entropy for session secrets |
-| TLS requirement | NIST 800-63B | All sessions over authenticated protected channels |
-
-### 6.4 Encryption
-
-| Requirement | Standard | Value |
-|-------------|----------|-------|
-| In transit | PCI DSS, SOC 2, ISO 27001 | TLS 1.2 minimum, TLS 1.3 preferred. SSLv3/TLS1.0/1.1 disabled |
-| At rest | PCI DSS, SOC 2 | AES-256-GCM with envelope encryption (KEK + DEK) |
-| Asymmetric keys | PCI DSS | RSA 2048+ or ECC 256+ |
-| Key storage | SOC 2, PCI DSS | HSM or Cloud KMS (HSM-backed) |
-| Key rotation | PCI DSS, SOC 2 | 90 days for JWT signing, annual for encryption keys |
-| Split knowledge | PCI DSS (3.6.6) | Master key ceremony with dual control |
-| Random generation | NIST | `crypto.randomBytes()` — 128-bit minimum for tokens, 256-bit for keys |
-
-### 6.5 Rate Limiting & Anti-Abuse
-
-| Control | Configuration |
-|---------|---------------|
-| Login attempts | 10/minute per IP, 5/minute per account |
-| OTP requests | 3 per 15 minutes per account |
-| OTP verification | 5 attempts per OTP code |
-| Password reset | 3 per hour per account |
-| Registration | 5 per hour per IP |
-| Token refresh | 30/minute per session |
-| API (general) | Configurable per endpoint, per tenant |
-| Algorithm | Sliding window counter (Redis sorted sets, Lua script for atomicity) |
-
-**Anti-abuse detection:**
-- Impossible travel: Haversine distance / time > 500mph threshold → step-up auth
-- Device fingerprint drift: Flag sessions where device characteristics change mid-session
-- Credential stuffing: Detect high-volume distributed login attempts across accounts
-- Bot detection: Challenge suspicious patterns (CAPTCHA integration point)
-
-### 6.6 Device Attestation & Binding
-
-#### Android (Google Play Integrity API)
-- Standard request with `requestHash` for tamper protection
-- Server decrypts verdict via Google API
-- Required verdict for financial operations: `MEETS_DEVICE_INTEGRITY` or `MEETS_STRONG_INTEGRITY`
-- `MEETS_VIRTUAL_INTEGRITY` (emulator) → deny financial operations
-- Empty verdict (root/hook) → deny all sensitive operations
-
-#### iOS (Apple App Attest)
-- Secure Enclave generates ECDSA P-256 key pair
-- 9-step server verification of attestation object
-- Subsequent requests signed with Secure Enclave private key
-- Sign counter validation for clone detection
-
-#### Device Binding Flow
-1. User authenticates (email + MFA)
-2. Device generates key pair in hardware enclave (iOS Secure Enclave / Android Keystore with StrongBox)
-3. Platform attestation proves key was generated in real hardware
-4. Public key + device metadata stored on server, bound to user
-5. Every subsequent sensitive request signed with device private key
-6. Server verifies signature + device attestation status
-
-### 6.7 Audit Logging
-
-| Requirement | Standard | Implementation |
-|-------------|----------|----------------|
-| Coverage | SOC 2 (CC7.x), ISO 27001 (A.8.15) | All auth events logged |
-| Format | SOC 2 auditor expectation | Structured JSON, UTC timestamps |
-| Integrity | SOC 2 | Cryptographic hash chaining (SHA-256) — tamper-evident |
-| Retention | SOC 2 | Minimum 1 year, 90 days searchable |
-| Attribution | PCI DSS, SOC 2 | Every log entry tied to unique user ID |
-| Alerting | SOC 2 (CC7.x), ISO 27001 (A.8.16) | Real-time alerts for brute force, impossible travel, credential stuffing, privilege escalation |
-| PII masking | ISO 27001 (A.8.11), GDPR | Non-production environments use masked PII |
-| Admin actions | PCI DSS, SOC 2 | Separate admin audit trail |
-| Immutability | SOC 2 | Write-once storage or cryptographic chaining |
-
-**Log entry structure:**
-```json
-{
-  "event_id": "UUIDv7 (time-sortable)",
-  "trace_id": "request correlation ID",
-  "timestamp_utc": "ISO 8601",
-  "event_type": "AUTH_LOGIN_SUCCESS",
-  "actor": {
-    "user_id": "pseudonymized if GDPR applies",
-    "ip": "hashed or encrypted",
-    "device_fingerprint": "hash",
-    "user_agent": "truncated"
-  },
-  "target": {
-    "resource": "session",
-    "resource_id": "sess_xxxx"
-  },
-  "result": "success | failure",
-  "risk_signals": {
-    "impossible_travel": false,
-    "new_device": true,
-    "tor_exit": false
-  },
-  "prev_hash": "SHA-256 of previous log entry",
-  "event_hash": "SHA-256(prev_hash + canonical(event_data))"
-}
-```
-
-**GDPR Right to Erasure vs Audit Integrity — Solution:**
-
-Cryptographic erasure: PII fields encrypted per-user with AES-256-GCM using per-user keys. On erasure request, delete the user's encryption key. Log chain stays intact but PII becomes permanently unreadable. GDPR Art. 17(3) also provides legal basis exception for "compliance with legal obligation."
-
-### 6.8 GDPR Compliance
-
-| Requirement | Article | Implementation |
-|-------------|---------|----------------|
-| Data minimization | Art. 5 | Collect only email + password hash. No unnecessary PII |
-| Right to erasure | Art. 17 | User deletion endpoint + cryptographic erasure in logs |
-| Data portability | Art. 20 | JSON export endpoint for all user data |
-| Consent management | Art. 6/7 | Granular consent recording per purpose |
-| Breach notification | Art. 33 | 72-hour notification to supervisory authority |
-| DPIA | Art. 35 | Completed before deployment |
-| Privacy by design | Art. 25 | Default settings = most privacy-protective |
-| Pseudonymization | Art. 25 | Pseudonymized identifiers in logs |
-| International transfers | Chapter V | Standard Contractual Clauses or adequacy decisions |
-
----
-
-## 7. SDK Design
-
-### 7.1 Client SDK (`@authserver/client`)
-
-Platform: Web (Browser) + React Native + Flutter + iOS + Android
-
-```typescript
-// Initialization
-const auth = createAuthClient({
-  url: 'https://auth.example.com',
-  apiKey: 'pk_live_xxxx',
-  // Optional
-  persistence: 'localStorage' | 'sessionStorage' | 'cookie' | 'memory',
-  autoRefresh: true,
-});
-
-// --- Authentication ---
-auth.signUp({ email, password })
-auth.signIn({ email, password })
-auth.signInWithOtp({ email })
-auth.signInWithOtp({ phone })
-auth.verifyOtp({ email, code })
-auth.signInWithMagicLink({ email })
-auth.verifyMagicLink({ token })
-auth.signInWithOAuth({ provider: 'google', redirectTo: '...' })
-auth.signInWithCredential({ provider: 'google', idToken: '...' })  // Mobile native
-auth.signOut()
-auth.signOut({ allDevices: true })
-
-// --- Session ---
-auth.getSession()
-auth.getUser()
-auth.getAccessToken()  // auto-refreshes if expired
-auth.onAuthStateChange((event, session) => { ... })
-// Events: 'SIGNED_IN', 'SIGNED_OUT', 'TOKEN_REFRESHED', 'USER_UPDATED', 'MFA_REQUIRED'
-
-// --- Password ---
-auth.resetPassword({ email })
-auth.confirmPasswordReset({ token, newPassword })
-auth.changePassword({ currentPassword, newPassword })
-
-// --- MFA ---
-auth.mfa.enroll({ type: 'totp' })       // Returns QR code URI
-auth.mfa.enroll({ type: 'webauthn' })    // Triggers WebAuthn registration
-auth.mfa.challenge({ type: 'totp' })
-auth.mfa.verify({ type: 'totp', code: '123456' })
-auth.mfa.verify({ type: 'webauthn' })    // Triggers WebAuthn assertion
-auth.mfa.listFactors()
-auth.mfa.unenroll({ factorId })
-
-// --- Passkeys ---
-auth.passkey.register()
-auth.passkey.authenticate()
-auth.passkey.list()
-auth.passkey.revoke({ credentialId })
-
-// --- Device ---
-auth.device.register()           // Triggers platform attestation + key generation
-auth.device.getAttestation()     // Returns current device attestation status
-auth.device.listDevices()
-
-// --- Transaction Approval (PSD2 SCA) ---
-auth.transaction.approve({
-  transactionId: 'txn_xxxx',
-  amount: 150.00,
-  currency: 'EUR',
-  payee: 'Merchant Name',
-})
-// Triggers biometric/PIN → device signs challenge → returns approval
-
-// --- User Profile ---
-auth.updateUser({ displayName, avatar, metadata })
-auth.deleteAccount()
-auth.exportData()  // GDPR data portability
-```
-
-**Client SDK responsibilities:**
-- PKCE code_verifier/challenge generation for OAuth flows
-- Automatic token persistence (platform-appropriate storage)
-- Automatic token refresh (background, before expiry)
-- DPoP proof generation (when financial-grade mode enabled)
-- Device attestation coordination
-- Observable auth state for reactive frameworks
-
-### 7.2 Server SDK (`@authserver/admin`)
-
-Platform: Node.js (NestJS, Express, Fastify, etc.)
-
-```typescript
-// Initialization
-const auth = createAuthAdmin({
-  url: 'https://auth.example.com',
-  serviceKey: 'sk_live_xxxx',
-});
-
-// --- Token Verification ---
-auth.verifyToken(jwt)                          // Returns decoded payload or throws
-auth.verifyToken(jwt, { audience: '...' })     // With audience check
-
-// --- User Management ---
-auth.admin.createUser({ email, password, metadata })
-auth.admin.getUser(userId)
-auth.admin.getUserByEmail(email)
-auth.admin.updateUser(userId, { metadata, email, role })
-auth.admin.deleteUser(userId)                  // Full GDPR erasure
-auth.admin.listUsers({ page, limit, filter })
-auth.admin.setCustomClaims(userId, { role: 'admin', tier: 'premium' })
-auth.admin.banUser(userId, { reason, until })
-auth.admin.unbanUser(userId)
-
-// --- Session Management ---
-auth.admin.listSessions(userId)
-auth.admin.revokeSession(sessionId)
-auth.admin.revokeAllSessions(userId)
-
-// --- Custom Tokens ---
-auth.admin.createCustomToken(userId, { claims, expiresIn })
-
-// --- Blocking Hooks ---
-auth.hooks.before('user.create', async (event) => {
-  // event.user — user data being created
-  // event.metadata — request metadata (IP, device, geo)
-  // event.provider — auth provider used
-  const myUser = await db.users.create({ authId: event.user.id, email: event.user.email });
-  return { allow: true, metadata: { internalUserId: myUser.id } };
-  // OR: return { allow: false, reason: 'Registration disabled' };
-});
-
-auth.hooks.before('login', async (event) => {
-  const banned = await db.bans.check(event.user.id);
-  if (banned) return { allow: false, reason: 'Account suspended' };
-  return { allow: true };
-});
-
-auth.hooks.before('transaction.approve', async (event) => {
-  const { amount, payee, currency, deviceSignature } = event;
-  const withinLimits = await checkTransactionLimits(event.user.id, amount);
-  return { allow: withinLimits };
-});
-
-// --- Non-Blocking Event Listeners ---
-auth.on('user.created', async (event) => {
-  await analytics.track('signup', event.user);
-  await crm.createContact(event.user);
-});
-
-auth.on('login.failed', async (event) => {
-  await securityMonitor.recordFailedLogin(event);
-});
-
-auth.on('transaction.approve.completed', async (event) => {
-  await ledger.recordApproval(event);
-});
-
-// --- Device Management ---
-auth.admin.listDevices(userId)
-auth.admin.revokeDevice(userId, deviceId)
-auth.admin.getDeviceAttestation(userId, deviceId)
-
-// --- Tenant Management (Multi-tenancy) ---
-const tenantAuth = auth.forTenant('tenant_xxxx');
-tenantAuth.admin.createUser(...)  // Scoped to tenant
-tenantAuth.admin.listUsers(...)   // Only returns tenant's users
-```
-
-### 7.3 SDK Design Principles
-
-1. **Two distinct SDKs:** Client (untrusted, user-scoped) and Admin (trusted, full-access, service-key authenticated)
-2. **Observable auth state:** `onAuthStateChange` for reactive UI frameworks
-3. **Automatic token lifecycle:** Client SDK handles persistence, refresh, retry transparently
-4. **Blocking hooks + non-blocking events:** Hooks control the pipeline, events inform
-5. **Configuration-first:** Single init with URL + key. Multi-tenancy via scoped instances
-6. **Type-safe:** Full TypeScript types, auto-generated from server OpenAPI spec
-7. **Minimal dependencies:** Core SDK has zero runtime dependencies beyond platform APIs
-8. **Tree-shakeable:** ESM modules, unused features don't increase bundle size
-
----
-
-## 8. Key Management
-
-### 8.1 Key Hierarchy
-
-```
-Root of Trust (HSM / Cloud KMS)
-├── Master KEK (Key Encryption Key)
-│   ├── JWT Signing Key (asymmetric, RS256 or EdDSA)
-│   ├── Refresh Token Encryption Key (AES-256-GCM)
-│   ├── Hook Signing Key (HMAC-SHA256)
-│   ├── Audit Log Signing Key (Ed25519)
-│   └── Per-User PII Encryption Keys (AES-256-GCM, envelope encrypted)
-└── Pepper Key (HMAC-SHA256 for password hashing)
-```
-
-### 8.2 Key Storage
-
-| Key | Storage | Rotation |
-|-----|---------|----------|
-| JWT signing (private) | HSM / Cloud KMS | 90 days |
-| JWT signing (public) | JWKS endpoint | Follows private key rotation |
-| Refresh token encryption | Cloud KMS (envelope) | Annually |
-| Hook signing (HMAC) | Cloud KMS | 180 days |
-| Audit log signing | HSM / Cloud KMS | Annually |
-| Password pepper | HSM / Cloud KMS (never exported) | Annually (with rehash migration) |
-| Per-user PII encryption | Database (DEK encrypted by KEK) | On KEK rotation, re-wrap DEKs |
-| DPoP client keys | Client device (TEE/SE) | Ephemeral (per-session) |
-| Device binding keys | Client device (TEE/SE) | Long-lived, revocable |
-
-### 8.3 Key Ceremony (PCI DSS Compliant)
-
-For master key generation:
-1. Secure facility, no unauthorized electronics
-2. Minimum 2 key custodians + 1 independent witness
-3. HSM generates master key internally (never exposed as plaintext)
-4. If split knowledge required: Shamir's Secret Sharing (3-of-5 quorum)
-5. Shares distributed on tamper-evident smart cards
-6. Each custodian stores share in separate physical safe
-7. All actions logged, witnessed, video recorded
-8. Post-ceremony: verify quorum reconstruction, destroy temporary materials
-9. Documentation archived for compliance
-
----
-
-## 9. Infrastructure Requirements
-
-### 9.1 Database
-
-- **Primary:** PostgreSQL 16+ (user data, sessions, credentials)
-- **Cache/Rate limiting:** Redis 7+ (token blacklist, rate counters, distributed locks)
-- **Audit logs:** Append-only store (PostgreSQL with write-only role, or dedicated log store)
-
-### 9.2 External Integrations
-
-| Integration | Purpose |
-|-------------|---------|
-| Cloud KMS (AWS KMS / GCP KMS / Azure Key Vault) | Key management, envelope encryption |
-| SMTP / Email provider | OTP, magic link, verification emails |
-| SMS provider (Twilio / equivalent) | SMS OTP (fallback) |
-| HaveIBeenPwned API (k-anonymity) | Compromised password checking |
-| Google Play Integrity API | Android device attestation |
-| Apple App Attest | iOS device attestation |
-| FIDO MDS v3 | WebAuthn authenticator metadata |
-| OAuth providers (Google, Apple, GitHub, etc.) | Social login |
-| Push notification service | Transaction approval challenges |
-
-### 9.3 Deployment
-
-- Container-based (Docker)
-- Horizontally scalable (stateless auth server, shared Redis + PostgreSQL)
-- Health check endpoints for orchestrator
-- Graceful shutdown with connection draining
-- Blue-green or canary deployment support
-
----
-
-## 10. Multi-Tenancy
-
-### 10.1 Isolation Model
-
-Full tenant isolation (Firebase Identity Platform model):
-- Each tenant has its own user pool
-- Each tenant has its own provider configuration
-- Each tenant has its own hook endpoints
-- Each tenant has its own rate limit quotas
-- JWT includes `tenant_id` claim
-
-### 10.2 Tenant Configuration
+veya:
 
 ```json
 {
-  "tenant_id": "tenant_xxxx",
-  "name": "Acme Corp",
-  "allowed_providers": ["email", "google", "apple"],
-  "password_policy": { "min_length": 12, "require_mfa": true },
-  "session_config": { "idle_timeout": 900, "absolute_timeout": 43200 },
-  "hooks": {
-    "before.user.create": "https://api.acme.com/auth/hooks/user-create",
-    "before.login": "https://api.acme.com/auth/hooks/login"
-  },
-  "hook_signing_key": "whsec_xxxx",
-  "branding": { "logo_url": "...", "primary_color": "#..." },
-  "rate_limits": { "login": 10, "signup": 5 },
-  "mfa_policy": "required | optional | disabled",
-  "dpop_required": false,
-  "device_attestation_required": false
+  "verdict": "deny",
+  "reason": "user_banned",
+  "message": "Account suspended"
 }
 ```
 
 ---
 
-## 11. OpenID Connect / OAuth 2.1 Compliance
+## 9. Risk Engine (Adaptive Authentication)
 
-### 11.1 Endpoints
+### 9.1 Risk Sinyalleri
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /.well-known/openid-configuration` | Discovery |
-| `GET /.well-known/jwks.json` | Public keys |
-| `POST /oauth/authorize` | Authorization (with PAR support) |
-| `POST /oauth/token` | Token exchange |
-| `GET /oauth/userinfo` | User claims |
-| `POST /oauth/revoke` | Token revocation |
-| `POST /oauth/introspect` | Token introspection |
-| `POST /oauth/par` | Pushed Authorization Request (FAPI) |
-| `POST /oauth/device` | Device Authorization Grant |
+| Sinyal | Kaynak | Agirlik |
+|--------|--------|---------|
+| Device fingerprint degisimi | Client SDK | Yuksek |
+| Impossible travel | IP geolocation | Yuksek |
+| IP reputation (VPN/Tor/proxy) | IP intelligence DB | Orta-Yuksek |
+| Basarisiz login gecmisi | Auth server DB | Orta |
+| Bilinmeyen cihaz | Device registry | Orta |
+| Olagan disi saat | Kullanici profili | Dusuk-Orta |
+| Request velocity | Rate limiter | Orta |
+| Bot skoru | Bot detection modulu | Yuksek |
+| Device attestation sonucu | Play Integrity / App Attest | Yuksek |
 
-### 11.2 Supported Grants
+### 9.2 Risk Skorlama
 
-- Authorization Code + PKCE (mandatory for all clients)
-- Refresh Token
-- Client Credentials (service-to-service)
-- Device Authorization (RFC 8628)
-- Token Exchange (RFC 8693)
+- 0.0 - 1.0 arasi numerik skor
+- Tum sinyaller agirlikli olarak birlestirilir
+- Skor blocking hook payload'unda `context.risk_score` olarak iletilir
+- Tenant'lar esik degerlerini yapilandirabilir
 
-### 11.3 FAPI 2.0 Security Profile
-
-When FAPI mode is enabled (per-tenant configurable):
-- PAR required (authorization request sent server-to-server)
-- PKCE required (S256 only)
-- DPoP or mTLS required for sender-constrained tokens
-- Response type: `code` only
-- Short token lifetimes (5 minutes for auth codes, 5-15 minutes for access tokens)
-- `s_hash` claim in ID token
-- Request objects signed (JAR — JWT-Secured Authorization Request)
-
----
-
-## 12. FIDO2 Server Certification Requirements
-
-### 12.1 Conformance Tests
-
-Must pass FIDO Alliance conformance test suite:
-- WebAuthn API compliance (create + get ceremony)
-- CBOR encoding/decoding
-- Signature verification (ES256 mandatory, RS256 and EdDSA recommended)
-- Challenge handling (16+ byte random, single-use)
-- Origin validation (rpId matching)
-- User presence (UP) and user verification (UV) flag checking
-- Counter validation and clone detection
-
-### 12.2 Attestation Formats
-
-| Format | Requirement |
-|--------|-------------|
-| Packed | Mandatory — self-attestation + full attestation with x5c chain |
-| None | Mandatory — privacy-preserving scenarios |
-| fido-u2f | Recommended — backward compatibility |
-| tpm | Recommended — Windows Hello |
-| android-key | Recommended — Android biometrics |
-| apple | Recommended — Apple platform authenticators |
-
-### 12.3 Metadata Service
-
-- FIDO MDS v3 integration for authenticator metadata
-- Status monitoring for compromised authenticator models
-- AAGUID-based policy enforcement (block/allow specific authenticator types)
-
----
-
-## 13. PSD2/PSD3 SCA Compliance
-
-### 13.1 Strong Customer Authentication
-
-- Two of three factors: knowledge + possession + inherence
-- Factors must be independent
-- Dynamic linking for payment transactions (amount + payee bound to auth code)
-- WYSIWYS (What You See Is What You Sign)
-- Max 5-minute auth code lifetime
-- Max 5 failed attempts
-- Max 5-minute session inactivity timeout
-
-### 13.2 Transaction Authorization Flow
-
-See section 4.6.
-
-### 13.3 Exemptions Engine
-
-Configurable exemptions per PSD2 RTS:
-- Low-value transactions (< EUR 30, cumulative limits)
-- Recurring transactions (same amount + payee after initial SCA)
-- Trusted beneficiaries (user-whitelisted)
-- Transaction Risk Analysis (TRA) based on fraud rates
-- Merchant-initiated transactions
-
----
-
-## 14. NIST 800-63B Authentication Assurance Levels
-
-### 14.1 AAL1 (Some Confidence)
-
-- Single-factor authentication
-- Password (min 8 chars, blocklist check) OR single-factor OTP
-- Reauthentication: 30 min idle OR 12 hours absolute
-- No MitM resistance required
-
-### 14.2 AAL2 (High Confidence)
-
-- Two different authentication factors
-- Password + TOTP, or password + WebAuthn, or multi-factor crypto device
-- SMS OTP allowed but restricted (user must be warned, alternative offered)
-- Reauthentication: 30 min idle OR 12 hours absolute
-- MitM resistance required
-- Authentication intent required (physical action)
-
-### 14.3 AAL3 (Very High Confidence)
-
-- Two factors, at least one hardware cryptographic device
-- WebAuthn hardware key + PIN/biometric, or hardware OTP + crypto device
-- Reauthentication: 15 min idle OR 12 hours absolute
-- MitM resistance required
-- Verifier impersonation resistance required (rpId binding — WebAuthn provides this)
-- Authentication intent required
-- Software-only authenticators DO NOT qualify
-
----
-
-## 15. Step-Up Authentication
-
-### 15.1 Konsept
-
-Kullanici giris yapmis durumda ama hassas bir islem icin ek dogrulama gerekiyor. Tam login degil, mevcut session uzerinde seviye yukseltme.
-
-### 15.2 ACR/AMR Claims
-
-- **ACR** (Authentication Context Class Reference): Token'daki guvenlik seviyesi. `aal1`, `aal2`, `aal3`
-- **AMR** (Authentication Methods References): Kullanilan yontemler. `["pwd", "otp"]`, `["pwd", "hwk"]`
-- Step-up sonrasi yeni token issued: daha yuksek ACR + guncel AMR
-
-### 15.3 Per-Endpoint Zorunluluk
-
-```
-GET  /profile          -> AAL1 yeterli
-POST /settings/email   -> AAL2 zorunlu (password degisikligi seviyesi)
-POST /transfer         -> AAL2 + MFA zorunlu
-POST /high-transfer    -> AAL3 + DPoP zorunlu (hardware key)
-```
-
-### 15.4 Step-Up Akisi
-
-1. Client hassas endpoint'e istek atar
-2. Server token'daki ACR'yi kontrol eder -> yetersiz
-3. Server 403 doner: `{ "error": "step_up_required", "required_acr": "aal2", "challenge_id": "ch_xxx" }`
-4. Client SDK step-up UI gosterir (TOTP veya passkey)
-5. Kullanici dogrulama yapar
-6. Server yeni token verir: `acr: "aal2"`, kisa omurlu (5-15dk)
-7. Client orijinal istegi yeni token ile tekrar atar
-
-### 15.5 Transaction-Specific Step-Up
-
-PSD2 SCA icin: step-up challenge'a transaction detaylari (tutar + alici) embed edilir. Imza bu detaylara spesifik. Tutar/alici degisirse imza gecersiz.
-
----
-
-## 16. Session Yonetimi (Detayli)
-
-### 16.1 Session Lifecycle
-
-```
-Login basarili
-  -> Session olusturulur (session_id, user_id, device_info, ip, created_at)
-  -> Access token (JWT, 30dk) + Refresh token (opaque, rotation) verilir
-  -> Idle timer baslar
-  -> Absolute timer baslar
-```
-
-### 16.2 Device Metadata Binding
-
-Her session'a baglanan bilgiler:
-- IP adresi
-- User-Agent
-- Device fingerprint hash (screen, timezone, WebGL, canvas, audio context, hardware concurrency)
-- Geo-location (ulke, sehir — IP-based)
-
-Degisiklik tespit edildiginde:
-- Minor (IP degisti ama ayni ulke): Log + devam
-- Major (device fingerprint degisti): Step-up auth tetikle
-- Critical (impossible travel): Session sonlandir + alert
-
-### 16.3 Trusted Device Registry
-
-- Kullanici "Bu cihazi hatirla" secerse → device token verilir
-- Sonraki girislerde MFA atlanir (trusted device token gecerli ise)
-- Device token: 256-bit random, SHA-256 hash saklanir, 30 gun gecerlilik
-- Max 5 trusted device per kullanici
-- Herhangi biri uzaktan revoke edilebilir
-
-### 16.4 Concurrent Session Management
-
-- Tenant yapilandirilabilir: max N session per kullanici
-- Limit asildiginda strateji: `deny_new` veya `revoke_oldest`
-- Kullanici tum aktif session'larini gorebilir (cihaz, konum, son aktivite)
-- Tek tikla herhangi bir session'i kapatabilir
-
-### 16.5 Session Anomaly Detection
-
-| Anomali | Tespit | Aksiyon |
-|---------|--------|---------|
-| Impossible travel | Haversine mesafe / zaman > 500mph | Session sonlandir + alert |
-| Device fingerprint drift | Ayni session'da cihaz ozellikleri degisti | Step-up auth |
-| IP degisimi (farkli ulke) | GeoIP lookup | Step-up auth |
-| Olagan disi saat | Kullanici profil pattern disinda | Risk score artir |
-| Ani aktivite artisi | Kisa surede cok islem | Rate limit + alert |
-
----
-
-## 17. Risk Engine (Detayli)
-
-### 17.1 Sinyal Tablosu
-
-| Sinyal | Kaynak | Agirlik | Hesaplama |
-|--------|--------|---------|-----------|
-| Device fingerprint degisimi | Client SDK | 0.4 | Onceki fingerprint ile Jaccard similarity |
-| Impossible travel | IP geolocation | 0.5 | Haversine distance / time delta |
-| IP reputation | IPinfo / MaxMind | 0.3 | VPN/Tor/proxy/hosting provider tespiti |
-| Basarisiz login gecmisi | Auth DB | 0.2 | Son 1 saatteki basarisiz deneme sayisi |
-| Bilinmeyen cihaz | Device registry | 0.2 | Kullanici icin ilk kez gorulme |
-| Olagan disi saat | Kullanici profili | 0.1 | Normal login saatleri disinda |
-| Request velocity | Rate limiter | 0.3 | Kisa surede cok fazla islem |
-| Bot skoru | Bot detection | 0.4 | PoW challenge sonucu |
-| Device attestation | Play Integrity / App Attest | 0.5 | Emulator / root / jailbreak tespiti |
-
-### 17.2 Skor Hesaplama
-
-```
-risk_score = sum(signal_weight * signal_value) / sum(all_weights)
-```
-
-Sonuc: 0.0 (guvenli) - 1.0 (yuksek risk)
-
-### 17.3 Risk-Based Aksiyonlar
+### 9.3 Risk-Based Aksiyonlar
 
 | Risk Skoru | Aksiyon |
 |------------|---------|
 | 0.0 - 0.3 | Allow (normal akis) |
-| 0.3 - 0.6 | Step-up auth (TOTP / email OTP) |
+| 0.3 - 0.6 | Step-up auth (MFA challenge) |
 | 0.6 - 0.8 | Siki step-up (hardware key / biometric zorunlu) |
 | 0.8 - 1.0 | Block + kullaniciya bildirim + admin alert |
 
-Esik degerleri tenant bazinda yapilandirilabilir.
+### 9.4 Pluggable Connector'lar
 
-### 17.4 Pluggable Connectors
-
-- Fingerprint.com (device intelligence)
+Ucuncu parti risk sinyali entegrasyonlari:
+- Fingerprint (device intelligence)
 - IPinfo / MaxMind (IP geolocation & reputation)
 - Arkose Labs (bot detection)
 - BreachSense / SpyCloud (credential monitoring)
 
-Connector interface'i ile ucuncu parti servisler entegre edilebilir.
-
 ---
 
-## 18. Bot Detection (Detayli)
+## 10. Bot Detection
 
-### 18.1 Built-in: Proof-of-Work Challenge
+### 10.1 Built-in: Proof-of-Work Challenge
 
 - Self-hostable, privacy-preserving (ALTCHA modeli)
-- Client cihazin CPU'su kriptografik puzzle cozer
-- Insan dogrulama gerektirmez
-- GDPR uyumlu (kullanici tracking yok)
-- Zorluk seviyesi dinamik: risk skoru yukseldikce puzzle zorlasir
-- Mobilde de calisir (lightweight puzzle)
+- Client kriptografik puzzle cozer
+- Insan dogrulama gerektirmez, cihaz CPU'su ile dogrulama
+- GDPR uyumlu (tracking yok)
 
-### 18.2 Challenge Akisi
-
-```
-1. Client login formu gonderir
-2. Server risk engine'den sinyal alir -> bot suphesi var
-3. Server PoW challenge gonderir: { algorithm: "SHA-256", difficulty: 20, data: "random_prefix" }
-4. Client SHA-256(data + nonce) hesaplar, ilk N bit'i 0 olan nonce bulana kadar dener
-5. Client cozumu gonderir: { nonce: 12345 }
-6. Server dogrular (tek hash hesabi, ucuz)
-7. Gecerli ise login devam eder
-```
-
-### 18.3 Pluggable Entegrasyonlar
+### 10.2 Pluggable Entegrasyonlar
 
 - Cloudflare Turnstile
 - hCaptcha
 - Arkose Labs
 - GeeTest
 
-### 18.4 Credential Stuffing Tespiti
+### 10.3 Behavioral Signals
 
-- Cok sayida farkli hesaba ayni IP/fingerprint'ten login denemesi
-- Dusuk basari orani + yuksek hacim = credential stuffing
-- Otomatik IP/fingerprint bloklama
-- Risk engine'e yuksek agirlikli sinyal
+- Request timing analizi
+- Mouse/touch pattern analizi (client SDK uzerinden)
+- Keystroke dynamics (opsiyonel, risk engine'e sinyal olarak)
 
 ---
 
-## 19. Account Recovery (Detayli)
+## 11. Account Recovery
 
-### 19.1 Recovery Codes
+### 11.1 Recovery Yontemleri
 
-- Kayit sirasinda 10 adet tek kullanimlik kod uretilir
-- Her kod: 256-bit `crypto.randomBytes()`, base32 encoded (8 karakter gruplar)
-- Argon2id ile hash'lenip saklanir
-- Kullanici bunlari guvenli bir yere yazar
-- Her kod tek kullanimlik — kullanildiktan sonra silinir
-- Yeni kodlar uretildiginde eskiler gecersiz olur
+1. **Recovery codes**: Kayit sirasinda 10 adet tek kullanimlik kod uretilir (256-bit random, base32 encoded). Argon2id ile hash'lenip saklanir.
 
-### 19.2 Trusted Contacts (N-of-M)
+2. **Trusted contacts** (N-of-M): Kullanici 3-5 guvenilir kisi belirler. Recovery icin M kisi (orn 2/3) onay vermeli. Google Recovery Contacts modeli.
 
-- Kullanici 3-5 guvenilir kisi belirler
-- Recovery icin M kisi onay vermeli (ornek: 2/3 veya 3/5)
-- Her contact'a unique verification token gonderilir
-- Contact onay verdiginde token auth server'a iletilir
-- Yeterli onay toplandiktan sonra recovery baslar
-- Google Recovery Contacts modeli
+3. **Recovery passkey**: Ikinci bir cihaza kayitli yedek passkey. "Recovery" flag'i ile isaretlenir.
 
-### 19.3 Recovery Passkey
+4. **Admin-assisted recovery**: Admin panelinden identity verification sonrasi manual recovery. Tam audit trail ile loglanir.
 
-- Ikinci cihaza kayitli yedek passkey
-- `recovery: true` flag'i ile isaretlenir
-- Sadece recovery islemlerinde kullanilabilir, normal login icin degil
-- Kullanici bilgilendirilir: "Yedek cihazinizi guvenli tutun"
+5. **Email recovery**: Dogrulanmis email adresine magic link. Sadece dusuk guvenlik seviyesindeki hesaplar icin.
 
-### 19.4 Admin-Assisted Recovery
+### 11.2 Recovery Kurallari
 
-- Admin panelinden identity verification sonrasi manual recovery
-- Admin, kullanicinin kimligini harici yontemlerle dogrular (telefon, ID, vb.)
-- Tam audit trail ile loglanir
-- Yeni gecici sifre veya magic link gonderilir
-
-### 19.5 Recovery Kurallari
-
-- Recovery islemi ASLA MFA'yi bypass edemez (esdeger guvenlik seviyesi gerekli)
+- Recovery islemi asla MFA'yi es gecmeden tamamlanamaz (esdeger guvenlik seviyesi gerekli)
 - Tum recovery islemleri audit log'a yazilir
 - Recovery sonrasi tum mevcut session'lar sonlandirilir
 - Recovery sonrasi yeni MFA enrollment zorunlu
-- Recovery arasinda minimum bekleme suresi (brute force onleme)
 
 ---
 
-## 20. Organization & Team Management (B2B Detayli)
+## 12. Organization & Team Management (B2B)
 
-### 20.1 Organization Yapisi
+### 12.1 Organization Yapisi
 
 ```
 Organization
-  |-- Settings (auth yontemleri, MFA politikasi, session timeout)
-  |-- Members
-  |     |-- Owner (tam yetki, tek kisi)
-  |     |-- Admin (member yonetimi, konfigurasyon)
-  |     |-- Member (standart erisim)
-  |     |-- Custom roller (max 20 per org)
+  |-- Members (Owner > Admin > Member + custom roller)
   |-- SSO Connections (SAML / OIDC per org)
   |-- API Keys (org-scoped)
   |-- Audit Logs (org-scoped)
-  |-- SCIM Endpoint
+  |-- Settings (auth yontemleri, MFA politikasi, session timeout)
 ```
 
-### 20.2 Roller & Izinler
+### 12.2 Ozellikler
 
-- Hiyerarsik: Owner > Admin > Member
-- Custom roller: Izin koleksiyonlari. Ornek: `billing_admin` = `invoices.read` + `invoices.write` + `payment_methods.manage`
-- Izinler string-based: `resource.action` formati
-- Roller JWT custom claims'e eklenir: `{ "org_id": "org_xxx", "role": "admin", "permissions": [...] }`
-
-### 20.3 Davet Sistemi
-
-1. Admin davet gonderir (email + rol)
-2. Davet token uretilir (256-bit, 7 gun gecerli)
-3. Davet edilen kisi linke tiklar
-4. Mevcut hesabi varsa → org'a eklenir
-5. Hesabi yoksa → signup + org'a ekleme
-6. Davet tek kullanimlik
-
-### 20.4 Domain Verification
-
-- Org admin `@acme.com` domain'ini dogrular (DNS TXT record veya email verification)
-- Dogrulama sonrasi: `@acme.com` email'li tum yeni kullanicilar otomatik org'a eklenir
-- Opsiyonel: Admin onayi zorunlu (auto-add vs approval-required)
-
-### 20.5 Enterprise SSO per Org
-
-- Her org kendi SAML IdP'sini veya OIDC provider'ini baglayabilir
-- Self-service setup UI: SAML metadata upload veya OIDC discovery URL
-- JIT (Just-in-Time) provisioning: IdP'den gelen kullanici otomatik olusturulur
-- Per-org MFA politikasi: Org kendi MFA zorunlulugunu belirler
-
-### 20.6 SCIM 2.0
-
-- Per-org SCIM endpoint: `/scim/v2/Users`, `/scim/v2/Groups`
-- Desteklenen islemler: Create, Read, Update, Delete, Search, Bulk
-- Harici IdP (Okta, Azure AD) kullanici eklediginde/cikarttiginda otomatik sync
-- SCIM bearer token per org
+- **Roller & Izinler**: Hiyerarsik roller (Owner > Admin > Member) + max 20 custom rol per org. Izinler spesifik aksiyonlar, roller izin koleksiyonlari.
+- **Davet sistemi**: Email ile davet + rol atama. Mevcut ve yeni kullanicilar icin calisir. Davet token'i 7 gun gecerli.
+- **Domain verification**: Email domain dogrulama ile otomatik org'a ekleme (admin onayi opsiyonel)
+- **Enterprise SSO per org**: SAML 2.0 veya OIDC baglantilari org bazinda yapilandirilir. Self-service SSO kurulum paneli.
+- **SCIM 2.0 provisioning**: Harici IdP'lerden otomatik kullanici ekleme/cikarma. Per-org SCIM endpoint.
+- **Delegated admin**: Org admin'leri kendi kullanicilarini yonetir, platform seviyesinde erisim gerekmez.
+- **Org-level audit logs**: Her org kendi audit log'larini gorebilir.
 
 ---
 
-## 21. API Key, M2M & PAT (Detayli)
+## 13. API Key & M2M Authentication
 
-### 21.1 API Keys
+### 13.1 API Key'ler
 
 - Kullanici veya organization-scoped
-- Uzun omurlu opaque token
-- Granular permission scope'lari: `read:users`, `write:users`, `admin:*`
-- SHA-256 hash olarak saklanir (plaintext DB'de yok)
-- Olusturma sirasinda tek seferlik gosterilir
-- Revoke edilebilir, yeni key uretilir
-- Rate limit per key (ayri konfigurasyon)
-- Son kullanim tarihi + toplam request sayisi gorunur
+- Uzun omurlu opaque token'lar
+- Granular permission scope'lari (ornek: `read:users`, `write:users`)
+- Olusturma, listeleme, iptal etme UI/API
+- SHA-256 hash olarak saklanir (plaintext saklanmaz)
+- Rate limit per key
 
-### 21.2 M2M (Machine-to-Machine) Tokens
+### 13.2 M2M (Machine-to-Machine) Tokens
 
 - OAuth 2.0 client_credentials flow
-- Client ID + Client Secret → kisa omurlu JWT access token
-- Organization-scoped: Token'da `org_id` claim'i
-- Scope-based erisim kontrolu
-- Kullanim: Microservice'ler arasi iletisim, cron job'lar, backend entegrasyonlar
+- Client ID + Client Secret -> kisa omurlu JWT
+- Organization-scoped
+- `org_id` claim'i icinde
 
-### 21.3 Personal Access Tokens (PATs)
+### 13.3 Personal Access Tokens (PATs)
 
 - Kullanici tarafindan olusturulan programmatic erisim token'lari
+- Scope'lu, sureli
 - GitHub PAT modeli
-- Scope secimi: Kullanici hangi izinleri verecegini secer
-- Sure limiti: Kullanici expiry belirler (max 1 yil)
-- Revoke edilebilir
-- Kullanicinin kendi yetkileri ile sinirli (escalation yok)
 
 ---
 
-## 22. Admin Impersonation (Detayli)
+## 14. Admin Impersonation
 
-### 22.1 Mekanizma
+### 14.1 Mekanizma
 
 - RFC 8693 Token Exchange ile impersonation token uretilir
-- Token claims:
-  ```json
-  {
-    "sub": "usr_target",
-    "act": { "sub": "admin_123" },
-    "scope": "impersonation",
-    "exp": "1 saat max"
-  }
-  ```
-- `act` claim'i hangi admin'in impersonate ettigini belirtir
+- Token'da hem `actor` (admin) hem `subject` (hedef kullanici) claim'leri bulunur
+- Tum aksiyonlar audit log'da `impersonated: true` flag'i ile isaretlenir
 
-### 22.2 Audit Trail
+### 14.2 Kurallar
 
-- `admin.impersonate.start` event'i: admin_id, target_user_id, timestamp, reason
-- Impersonation suresince yapilan TUM islemler `impersonated: true` flag'i ile loglanir
-- `admin.impersonate.end` event'i: duration, actions_taken_count
-
-### 22.3 Kurallar
-
-- Sadece `impersonate` iznine sahip admin'ler yapabilir
-- Max sure: tenant yapilandirilabilir (varsayilan 1 saat)
-- Impersonate edilen kullaniciya bildirim gonderilir (tenant ayari)
-- Impersonation sirasinda YASAKLI islemler:
-  - Sifre degistirme
-  - MFA ekleme/cikarme
-  - Email degistirme
-  - Hesap silme
-  - Baska kullaniciyi impersonate etme
+- Sadece belirli izne sahip admin'ler impersonate edebilir
+- Max sure: yapilandirilabilir (varsayilan 1 saat)
+- Impersonate edilen kullaniciya bildirim (opsiyonel, tenant yapilandirilabilir)
+- Impersonation session'inda hassas islemler (sifre degistirme, MFA degisikligi) yapilamaz
 
 ---
 
-## 23. Webhook & Event Streaming (Detayli)
+## 15. Multi-Tenancy
 
-### 23.1 Webhook Subscription
+### 15.1 Izolasyon Modeli
 
-- Tenant dashboard'dan veya API ile endpoint kaydi
-- Event bazinda subscribe: Sadece ilgilendigi event'leri sec
-- Fan-out: Ayni event birden fazla endpoint'e gonderilebilir
-- Per-endpoint HMAC secret (otomatik uretilir)
+Her tenant icin tam izolasyon:
+- Ayri user pool
+- Ayri auth yontemi konfigurasyonu
+- Ayri SSO baglantilari
+- Ayri rate limit'ler ve kotalar
+- Ayri audit log'lar
+- Ayri webhook endpoint'leri
+- Ayri branding (logo, renkler, email template'leri)
 
-### 23.2 Webhook Payload
+### 15.2 Custom Domain
+
+- Tenant basina ozel domain: `auth.myapp.com`
+- Otomatik TLS sertifikasi (Let's Encrypt / ACME)
+- Wildcard sertifika destegi
+
+### 15.3 White-Label
+
+- Login/register sayfalari tenant branding'i ile
+- Email template'leri tenant'a ozel
+- SMS icerikleri tenant'a ozel
+- Hata mesajlari tenant diline gore
+
+---
+
+## 16. Audit Logging
+
+### 16.1 Loglanan Olaylar
+
+**Authentication:**
+- `auth.login.success`, `auth.login.failure`
+- `auth.logout`
+- `auth.signup`
+- `auth.password.change`, `auth.password.reset.request`, `auth.password.reset.complete`
+
+**MFA:**
+- `mfa.enroll`, `mfa.challenge`, `mfa.verify.success`, `mfa.verify.failure`
+- `mfa.remove`
+
+**Session:**
+- `session.create`, `session.refresh`, `session.revoke`
+- `session.anomaly`
+
+**Token:**
+- `token.issue`, `token.refresh`, `token.revoke`
+
+**Account:**
+- `user.create`, `user.update`, `user.delete`
+- `user.email.verify`, `user.phone.verify`
+- `social.link`, `social.unlink`
+- `recovery.initiate`, `recovery.complete`
+
+**Admin:**
+- `admin.user.create`, `admin.user.update`, `admin.user.delete`
+- `admin.impersonate.start`, `admin.impersonate.end`
+- `admin.config.change`
+- `admin.key.rotate`
+
+**Transaction:**
+- `transaction.approve.request`, `transaction.approve.success`, `transaction.approve.failure`
+
+### 16.2 Log Formati
 
 ```json
 {
-  "webhook_id": "wh_evt_xxxxx",
-  "timestamp": "2026-03-30T12:00:00Z",
-  "event_type": "user.created",
-  "data": {
-    "user_id": "usr_xxx",
-    "email": "user@example.com",
-    "auth_method": "email_password",
-    "tenant_id": "tenant_xxx"
-  }
+  "event_id": "<UUIDv7>",
+  "trace_id": "<request correlation ID>",
+  "timestamp_ms": 1711800000000,
+  "event_type": "auth.login.success",
+  "actor": {
+    "id": "usr_xyz",
+    "type": "user",
+    "ip": "1.2.3.4",
+    "user_agent": "...",
+    "device_fingerprint": "fp_...",
+    "geo": { "country": "TR", "city": "Istanbul" }
+  },
+  "target": {
+    "type": "session",
+    "id": "sess_abc"
+  },
+  "result": "success",
+  "auth_method": "password+totp",
+  "risk_score": 0.12,
+  "tenant_id": "tenant_abc",
+  "metadata": {},
+  "prev_hash": "<SHA-256 of previous event>",
+  "event_hash": "<SHA-256 of prev_hash + canonical(event_core)>"
 }
 ```
 
-Headers:
+### 16.3 Tamper-Evident (Kurcalamaya Dayanikli) Log Zinciri
+
+- SHA-256 hash chain: Her event onceki event'in hash'ini icerir
+- Herhangi bir log degistirilirse zincir kirilir -> tespit edilir
+- Canonical JSON serialization (key'ler alfabetik sirali)
+- Dogrulama: O(n) — tum zincir basla tekrar hesapla
+
+### 16.4 GDPR Uyumu (Cryptographic Erasure)
+
+Kisisel veri alanlari per-user encryption key ile sifrelenir:
 ```
-webhook-id: wh_evt_xxxxx
-webhook-timestamp: 1711800000
-webhook-signature: v1,HMAC-SHA256(secret, webhook_id.webhook_timestamp.body)
-```
-
-### 23.3 Retry Politikasi
-
-| Deneme | Bekleme | Toplam |
-|--------|---------|--------|
-| 1 | Aninda | 0 |
-| 2 | 1 dakika | 1dk |
-| 3 | 5 dakika | 6dk |
-| 4 | 30 dakika | 36dk |
-| 5 | 2 saat | 2sa 36dk |
-| 6 (son) | 24 saat | ~26sa |
-
-- 2xx → basarili, retry yok
-- 4xx → Dead Letter Queue, retry yok (client hatasi)
-- 5xx / timeout → retry
-
-### 23.4 Dead Letter Queue (DLQ)
-
-- Tum retry'lar basarisiz → DLQ'ya gider
-- Dashboard'dan goruntulenebilir: event, endpoint, hata, deneme sayisi
-- Manuel "Retry" butonu
-- Toplu replay secenegi
-- DLQ retention: 30 gun
-
-### 23.5 Event Replay
-
-- Belirli bir timestamp'ten itibaren tum event'leri tekrar gonderme
-- Endpoint degisikligi sonrasi veya downtime recovery icin
-- Rate limited: Max 100 event/saniye replay hizi
-
----
-
-## 24. Breach Detection (Detayli)
-
-### 24.1 HaveIBeenPwned k-Anonymity
-
-- Kayit ve sifre degisikliginde otomatik kontrol
-- Sifrenin SHA-1 hash'inin ilk 5 karakteri gonderilir
-- HIBP eslesen tum hash'leri doner
-- Server kendi tarafinda tam eslemeyi kontrol eder
-- Sifre ASLA HIBP'ye gonderilmez
-- NIST 800-63B bunu zorunlu kiliyor
-
-### 24.2 Credential Monitoring
-
-- Pluggable dark web monitoring: BreachSense, SpyCloud, Enzoic
-- Periyodik kontrol: Kullanici email'leri yeni breach'lerde var mi?
-- Etkilenen kullanicilar icin:
-  - Zorunlu sifre degisikligi
-  - Tum session'lar sonlandirilir
-  - Kullaniciya bildirim email'i
-  - Admin'e alert
-
-### 24.3 Credential Stuffing Tespiti
-
-- Pattern: Cok sayida farkli hesaba ayni IP/fingerprint'ten login denemesi
-- Dusuk basari orani (<%5) + yuksek hacim (>100/saat) = credential stuffing
-- Otomatik IP/fingerprint bloklama
-- Risk engine'e yuksek agirlikli sinyal olarak iletilir
-
----
-
-## 25. Compliance Automation (Detayli)
-
-### 25.1 GDPR Data Subject Request Endpoints
-
-```
-GET    /admin/users/:id/export     → Kullanici verisini JSON olarak export
-DELETE /admin/users/:id            → Kullanici verisi sil + log'larda cryptographic erasure
-GET    /admin/users/:id/consents   → Consent gecmisi
-POST   /admin/users/:id/consents   → Consent kaydi (purpose, timestamp, version)
-PUT    /admin/users/:id/consents/:id/revoke → Consent geri cekme
+log_entry.actor.ip = AES-GCM(user_key_123, "1.2.3.4")
+log_entry.actor.id = AES-GCM(user_key_123, "usr_xyz")
 ```
 
-### 25.2 Data Retention Otomasyonu
+Silme talebi geldiginde:
+- `user_key_123` silinir
+- Log entry'leri desifre edilemez hale gelir
+- Log zinciri bozulmaz (hash'ler ayni kalir)
+- GDPR Art. 17 karsilanir, SOC 2 audit butunlugu korunur
 
+### 16.5 Saklama Politikasi
+
+- Auth/authz/incident loglari: minimum 12 ay (SOC 2 beklentisi)
+- 90 gun readily searchable
+- Sonrasi cold storage (S3 Glacier, vb.)
 - Tenant bazinda yapilandirilabilir retention suresi
-- Suresi dolan veriler otomatik temizlenir (per-user encryption key silme ile)
-- Retention politikasi degisiklikleri audit log'a yazilir
-
-### 25.3 Compliance Raporlari
-
-- Login basari/basarisizlik istatistikleri (trend)
-- MFA adoption orani (MFA aktif kullanici yuzdesi)
-- Password age dagilimi (kac kullanicinin sifresi 90 gunden eski)
-- Session anomali raporlari
-- Audit log export (JSON/CSV, compliance-friendly format)
-- DSAR request gecmisi
 
 ---
 
-## 26. AI Agent & MCP Auth (Detayli)
+## 17. Sifreleme & Key Management
 
-### 26.1 Agent Entity Tipi
+### 17.1 Data at Rest
 
-Kullanici ve service account'larin yaninda ucuncu entity tipi: **agent**
+- **Algoritma**: AES-256-GCM (authenticated encryption)
+- **Yontem**: Envelope encryption
+  - KEK (Key Encryption Key): HSM/Cloud KMS'te saklanir
+  - DEK (Data Encryption Key): Her kayit icin ayri, KEK ile sifrelenir
+  - KEK rotate edildiginde sadece DEK'ler re-wrap edilir, veri yeniden sifrelenmez
 
-```json
-{
-  "entity_type": "agent",
-  "agent_id": "agent_xxx",
-  "name": "My AI Assistant",
-  "owner_id": "usr_xxx",
-  "scopes": ["read:profile", "write:tasks"],
-  "max_delegation_level": 1
-}
-```
+### 17.2 Data in Transit
 
-### 26.2 OAuth 2.1 Client Credentials
+- **Minimum**: TLS 1.2 (PCI DSS zorunlu)
+- **Tercih**: TLS 1.3
+- **Yasak**: SSLv3, TLS 1.0, TLS 1.1
+- mTLS: Server-to-server iletisimde opsiyonel (confidential client'lar icin)
 
-- Agent OAuth 2.1 client credentials ile kendini dogrular
-- Client ID + Client Secret → kisa omurlu JWT
-- Token'da `entity_type: "agent"` claim'i
-
-### 26.3 Token Exchange (RFC 8693) — Delegation
-
-Kullanici "bu agent benim adima su islemleri yapabilir" diyor:
+### 17.3 Password Hashing
 
 ```
-POST /oauth/token
-grant_type=urn:ietf:params:oauth:grant-type:token-exchange
-subject_token=<user_access_token>
-subject_token_type=urn:ietf:params:oauth:token-type:access_token
-requested_token_type=urn:ietf:params:oauth:token-type:access_token
-actor_token=<agent_client_credentials_token>
-scope=read:profile write:tasks
+final_hash = Argon2id(
+  password = HMAC-SHA256(pepper, raw_password),
+  salt = crypto.randomBytes(16),
+  m = 65536,  // 64MB
+  t = 3,
+  p = 1
+)
 ```
 
-Response token claims:
-```json
-{
-  "sub": "usr_xxx",
-  "act": { "sub": "agent_xxx" },
-  "scope": "read:profile write:tasks",
-  "may_act": { "sub": "agent_xxx", "max_scope": "read:profile write:tasks" }
-}
-```
+- Pepper HSM/KMS'te, DB'de degil
+- Salt her password'a unique
+- Target hash suresi: ~300ms
 
-### 26.4 MCP Server Uyumu
+### 17.4 Sifrelenecek Veriler
+
+- TOTP secret'lari
+- Refresh token'lar (veya hash olarak sakla)
+- PII (email, telefon, isim)
+- Backup/recovery kodlari
+- Device binding key'leri
+- Webhook secret'lari
+
+### 17.5 Key Ceremony (SOC 2 / PCI DSS)
+
+- Split knowledge: Master key parcalara ayrilir, her parca farkli custodian'da
+- Dual control: Min 2 yetkili kisi her key operasyonu icin
+- Quorum: 3-of-5 model (Shamir's Secret Sharing)
+- Dokumantasyon: Her islem loglanir, imzalanir, video kaydedilir
+- Frekans: Yillik + HSM degisikligi + custodian degisikligi + compromise suphesi
+
+---
+
+## 18. Rate Limiting & Anti-Abuse
+
+### 18.1 Rate Limit Katmanlari
+
+| Katman | Kapsam | Algoritma |
+|--------|--------|-----------|
+| Global | Tum trafik | Token bucket |
+| Per-IP | IP adresi basina | Sliding window |
+| Per-user | Kullanici basina | Sliding window |
+| Per-device | Device fingerprint basina | Sliding window |
+| Per-endpoint | Endpoint basina | Sliding window |
+| Per-tenant | Tenant basina | Token bucket |
+
+### 18.2 Endpoint Bazinda Limitler
+
+| Endpoint | Limit | Pencere |
+|----------|-------|---------|
+| POST /auth/login | 10 | 5dk |
+| POST /auth/signup | 5 | 15dk |
+| POST /auth/otp/verify | 5 | 5dk |
+| POST /auth/password/reset | 3 | 15dk |
+| POST /auth/magic-link | 1 | 5dk |
+| GET /auth/token/refresh | 30 | 1dk |
+
+### 18.3 Dagitik Rate Limiting (Redis)
+
+- Redis Sorted Set + Lua script ile atomic sliding window
+- Race condition'a karsi Lua EVAL ile atomik islem
+- Rate limit header'lari: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`
+
+### 18.4 IP Reputation & Geo-blocking
+
+- VPN/Tor/proxy tespiti (IPinfo, MaxMind)
+- Ulke bazli beyaz/kara liste (tenant yapilandirilabilir)
+- Impossible travel detection: Haversine formula ile mesafe, hiz hesabi
+
+---
+
+## 19. Webhook & Event Streaming
+
+### 19.1 Webhook Sistemi
+
+- Tenant'lar endpoint URL'leri register eder
+- Event bazinda subscribe (ornek: sadece `user.created` ve `auth.login.success`)
+- Fan-out: Ayni event birden fazla endpoint'e gonderilebilir
+
+### 19.2 Webhook Guvenligi
+
+- HMAC-SHA256 imza (Standard Webhooks spec)
+- Header'lar: `webhook-id`, `webhook-timestamp`, `webhook-signature`
+- Idempotency key: Her event'te unique `event_id`
+
+### 19.3 Retry Politikasi
+
+- Exponential backoff with jitter
+- 5xx -> retry (max 5 deneme: 1dk, 5dk, 30dk, 2sa, 24sa)
+- 4xx -> dead letter queue (DLQ), retry yok
+- Timeout: 30sn
+
+### 19.4 Dead Letter Queue & Replay
+
+- Basarisiz event'ler DLQ'ya gider
+- Admin panelinden DLQ goruntulenebilir
+- Manuel veya otomatik replay
+- Belirli timestamp'ten itibaren event replay
+
+---
+
+## 20. OpenID Connect Provider
+
+Auth server bir OpenID Connect Provider olarak calisir.
+
+### 20.1 Desteklenen Ozellikler
+
+- Discovery: `/.well-known/openid-configuration`
+- Authorization Code + PKCE flow
+- Token endpoint (token exchange)
+- UserInfo endpoint
+- JWKS endpoint
+- Dynamic client registration (RFC 7591/7592)
+- Front-channel & back-channel logout
+- PAR (Pushed Authorization Requests) — FAPI 2.0 zorunlu
+
+### 20.2 Hedeflenen OpenID Sertifikasyon Profilleri
+
+- Basic OP
+- Config OP
+- Dynamic OP
+- Form Post OP
+- FAPI 2.0 Security Profile
+- Logout profilleri (RP-Initiated, Session, Front-Channel, Back-Channel)
+
+---
+
+## 21. AI Agent & MCP Authentication
+
+### 21.1 Machine Client Entity
+
+- Kullanici ve service account'larin yaninda "agent" entity tipi
+- OAuth 2.1 client credentials ile dogrulama
+- Scoped permission'lar
+
+### 21.2 Token Exchange (RFC 8693)
+
+- Agent'lar kullanici adina islem yapabilir (delegation)
+- Token exchange ile kullanici token'i agent token'ina donusturulur
+- `act` claim'i ile asil calisan agent belirtilir
+- `may_act` claim'i ile delegation sinirlari tanimlanir
+
+### 21.3 MCP Server Uyumu
 
 - OAuth 2.1 + PKCE zorunlu (MCP spec)
 - Dynamic client registration destegi
@@ -1460,274 +941,405 @@ Response token claims:
 
 ---
 
-## 27. Decentralized Identity / EUDI Wallet (Detayli)
+## 22. Decentralized Identity (DID / Verifiable Credentials)
 
-### 27.1 Neden Onemli (2026-2027)
+### 22.1 EUDI Wallet Destegi
 
 - eIDAS 2.0: 2026 sonuna kadar tum AB uye devletleri EUDI Wallet sunmali
-- 2027'den itibaren bankacilik, telekom, saglik sektorleri EUDI Wallet'i KABUL ETMEK ZORUNDA
-- Teknik stack: W3C Verifiable Credentials + OpenID for Verifiable Credentials (OID4VCI/OID4VP) + SD-JWT VC
+- 2027'den itibaren bankacilik, telekom, saglik sektorleri EUDI Wallet'i kabul etmek zorunda
+- Teknik stack: OpenID for Verifiable Credentials (OID4VCI/OID4VP) + SD-JWT VC
 
-### 27.2 Auth Server Rolu: Verifier
+### 22.2 Auth Server Rolu
 
-Auth server VC Verifier olarak calisir:
-
-```
-1. Kullanici EUDI Wallet'i acar
-2. Auth server OpenID4VP (Verifiable Presentations) isteği gonderir
-3. Wallet kullaniciya hangi bilgilerin paylasilacagini gosterir
-4. Kullanici onaylar → Wallet imzali VP (Verifiable Presentation) gonderir
-5. Auth server VP'yi dogrular: imza, issuer, gecerlilik, revocation check
-6. Auth server credential'lardaki bilgilerle kullanici olusturur/dogrular
-```
-
-### 27.3 Selective Disclosure
-
-- SD-JWT VC formati ile sadece gereken bilgiler paylasilir
-- Ornek: "18 yasindan buyuk musun?" → "Evet" (dogum tarihi paylasilmaz)
-- Ornek: "Ad-soyad" → paylasilir, "Adres" → paylasilmaz
-- Privacy-preserving: Minimum veri ilkesi (GDPR uyumlu)
+- **Verifier** olarak calisir: EUDI Wallet'lardan credential kabul eder
+- OpenID4VP (Verifiable Presentations) ile credential dogrulama
+- Selective disclosure destegi: "18 yasindan buyuk" bilgisi alinir, dogum tarihi alinmaz
 
 ---
 
-## 28. Edge SDK (Detayli)
+## 23. Breach Detection & Credential Monitoring
 
-### 28.1 Amac
+### 23.1 Compromised Password Kontrolu
 
-Cloudflare Workers, Vercel Edge, Deno Deploy gibi edge runtime'larda JWT dogrulama. Auth server'a network round-trip yapmadan.
+- Kayit ve sifre degisikliginde HaveIBeenPwned k-Anonymity API kontrolu (NIST 800-63B zorunlu)
+- SHA-1 hash'in ilk 5 karakteri gonderilir, eslesen hash listesi doner
+- Client-side ve server-side cift kontrol
 
-### 28.2 API
+### 23.2 Credential Monitoring
+
+- Dark web monitoring API entegrasyonu (BreachSense, SpyCloud, Enzoic)
+- Yeni breach'lerde etkilenen kullanicilara bildirim
+- Zorunlu sifre sifirlama veya step-up auth
+
+### 23.3 Credential Stuffing Tespiti
+
+- Cok sayida farkli hesaba ayni IP/fingerprint'ten login denemesi
+- Otomatik IP/fingerprint bloklama
+- Risk engine'e sinyal olarak iletilir
+
+---
+
+## 24. Compliance Automation
+
+### 24.1 GDPR Data Subject Requests
+
+- `GET /admin/users/:id/export` — Kullanici verisini JSON olarak export
+- `DELETE /admin/users/:id` — Kullanici verisini sil + log'lari cryptographic erasure
+- `GET /admin/users/:id/consents` — Consent gecmisi
+- `POST /admin/users/:id/consents` — Consent kaydi
+
+### 24.2 Data Retention
+
+- Yapilandirilabilir retention suresi (tenant bazinda)
+- Otomatik purging (sifreleme key'i silme ile)
+- Retention suresi dolan veriler otomatik temizlenir
+
+### 24.3 Compliance Raporlari
+
+- Login basari/basarisizlik istatistikleri
+- MFA adoption oranlari
+- Password age dagilimi
+- Session anomali raporlari
+- Audit log export (compliance-friendly format)
+
+---
+
+## 25. Edge SDK
+
+### 25.1 Amac
+
+Cloudflare Workers, Vercel Edge, Deno Deploy gibi edge runtime'larda JWT dogrulama.
+
+### 25.2 Ozellikler
+
+- JWKS fetching + caching
+- JWT signature verification
+- Claims validation
+- DPoP proof verification
+- <50KB bundle size
+- Sifir network round-trip (JWT self-contained dogrulama)
+
+---
+
+## 26. SDK Tasarimi
+
+### 26.1 Client SDK (`@authserver/client`)
+
+```typescript
+// Initialization
+const auth = createAuthClient({
+  url: 'https://auth.myapp.com',
+  apiKey: 'pk_live_...'
+});
+
+// Email + Password
+await auth.signUp({ email, password });
+await auth.signIn({ email, password });
+
+// OTP
+await auth.signInWithOtp({ email });
+await auth.verifyOtp({ email, code });
+
+// Social Login
+await auth.signInWithOAuth({ provider: 'google' });          // Web: redirect/popup
+await auth.signInWithCredential({ provider, token });         // Mobile: native token
+
+// Magic Link
+await auth.signInWithMagicLink({ email });
+
+// Passkeys
+await auth.signInWithPasskey();
+await auth.registerPasskey();
+
+// MFA
+await auth.mfa.enroll({ method: 'totp' });                   // QR code doner
+await auth.mfa.challenge();
+await auth.mfa.verify({ code });
+
+// Step-Up Auth
+await auth.stepUp({ method: 'passkey' });
+
+// Transaction Approval (PSD2 SCA)
+await auth.transaction.approve({ amount: 100, currency: 'EUR', payee: 'Alice' });
+
+// Session
+await auth.signOut();
+await auth.getSession();
+await auth.getUser();
+auth.onAuthStateChange((event, session) => { ... });
+
+// Device
+await auth.device.register();                                  // Device binding
+await auth.device.attest();                                    // Platform attestation
+
+// Recovery
+const codes = await auth.recovery.generateCodes();
+await auth.recovery.useCode(code);
+```
+
+### 26.2 Server SDK (`@authserver/server`)
+
+```typescript
+// Initialization
+const auth = createAuthServer({
+  url: 'https://auth.myapp.com',
+  serviceKey: 'sk_live_...'
+});
+
+// Token Verification
+const user = await auth.verifyToken(jwt);
+
+// Admin Operations
+await auth.admin.createUser({ email, password });
+await auth.admin.updateUser(uid, { email_verified: true });
+await auth.admin.deleteUser(uid);
+const users = await auth.admin.listUsers({ page: 1, limit: 20 });
+await auth.admin.setCustomClaims(uid, { role: 'admin', plan: 'pro' });
+await auth.admin.revokeAllSessions(uid);
+const token = await auth.admin.createCustomToken(uid, { custom: 'data' });
+
+// Impersonation
+const impersonationToken = await auth.admin.impersonate(targetUid);
+
+// Blocking Hooks
+auth.hooks.before('user.create', async (event) => {
+  const user = await db.users.create({ authId: event.user.id });
+  return { allow: true, metadata: { dbUserId: user.id } };
+});
+
+auth.hooks.before('login', async (event) => {
+  if (event.user.banned) return { deny: true, reason: 'banned' };
+  return { allow: true };
+});
+
+auth.hooks.before('transaction.approve', async (event) => {
+  const balance = await getBalance(event.user.id);
+  if (balance < event.transaction.amount) {
+    return { deny: true, reason: 'insufficient_funds' };
+  }
+  return { allow: true };
+});
+
+// Non-Blocking Events
+auth.on('user.created', async (event) => {
+  await sendWelcomeEmail(event.user.email);
+  await crm.createContact(event.user);
+});
+
+auth.on('login.failed', async (event) => {
+  await alerting.notify('login_failure', event);
+});
+
+// Organizations
+await auth.orgs.create({ name: 'Acme Corp', domain: 'acme.com' });
+await auth.orgs.addMember(orgId, userId, 'admin');
+await auth.orgs.configureSso(orgId, { provider: 'saml', metadata_url: '...' });
+```
+
+### 26.3 Edge SDK (`@authserver/edge`)
 
 ```typescript
 import { createVerifier } from '@authserver/edge';
 
 const verifier = createVerifier({
-  jwksUrl: 'https://auth.example.com/.well-known/jwks.json',
-  issuer: 'https://auth.example.com',
-  audience: 'my-app',
-  jwksCacheTtl: 3600, // 1 saat cache
+  jwksUrl: 'https://auth.myapp.com/.well-known/jwks.json',
+  issuer: 'https://auth.myapp.com',
+  audience: 'my-app'
 });
 
-// JWT dogrulama
-const { valid, claims, error } = await verifier.verify(token);
+// Cloudflare Worker / Vercel Edge
+export default {
+  async fetch(request) {
+    const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+    const { valid, claims, error } = await verifier.verify(token);
 
-// DPoP dogrulama (opsiyonel)
-const dpopValid = await verifier.verifyDPoP(dpopProof, token, {
-  method: 'POST',
-  url: 'https://api.example.com/transfer'
-});
+    if (!valid) return new Response('Unauthorized', { status: 401 });
 
-// ACR seviyesi kontrolu
-const meetsRequirement = verifier.checkAcr(claims, 'aal2');
+    // DPoP verification (optional)
+    const dpopProof = request.headers.get('DPoP');
+    if (dpopProof) {
+      const dpopValid = await verifier.verifyDPoP(dpopProof, token, request);
+      if (!dpopValid) return new Response('Invalid DPoP', { status: 401 });
+    }
+
+    return fetch(request);
+  }
+};
 ```
 
-### 28.3 Teknik Gereksinimler
+### 26.4 NestJS SDK (`@authserver/nestjs`)
 
-- <50KB bundle size (edge runtime memory kisitlamalari)
-- Sifir runtime dependency
-- JWKS response caching (configurable TTL)
-- `kid` bazli key secimi
-- RS256, EdDSA, ES256 algoritmalarini destekler
-- Web Crypto API kullanir (Node.js crypto degil)
+```typescript
+// Module Registration
+@Module({
+  imports: [
+    AuthServerModule.register({
+      url: 'https://auth.myapp.com',
+      serviceKey: process.env.AUTH_SERVICE_KEY,
+      hooks: {
+        'before.user.create': BeforeUserCreateHandler,
+        'before.login': BeforeLoginHandler,
+        'before.transaction.approve': BeforeTransactionHandler,
+      }
+    })
+  ]
+})
+export class AppModule {}
 
----
+// Guard
+@Controller('protected')
+@UseGuards(AuthGuard)
+export class ProtectedController {
 
-## 29. Database Semasi
+  @Get('profile')
+  @RequireAuth()                                // AAL1 yeterli
+  getProfile(@CurrentUser() user: AuthUser) {}
 
-### 29.1 Core Tablolar
+  @Post('transfer')
+  @RequireAuth({ acr: 'aal2', mfa: true })     // Step-up zorunlu
+  transfer(@CurrentUser() user: AuthUser) {}
 
-```
-tenants
-  id, name, slug, config (JSONB), created_at, updated_at
+  @Post('high-value-transfer')
+  @RequireAuth({ acr: 'aal3', dpop: true })    // Hardware key + DPoP zorunlu
+  highValueTransfer(@CurrentUser() user: AuthUser) {}
+}
 
-users (tenant-scoped)
-  id, tenant_id, email_encrypted, email_hash (for lookup), phone_encrypted,
-  display_name_encrypted, avatar_url, email_verified, phone_verified,
-  banned, ban_reason, metadata (JSONB), created_at, updated_at
+// Hook Handler
+@Injectable()
+export class BeforeUserCreateHandler implements AuthHookHandler {
+  constructor(private readonly userService: UserService) {}
 
-identities (user has many)
-  id, user_id, provider (email, google, apple, github, webauthn),
-  provider_user_id, provider_data (JSONB), created_at
-
-credentials
-  id, user_id, type (password, totp),
-  credential_data_encrypted (hash for password, secret for TOTP),
-  password_history (last 4 hashes), created_at, updated_at
-
-sessions
-  id, user_id, tenant_id, device_id, ip, user_agent, device_fingerprint_hash,
-  geo_country, geo_city, acr, amr (JSONB), idle_timeout_at, absolute_timeout_at,
-  created_at, last_activity_at, revoked_at
-
-refresh_tokens
-  id, session_id, user_id, token_hash (SHA-256), family_id,
-  parent_id (for rotation chain), used, created_at, expires_at
-
-devices
-  id, user_id, public_key, attestation_type, attestation_data (JSONB),
-  platform (ios, android, web), device_name, sign_count,
-  trusted, trusted_until, created_at, last_used_at
-
-mfa_enrollments
-  id, user_id, type (totp, webauthn, sms, email),
-  secret_encrypted (for TOTP), credential_id (for webauthn),
-  phone_encrypted (for SMS), verified, created_at
-
-webauthn_credentials
-  id, user_id, credential_id_b64, public_key_cbor, sign_count,
-  attestation_format, aaguid, transports (JSONB),
-  is_passkey, is_recovery, created_at, last_used_at
-
-recovery_codes
-  id, user_id, code_hash (Argon2id), used, created_at, used_at
-
-organizations
-  id, tenant_id, name, slug, domain, domain_verified,
-  settings (JSONB), created_at
-
-org_members
-  id, org_id, user_id, role, custom_permissions (JSONB),
-  invited_by, joined_at
-
-org_sso_connections
-  id, org_id, type (saml, oidc), config (JSONB),
-  metadata_url, enabled, created_at
-
-api_keys
-  id, tenant_id, org_id (nullable), user_id (nullable),
-  key_hash (SHA-256), key_prefix (first 8 chars for identification),
-  scopes (JSONB), name, last_used_at, expires_at, revoked_at
-
-oauth_clients
-  id, tenant_id, client_id, client_secret_hash,
-  redirect_uris (JSONB), grant_types (JSONB),
-  scopes (JSONB), client_type (public, confidential), created_at
-
-audit_logs (append-only)
-  id (UUIDv7), tenant_id, event_type, actor_encrypted, target,
-  result, metadata_encrypted, risk_score,
-  prev_hash, event_hash, created_at
-
-webhook_subscriptions
-  id, tenant_id, url, events (JSONB), secret_hash,
-  enabled, created_at
-
-webhook_deliveries
-  id, subscription_id, event_id, status (pending, success, failed, dlq),
-  attempts, last_attempt_at, next_retry_at,
-  request_body, response_status, response_body, created_at
-
-hook_configs
-  id, tenant_id, event (before.user.create, before.login, ...),
-  url, signing_key_hash, timeout_ms, failure_mode,
-  enabled, created_at
-
-user_consents
-  id, user_id, purpose, granted, version, ip, user_agent,
-  granted_at, revoked_at
+  async handle(event: AuthHookEvent): Promise<AuthHookResponse> {
+    const user = await this.userService.create({ authId: event.user.id });
+    return { allow: true, metadata: { dbUserId: user.id } };
+  }
+}
 ```
 
-### 29.2 Sifreleme Stratejisi
+---
 
-| Alan | Yontem | Key |
-|------|--------|-----|
-| PII (email, telefon, isim) | AES-256-GCM | Per-tenant DEK (KEK ile sifreli) |
-| Credentials (TOTP secret) | AES-256-GCM | Per-user DEK |
-| Audit log PII | AES-256-GCM | Per-user DEK (cryptographic erasure icin) |
-| Password hash | Argon2id (one-way) | Pepper (HMAC) + salt |
-| Token hash'leri | SHA-256 (one-way) | Salt yok (random token zaten unique) |
-| API key hash | SHA-256 (one-way) | Salt yok |
+## 27. Veritabani Semasi (Ozet)
 
-### 29.3 Index Stratejisi
+### Core Tablolar
 
-- `users.email_hash` — deterministic hash ile email lookup (sifreli alanda arama yapabilmek icin)
-- `sessions.user_id` + `sessions.revoked_at IS NULL` — aktif session'lar
-- `refresh_tokens.token_hash` — token lookup
-- `audit_logs.tenant_id` + `audit_logs.created_at` — tenant bazinda log sorgulama
-- `audit_logs.event_type` + `audit_logs.created_at` — event tipi bazinda filtreleme
-- Tum tablolarda `tenant_id` uzerinde index (multi-tenant query isolation)
+- `tenants` — Multi-tenant konfigurasyonu
+- `users` — Kullanici profilleri (tenant-scoped)
+- `identities` — Auth yontemleri (email, social, passkey — user has many)
+- `credentials` — Password hash'leri, TOTP secret'lari (sifrelenmis)
+- `sessions` — Aktif session'lar
+- `refresh_tokens` — Opaque refresh token hash'leri + family tracking
+- `devices` — Kayitli cihazlar + public key + attestation durumu
+- `mfa_enrollments` — MFA kayitlari (TOTP, WebAuthn, SMS)
+- `webauthn_credentials` — Passkey public key'leri + metadata
+- `recovery_codes` — Recovery kodlari (Argon2id hash)
+- `organizations` — B2B organizasyonlar
+- `org_members` — Organizasyon uyelikleri + roller
+- `org_sso_connections` — Per-org SSO konfigurasyonlari
+- `api_keys` — API key hash'leri + scope'lar
+- `oauth_clients` — Registered OAuth client'lar
+- `audit_logs` — Tamper-evident log zinciri
+- `webhook_subscriptions` — Webhook endpoint kayitlari
+- `webhook_deliveries` — Webhook teslimat gecmisi + DLQ
+- `hook_configs` — Blocking/non-blocking hook konfigurasyonlari
+- `user_consents` — GDPR consent kayitlari
+
+### Sifreleme
+
+- PII alanlari (email, telefon, isim): AES-256-GCM, per-tenant DEK
+- Credential alanlari (TOTP secret, recovery codes): AES-256-GCM, per-user DEK
+- Audit log PII alanlari: AES-256-GCM, per-user DEK (cryptographic erasure icin)
 
 ---
 
-## 30. PSD3 Hazirlik
+## 28. Altyapi Gereksinimleri
 
-### 30.1 Durum (Mart 2026)
+### 28.1 Runtime
 
-- Kasim 2025: AB Parlamento ve Konsey arasinda gecici politik anlasma
-- 2026 ortasi: Resmi yayin bekleniyor
-- 2027 sonu: Zorunlu uyum bekleniyor (18-21 ay gecis suresi)
+- **Framework**: NestJS (Node.js)
+- **Veritabani**: PostgreSQL (primary), Redis (cache, rate limiting, session store)
+- **Message Queue**: Redis Streams veya NATS (webhook delivery, async events)
+- **KMS**: AWS KMS / GCP KMS / HashiCorp Vault (key management)
 
-### 30.2 PSD3 Yeni Gereksinimleri
+### 28.2 Guvenlik Altyapisi
 
-| Gereksinim | PSD2'den Farki | Bizim Hazirligimiz |
-|------------|----------------|-------------------|
-| Guclendirilmis SCA | Daha siki kurallar | Faz 3'te PSD2 SCA zaten implemente |
-| Gercek zamanli fraud monitoring | Yeni zorunluluk | Risk engine (Faz 2) + breach detection (Faz 4) |
-| API hardening | Daha siki standartlar | FAPI 2.0 (Faz 3) zaten karsilar |
-| eIDAS 2.0 uyumu | EUDI Wallet entegrasyonu | Faz 5'te EUDI Wallet destegi |
-| Daha genis compliance kapsami | Delegated entitlements | Multi-tenant izolasyon (Faz 0'dan itibaren) |
-| Daha siki fraud sorumluluk | PSP sorumlulugu artiyor | Audit log + risk engine kanit saglar |
+- WAF (PCI DSS 6.4.2 zorunlu)
+- DDoS korumasi
+- Vulnerability scanning (aylik, PCI DSS ceyreklik)
+- Penetration testing (yillik, PCI DSS zorunlu)
+- SIEM entegrasyonu (log aggregation, alerting)
 
----
+### 28.3 Monitoring & Alerting
 
-## 31. Rakip Analizi (Detayli)
-
-### 31.1 Sertifika Karsilastirmasi
-
-| Ozellik | Biz (Hedef) | Auth0 | Firebase | Supabase | Descope | Hanko | Clerk |
-|---------|-------------|-------|----------|----------|---------|-------|-------|
-| OpenID FAPI 2.0 | Hedef | FAPI 1 | Hayir | Hayir | Hayir | Hayir | Hayir |
-| FIDO2 Certified | Hedef | Hayir | Hayir | Hayir | Evet | Evet | Hayir |
-| SOC 2 Type II | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet |
-| ISO 27001 | Hedef | Evet | Evet | Beklemede | Evet | Hayir | Hayir |
-| PCI DSS v4.0 | Hedef | Evet | Evet | Hayir | Evet | Hayir | Hayir |
-| FedRAMP High | Hedef | Hayir | Evet* | Hayir | Evet | Hayir | Hayir |
-| HIPAA | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet |
-| CSA STAR | Hedef | Evet | Hayir | Hayir | Evet | Hayir | Hayir |
-| eIDAS | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-| PSD2/PSD3 SCA | Hedef | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
-
-### 31.2 Ozellik Karsilastirmasi
-
-| Ozellik | Biz (Hedef) | Auth0 | Firebase | Supabase | Descope | Clerk |
-|---------|-------------|-------|----------|----------|---------|-------|
-| Blocking Hooks | Evet | Evet | Hayir | Kismi | Hayir | Hayir |
-| Device Attestation | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Transaction Approval | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Self-hosted | Evet | Hayir | Hayir | Evet | Hayir | Hayir |
-| AI Agent Auth | Evet | Evet | Hayir | Hayir | Hayir | Hayir |
-| EUDI Wallet | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Risk Engine | Evet | Evet | Hayir | Hayir | Evet | Hayir |
-| Edge SDK | Evet | Hayir | Hayir | Hayir | Hayir | Evet |
-| Tamper-Evident Logs | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
+- Brute force tespiti: 5-10 basarisiz login / 5dk -> alert
+- Impossible travel: Cografi uzaklik / zaman orani -> alert
+- Privilege escalation: Yeni admin hesap / yetki yukseltme -> alert
+- Off-hours erisim: Is saatleri disinda hassas sistem erisimi -> alert
+- Credential stuffing: Cok sayida farkli hesaba ayni IP'den deneme -> alert
 
 ---
 
-## 32. Email Altyapisi & Guvenligi
+## 29. PSD3 Hazirlik
 
-### 32.1 Anti-Spoofing (PCI DSS v4.0 zorunlu)
+PSD3 Kasim 2025'te politik anlasmaya varildi, 2026 ortasinda resmi yayin, 2027 sonunda zorunlu uyum bekleniyor.
+
+### Yeni Gereksinimler
+
+- Guclendirilmis SCA gereksinimleri
+- Gercek zamanli fraud monitoring zorunlulugu
+- API hardening gereksinimleri
+- eIDAS 2.0 (EUDI Wallet) ile uyum
+- Daha genis compliance kapsami
+- Daha siki fraud sorumluluk kurallari
+
+---
+
+## 30. Rakip Analizi Ozeti
+
+Hedefledigimiz sertifika portfolyosu hicbir mevcut provider'da tam olarak bulunmuyor:
+
+| Ozellik | Biz | Auth0 | Firebase | Supabase | Descope | Hanko |
+|---------|-----|-------|----------|----------|---------|-------|
+| OpenID FAPI 2.0 | Hedef | FAPI 1 | Hayir | Hayir | Hayir | Hayir |
+| FIDO2 Certified | Hedef | Hayir | Hayir | Hayir | Evet | Evet |
+| SOC 2 Type II | Hedef | Evet | Evet | Evet | Evet | Hayir |
+| ISO 27001 | Hedef | Evet | Evet | Beklemede | Evet | Hayir |
+| PCI DSS v4.0 | Hedef | Evet | Evet | Hayir | Evet | Hayir |
+| FedRAMP High | Hedef | Hayir | Evet* | Hayir | Evet | Hayir |
+| PSD2/PSD3 SCA | Hedef | Evet | Hayir | Hayir | Hayir | Hayir |
+| eIDAS / EUDI | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir |
+| Blocking Hooks | Hedef | Evet | Hayir | Kismi | Hayir | Hayir |
+| Device Attestation | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir |
+| Transaction Approval | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir |
+| Self-hosted | Evet | Hayir | Hayir | Evet | Hayir | Evet |
+| AI Agent Auth | Hedef | Evet | Hayir | Hayir | Hayir | Hayir |
+
+---
+
+## 31. Email Altyapisi & Guvenligi
+
+### 31.1 Anti-Spoofing (PCI DSS v4.0 zorunlu)
 
 - **SPF**: DNS'te hangi sunucularin email gonderebilecegi tanimlanir
 - **DKIM**: Her email kriptografik olarak imzalanir
 - **DMARC**: `p=reject` ile sahte emailler reddedilir
 
-### 32.2 Email Gonderim
+### 31.2 Email Gonderim
 
 - Pluggable provider: AWS SES, SendGrid, Postmark, SMTP
 - Tenant bazinda email konfigurasyonu (kendi SMTP'sini kullanabilir)
-- Bounce handling: Hard bounce → email'i unverified yap. Soft bounce → retry
-- Complaint handling: Spam sikayet → log + tenant'a bildir
+- Bounce handling: Hard bounce -> email'i unverified yap. Soft bounce -> retry
+- Complaint handling: Spam sikayet -> log + tenant'a bildir
 - Rate limit: Kullanici basina saatte max email sayisi
-- Template rendering'de XSS koruması (sandboxed, otomatik escape)
+- Template rendering'de XSS korumasi (sandboxed, otomatik escape)
 - Plaintext fallback her email icin zorunlu
 
 ---
 
-## 33. SAML 2.0
+## 32. SAML 2.0 Destegi
 
-### 33.1 SP (Service Provider) Modu
+### 32.1 SP (Service Provider) Modu
 
-Auth server SAML SP olarak calisir — harici SAML IdP'lerden identity kabul eder.
+Auth server SAML SP olarak calisir — harici SAML IdP'lerden (ADFS, Okta, Azure AD) identity kabul eder.
 
 - SAML Assertion parsing ve dogrulama
 - XML Signature Verification (XML DSig)
@@ -1736,26 +1348,26 @@ Auth server SAML SP olarak calisir — harici SAML IdP'lerden identity kabul ede
 - Single Logout (SLO) destegi
 - Metadata endpoint: `/.well-known/saml-metadata.xml`
 
-### 33.2 IdP (Identity Provider) Modu
+### 32.2 IdP (Identity Provider) Modu
 
-Auth server kendisi SAML IdP olarak calisir.
+Auth server kendisi SAML IdP olarak calisir — eski sistemlere SAML ile entegrasyon saglar.
 
 - SAML Response/Assertion uretimi
 - SP metadata import
-- Attribute mapping (SAML attributes → user claims)
+- Attribute mapping (SAML attributes -> user claims)
 - Per-tenant IdP konfigurasyonu
 
-### 33.3 Guvenlik
+### 32.3 Guvenlik
 
-- XXE koruması: External entity resolution KAPALI
+- XXE korumasi: External entity resolution KAPALI
 - DTD processing KAPALI
-- XML bomb (billion laughs) koruması: max entity depth + max document size
+- XML bomb (billion laughs) korumasi: max entity depth + max document size
 
 ---
 
-## 34. HTTP & Transport Guvenligi
+## 33. HTTP & Transport Guvenligi
 
-### 34.1 Security Headers
+### 33.1 Security Headers
 
 Tum response'larda:
 ```
@@ -1769,25 +1381,67 @@ Permissions-Policy: camera=(), microphone=(), geolocation=()
 Cache-Control: no-store, no-cache, must-revalidate (auth endpoint'lerinde)
 ```
 
-### 34.2 CORS
+### 33.2 CORS
 
 - Tenant bazinda origin whitelist
 - Wildcard (`*`) origin YASAK
 - Credentials mode'da sadece explicit origin'ler
 - Preflight cache: max 1 saat
 
-### 34.3 IP Allowlisting
+### 33.3 IP Allowlisting
 
 - Admin API'leri icin IP allowlist (tenant yapilandirilabilir)
 - Management API icin ayri allowlist
 - IPv4 ve IPv6 CIDR destegi
 
-### 34.4 Request Validation
+### 33.4 Request Validation
 
 - Max request body size: 1MB
 - Content-Type validation: Sadece `application/json`
 - JSON depth limit: Max 10 seviye
 - Input sanitization: Tum string input'lar trim + length check
+
+---
+
+## 34. Token Introspection & Revocation
+
+### 34.1 Token Introspection (RFC 7662)
+
+```
+POST /oauth/introspect
+Authorization: Basic <client_credentials>
+
+token=<opaque_token>&token_type_hint=refresh_token
+```
+
+Response:
+```json
+{
+  "active": true,
+  "sub": "usr_xyz",
+  "client_id": "app_abc",
+  "scope": "openid profile",
+  "exp": 1711900000,
+  "tenant_id": "tenant_abc"
+}
+```
+
+- Opaque refresh token'lar icin zorunlu
+- Client authentication zorunlu
+- Rate limited
+
+### 34.2 Token Revocation (RFC 7009)
+
+```
+POST /oauth/revoke
+Authorization: Basic <client_credentials>
+
+token=<token>&token_type_hint=refresh_token
+```
+
+- Refresh token revoke -> iliskili tum access token'lar da gecersiz
+- Access token revoke -> blocklist'e eklenir (JWT icin)
+- Revocation her zaman 200 doner (bilgi sizintisi onleme)
 
 ---
 
@@ -1878,17 +1532,168 @@ Cache-Control: no-store, no-cache, must-revalidate (auth endpoint'lerinde)
 
 ---
 
-## 38. SaaS Platform & Business Model
+## 38. Fonksiyonel Faz Plani
 
-### 16.1 Deployment Modelleri
+### Faz 0: Core Auth (Ay 1-2)
+
+> Hedef: Piyasadaki servislerin %95'inden daha guvenli bir temel.
+
+1. NestJS monorepo (server + client SDK + server SDK)
+2. PostgreSQL + Redis altyapisi
+3. Tenant yonetimi (temel CRUD, API key uretimi)
+4. Email + Password (Argon2id + pepper + salt + HIBP + constant-time)
+5. Email verification (OTP veya magic link)
+6. Password reset (256-bit token, 15dk)
+7. JWT access token (RS256, 30dk) + JWKS endpoint
+8. Opaque refresh token (rotation + family-based revocation)
+9. Session yonetimi (idle/absolute timeout, aktif session listesi)
+10. Audit log (structured JSON, SHA-256 hash chain, PII encryption)
+11. Rate limiting (Redis sliding window, per-IP + per-endpoint)
+12. Security headers (HSTS, CSP, CORS, X-Frame-Options)
+13. Request validation (body size, content-type, JSON depth)
+14. Email altyapisi (pluggable provider, SPF/DKIM/DMARC rehberi)
+15. Client SDK: signUp, signIn, signOut, getSession, getUser, onAuthStateChange, auto-refresh
+16. Server SDK: verifyToken, admin.createUser, updateUser, deleteUser, listUsers
+
+**Neden %95'inden guvenli:**
+- Argon2id + pepper + salt (cogu sistem bcrypt bile kullanmiyor)
+- HIBP kontrolu (neredeyse kimse yapmiyor)
+- Token rotation + stolen token detection (family-based revocation)
+- Tamper-evident audit log (hash chain)
+- Constant-time comparison (timing attack korumasi)
+- Security headers (cogu startup eksik)
+
+**Sertifika:** NIST AAL1, GDPR temel
+
+---
+
+### Faz 1: MFA + Social + Hooks (Ay 3-4)
+
+> Hedef: Firebase/Supabase seviyesi + blocking hooks avantaji.
+
+1. TOTP MFA (QR enrollment, AES-256-GCM secret, backup codes)
+2. Social login: Google, Apple, GitHub, Microsoft (Auth Code + PKCE)
+3. Account linking (verified email ile otomatik)
+4. Magic link (256-bit token, 15dk)
+5. Blocking hooks (before.user.create, before.login + after variants)
+6. Webhook sistemi (HMAC imza, retry, temel)
+7. Session: device metadata binding, concurrent limit, remote revocation
+8. Client SDK: signInWithOAuth, signInWithCredential, mfa.enroll/verify, recovery codes
+9. Server SDK: hooks.before(), on(), admin.setCustomClaims, revokeAllSessions
+10. Admin panel (temel): kullanici listesi, session yonetimi, konfigurasyon, log viewer
+
+**Sertifika:** NIST AAL2, OpenID Basic OP basvurusu baslar
+
+---
+
+### Faz 2: Passkeys + Enterprise (Ay 5-7)
+
+> Hedef: Clerk/WorkOS seviyesi. FIDO2 + OpenID sertifika basvurulari.
+
+1. WebAuthn/Passkeys (packed+none attestation, ES256, counter validation, MDS v3)
+2. Passkey-first kayit + cross-device QR login
+3. Step-up auth (ACR/AMR claims, per-endpoint seviye)
+4. Risk engine (IP geo, impossible travel, device fingerprint, VPN/Tor, velocity)
+5. Organizations (CRUD, member management, roller, davet)
+6. OpenID Connect Provider (discovery, auth code+PKCE, token, userinfo, JWKS, logout)
+7. Token introspection (RFC 7662) + revocation (RFC 7009)
+8. Key rotation (JWKS'te eski+yeni, kid bazli)
+9. Bot detection (Proof-of-Work, credential stuffing tespiti)
+10. SMS OTP (pluggable provider, ulke whitelist)
+11. NestJS SDK (@RequireAuth, @CurrentUser, hook handler interface)
+12. Edge SDK (<50KB, JWKS cache, JWT verify, Cloudflare Workers + Vercel Edge)
+
+**Sertifika:** FIDO2 basvuru, OpenID Basic OP, SOC 2 gozlem baslar
+
+---
+
+### Faz 3: Financial-Grade (Ay 8-12)
+
+> Hedef: Auth0 seviyesi + device attestation + PSD2 SCA.
+
+1. DPoP (ephemeral key, proof JWT, cnf.jkt claim)
+2. PAR (Pushed Authorization Requests)
+3. Device attestation (Play Integrity API, Apple App Attest)
+4. Cryptographic device binding (hardware enclave key pair)
+5. Transaction authorization (PSD2 SCA dynamic linking, WYSIWYS)
+6. SAML 2.0 (SP + IdP modu, XXE korumasi)
+7. Enterprise SSO per org (SAML/OIDC, self-service setup UI)
+8. SCIM 2.0 provisioning (per-org endpoint)
+9. API key + M2M auth (client_credentials, PATs)
+10. OpenID FAPI 2.0 (PAR + PKCE + DPoP)
+11. GDPR DSAR endpoint'leri (export, delete, consent)
+12. Breach detection (HIBP monitoring, credential stuffing)
+13. Admin panel: org yonetimi, SSO konfig, webhook DLQ, risk dashboard
+
+**Sertifika:** FIDO2 alinir, FAPI basvuru, SOC 2 gozlem devam
+
+---
+
+### Faz 4: Scale + Compliance (Ay 13-18)
+
+> Hedef: SOC 2 raporu alma. Multi-region, full enterprise.
+
+1. Multi-region deployment (data residency: EU, US, APAC, TR)
+2. Custom domain per tenant (Let's Encrypt/ACME)
+3. White-label (login sayfalari, email template'ler, branding)
+4. Advanced risk engine (3rd party connectors, behavioral signals)
+5. Admin impersonation (RFC 8693 token exchange, audit trail)
+6. Advanced webhook (DLQ, replay, fan-out, delivery logs)
+7. Backup & DR (PITR, encrypted backup, 6 aylik DR test)
+8. Vulnerability management (dependency scan, DAST, pentest)
+9. Incident response plan (documented, yillik exercise)
+10. Change management proseduru
+11. i18n (en, tr + framework)
+
+**Sertifika:** SOC 2 Type II ALINIR, ISO 27001 baslar, PCI DSS gap analysis
+
+---
+
+### Faz 5: Global Compliance (Ay 19-30)
+
+> Hedef: Tam sertifika portfolyosu. Piyasada esdegeri olmayan platform.
+
+1. ISO 27001 sertifikasi
+2. PCI DSS v4.0 sertifikasi
+3. HIPAA BAA
+4. CSA STAR Level 2
+5. FedRAMP High basvurusu
+6. eIDAS LoA High (QTSP entegrasyonu)
+7. AI Agent / MCP auth (agent entity, OAuth 2.1, RFC 8693 token exchange)
+8. EUDI Wallet (OpenID4VP, selective disclosure)
+9. Continuous auth (behavioral signals -> risk engine)
+10. KYC entegrasyon hook'lari
+11. Full i18n (10+ dil, RTL)
+12. WCAG 2.1 AA
+
+**Sertifika:** ISO 27001, PCI DSS, HIPAA, CSA STAR, FedRAMP suruyor, FAPI 2.0, eIDAS
+
+---
+
+### Faz Ozet
+
+| Faz | Sure | Piyasa Esdegeri | Sertifika |
+|-----|------|-----------------|-----------|
+| **0** | Ay 1-2 | %95'inden guvenli | NIST AAL1, GDPR |
+| **1** | Ay 3-4 | Supabase/Firebase + hooks | NIST AAL2, OpenID basvuru |
+| **2** | Ay 5-7 | Clerk/WorkOS + FIDO2 | FIDO2 + OpenID basvuru, SOC 2 gozlem |
+| **3** | Ay 8-12 | Auth0 + PSD2 SCA + device attestation | FIDO2, FAPI basvuru |
+| **4** | Ay 13-18 | Descope seviyesi | SOC 2 alinir, ISO + PCI baslar |
+| **5** | Ay 19-30 | Piyasada esdegeri YOK | Tam portfolyo |
+
+---
+
+## 39. SaaS Platform & Business Model
+
+### 39.1 Deployment Modelleri
 
 | Model | Aciklama | Hedef Kitle |
 |-------|----------|-------------|
 | **SaaS (Managed)** | Biz host ediyoruz, dashboard'dan proje olustur | Startup, SMB, mid-market |
-| **Self-Hosted** | Docker/Helm ile kendi sunucusunda | Regulated industries, on-prem gereksinimleri |
+| **Self-Hosted** | Docker/Helm ile kendi sunucusunda | Regulated industries, on-prem |
 | **Private Cloud** | Dedicated instance, biz yonetiyoruz | Bankalar, fintech, devlet |
 
-### 16.2 Fiyatlandirma
+### 39.2 Fiyatlandirma
 
 **Free (Starter)**
 - 50,000 MAU
@@ -1949,7 +1754,7 @@ Cache-Control: no-store, no-cache, must-revalidate (auth endpoint'lerinde)
 - MFA paywall arkasinda degil (guvenlik herkesin hakki)
 - Branding kaldirmak icin ayri ucret yok (Pro'da dahil)
 
-### 16.3 Proje & API Key Yapisi
+### 39.3 Proje & API Key Yapisi
 
 ```
 Account (kullanici veya takim)
@@ -1972,7 +1777,7 @@ Account (kullanici veya takim)
 - Dev'de email yerine console log secenegi
 - Prod'a gecis: tek tikla konfigurasyon kopyalama
 
-### 16.4 Dashboard Rolleri
+### 39.4 Dashboard Rolleri
 
 | Rol | Billing | Takim | Prod Config | Dev Config | Kullanici Verisi | Log |
 |-----|---------|-------|-------------|------------|------------------|-----|
@@ -1983,7 +1788,7 @@ Account (kullanici veya takim)
 
 Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC IdP'si ile.
 
-### 16.5 Dashboard Sayfalari
+### 39.5 Dashboard Sayfalari
 
 **Overview (Ana Sayfa)**
 - MAU trend grafigi + mevcut kullanim
@@ -2000,7 +1805,7 @@ Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC
 
 **Authentication**
 - Toggle switch'ler: Email+Pass, Google, Apple, GitHub, Microsoft, Magic Link, Passkeys, SMS OTP, TOTP
-- Her provider icin konfigürasyon (Client ID, Secret, scope)
+- Her provider icin konfigurasyon (Client ID, Secret, scope)
 - Password policy ayarlari
 - Session policy ayarlari (idle timeout, absolute timeout, concurrent limit)
 
@@ -2051,7 +1856,7 @@ Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC
 - Odeme yontemi
 - Plan degisikligi
 
-### 16.6 Onboarding Akisi
+### 39.6 Onboarding Akisi
 
 **Hedef: Signup -> ilk basarili login = 5 dakika**
 
@@ -2072,7 +1877,7 @@ Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC
 - curl komutlari projeye ozel key'ler ile otomatik dolu
 - SDK ornekleri key'ler ile dolu
 
-### 16.7 Migration Araclari
+### 39.7 Migration Araclari
 
 **Import:**
 - Auth0, Firebase, Supabase, Clerk export format destegi
@@ -2088,142 +1893,3 @@ Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC
 2. Yeni login'leri AuthServer'a yonlendir
 3. Login'de hash upgrade
 4. Eski sistemi kapat
-
----
-
-## 39. Fonksiyonel Faz Plani
-
-### Faz 0: Core Auth (Ay 1-2)
-
-> Hedef: Piyasadaki servislerin %95'inden daha guvenli bir temel.
-
-1. NestJS monorepo (server + client SDK + server SDK)
-2. PostgreSQL + Redis altyapisi
-3. Tenant yonetimi (temel CRUD, API key uretimi)
-4. Email + Password (Argon2id + pepper + salt + HIBP + constant-time)
-5. Email verification (OTP veya magic link)
-6. Password reset (256-bit token, 15dk)
-7. JWT access token (RS256, 30dk) + JWKS endpoint
-8. Opaque refresh token (rotation + family-based revocation)
-9. Session yonetimi (idle/absolute timeout, aktif session listesi)
-10. Audit log (structured JSON, SHA-256 hash chain, PII encryption)
-11. Rate limiting (Redis sliding window, per-IP + per-endpoint)
-12. Security headers (HSTS, CSP, CORS, X-Frame-Options)
-13. Request validation (body size, content-type, JSON depth)
-14. Email altyapisi (pluggable provider, SPF/DKIM/DMARC rehberi)
-15. Client SDK: signUp, signIn, signOut, getSession, getUser, onAuthStateChange, auto-refresh
-16. Server SDK: verifyToken, admin.createUser, updateUser, deleteUser, listUsers
-
-**Neden %95'inden guvenli:**
-- Argon2id + pepper + salt (cogu sistem bcrypt bile kullanmiyor)
-- HIBP kontrolu (neredeyse kimse yapmiyor)
-- Token rotation + stolen token detection (family-based revocation)
-- Tamper-evident audit log (hash chain)
-- Constant-time comparison (timing attack korumasi)
-- Security headers (cogu startup eksik)
-
-**Sertifika:** NIST AAL1, GDPR temel
-
-### Faz 1: MFA + Social + Hooks (Ay 3-4)
-
-> Hedef: Firebase/Supabase seviyesi + blocking hooks avantaji.
-
-1. TOTP MFA (QR enrollment, AES-256-GCM secret, backup codes)
-2. Social login: Google, Apple, GitHub, Microsoft (Auth Code + PKCE)
-3. Account linking (verified email ile otomatik)
-4. Magic link (256-bit token, 15dk)
-5. Blocking hooks (before.user.create, before.login + after variants)
-6. Webhook sistemi (HMAC imza, retry, temel)
-7. Session: device metadata binding, concurrent limit, remote revocation
-8. Client SDK: signInWithOAuth, signInWithCredential, mfa.enroll/verify, recovery codes
-9. Server SDK: hooks.before(), on(), admin.setCustomClaims, revokeAllSessions
-10. Admin panel (temel): kullanici listesi, session yonetimi, konfigurasyon, log viewer
-
-**Sertifika:** NIST AAL2, OpenID Basic OP basvurusu baslar
-
-### Faz 2: Passkeys + Enterprise (Ay 5-7)
-
-> Hedef: Clerk/WorkOS seviyesi. FIDO2 + OpenID sertifika basvurulari.
-
-1. WebAuthn/Passkeys (packed+none attestation, ES256, counter validation, MDS v3)
-2. Passkey-first kayit + cross-device QR login
-3. Step-up auth (ACR/AMR claims, per-endpoint seviye)
-4. Risk engine (IP geo, impossible travel, device fingerprint, VPN/Tor, velocity)
-5. Organizations (CRUD, member management, roller, davet)
-6. OpenID Connect Provider (discovery, auth code+PKCE, token, userinfo, JWKS, logout)
-7. Token introspection (RFC 7662) + revocation (RFC 7009)
-8. Key rotation (JWKS'te eski+yeni, kid bazli)
-9. Bot detection (Proof-of-Work, credential stuffing tespiti)
-10. SMS OTP (pluggable provider, ulke whitelist)
-11. NestJS SDK (@RequireAuth, @CurrentUser, hook handler interface)
-12. Edge SDK (<50KB, JWKS cache, JWT verify, Cloudflare Workers + Vercel Edge)
-
-**Sertifika:** FIDO2 basvuru, OpenID Basic OP, SOC 2 gozlem baslar
-
-### Faz 3: Financial-Grade (Ay 8-12)
-
-> Hedef: Auth0 seviyesi + device attestation + PSD2 SCA.
-
-1. DPoP (ephemeral key, proof JWT, cnf.jkt claim)
-2. PAR (Pushed Authorization Requests)
-3. Device attestation (Play Integrity API, Apple App Attest)
-4. Cryptographic device binding (hardware enclave key pair)
-5. Transaction authorization (PSD2 SCA dynamic linking, WYSIWYS)
-6. SAML 2.0 (SP + IdP modu, XXE korumasi)
-7. Enterprise SSO per org (SAML/OIDC, self-service setup UI)
-8. SCIM 2.0 provisioning (per-org endpoint)
-9. API key + M2M auth (client_credentials, PATs)
-10. OpenID FAPI 2.0 (PAR + PKCE + DPoP)
-11. GDPR DSAR endpoint'leri (export, delete, consent)
-12. Breach detection (HIBP monitoring, credential stuffing)
-13. Admin panel: org yonetimi, SSO konfig, webhook DLQ, risk dashboard
-
-**Sertifika:** FIDO2 alinir, FAPI basvuru, SOC 2 gozlem devam
-
-### Faz 4: Scale + Compliance (Ay 13-18)
-
-> Hedef: SOC 2 raporu alma. Multi-region, full enterprise.
-
-1. Multi-region deployment (data residency: EU, US, APAC, TR)
-2. Custom domain per tenant (Let's Encrypt/ACME)
-3. White-label (login sayfalari, email template'ler, branding)
-4. Advanced risk engine (3rd party connectors, behavioral signals)
-5. Admin impersonation (RFC 8693 token exchange, audit trail)
-6. Advanced webhook (DLQ, replay, fan-out, delivery logs)
-7. Backup & DR (PITR, encrypted backup, 6 aylik DR test)
-8. Vulnerability management (dependency scan, DAST, pentest)
-9. Incident response plan (documented, yillik exercise)
-10. Change management proseduru
-11. i18n (en, tr + framework)
-
-**Sertifika:** SOC 2 Type II ALINIR, ISO 27001 baslar, PCI DSS gap analysis
-
-### Faz 5: Global Compliance (Ay 19-30)
-
-> Hedef: Tam sertifika portfolyosu. Piyasada esdegeri olmayan platform.
-
-1. ISO 27001 sertifikasi
-2. PCI DSS v4.0 sertifikasi
-3. HIPAA BAA
-4. CSA STAR Level 2
-5. FedRAMP High basvurusu
-6. eIDAS LoA High (QTSP entegrasyonu)
-7. AI Agent / MCP auth (agent entity, OAuth 2.1, RFC 8693 token exchange)
-8. EUDI Wallet (OpenID4VP, selective disclosure)
-9. Continuous auth (behavioral signals -> risk engine)
-10. KYC entegrasyon hook'lari
-11. Full i18n (10+ dil, RTL)
-12. WCAG 2.1 AA
-
-**Sertifika:** ISO 27001, PCI DSS, HIPAA, CSA STAR, FedRAMP suruyor, FAPI 2.0, eIDAS
-
-### Faz Ozet
-
-| Faz | Sure | Piyasa Esdegeri | Sertifika |
-|-----|------|-----------------|-----------|
-| **0** | Ay 1-2 | %95'inden guvenli | NIST AAL1, GDPR |
-| **1** | Ay 3-4 | Supabase/Firebase + hooks | NIST AAL2, OpenID basvuru |
-| **2** | Ay 5-7 | Clerk/WorkOS + FIDO2 | FIDO2 + OpenID basvuru, SOC 2 gozlem |
-| **3** | Ay 8-12 | Auth0 + PSD2 SCA + device attestation | FIDO2, FAPI basvuru |
-| **4** | Ay 13-18 | Descope seviyesi | SOC 2 alinir, ISO + PCI baslar |
-| **5** | Ay 19-30 | Piyasada esdegeri YOK | Tam portfolyo |

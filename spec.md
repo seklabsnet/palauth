@@ -4,6 +4,15 @@
 > Go backend, multi-language SDK'lar, financial-grade security.
 > Proje adi: **PalAuth**
 
+### Dokumanlar
+
+| Dosya | Icerik |
+|-------|--------|
+| **spec.md** (bu dosya) | Core Go server fonksiyonalitesi, altyapi, faz plani, test stratejisi, dashboard |
+| [spec-compliance.md](spec-compliance.md) | Sertifikasyon, regulasyon, uyum (NIST, SOC 2, ISO, PCI DSS, FIDO2, FAPI, GDPR, PSD2, DORA, FIPS, ETSI, QES, rakip analizi) |
+| [spec-sdk.md](spec-sdk.md) | SDK tasarimi (TypeScript client/server/edge/nestjs, Go, KMP mobile) |
+| [spec-saas.md](spec-saas.md) | SaaS platform (ileride — Faz 4+) |
+
 ---
 
 ## 1. Vizyon & Hedefler
@@ -14,73 +23,16 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 
 ### 1.2 Temel Ilkeler
 
-1. **Security-first**: Tum sertifikalari alabilecek seviyede guvenlik (SOC 2, ISO 27001, PCI DSS, FIDO2, OpenID FAPI, FedRAMP, eIDAS)
+1. **Security-first**: Tum sertifikalari alabilecek seviyede guvenlik → detay: [spec-compliance.md](spec-compliance.md)
 2. **Blocking pipeline**: Event-based degil, backend "tamam" demeden islem tamamlanmaz
-3. **Entegrasyon kolayligi**: 3 satirda entegrasyon, developer-friendly SDK
+3. **Entegrasyon kolayligi**: 3 satirda entegrasyon, developer-friendly SDK → detay: [spec-sdk.md](spec-sdk.md)
 4. **Project izolasyonu**: Tek instance uzerinde birden fazla izole project destegi (project_id ile scope'lama)
 5. **Financial-grade**: Para transferi, transaction approval, document signing destegi
 
-### 1.3 Hedef Sertifika Portfolyosu
+### 1.3 Sertifika & Uyum
 
-| Sertifika | Tip | Oncelik | Sure | Maliyet | Self-Hosted Uygulanabilir? |
-|-----------|-----|---------|------|---------|---------------------------|
-| **Temel — Day 1** |
-| NIST SP 800-63B-4 (AAL1-3) | Guideline | Day 1 tasarim | - | Ucretsiz | Evet |
-| GDPR compliance | Regulation | Day 1 tasarim | Surekli | €20K-€40K setup | Evet |
-| PSD2/PSD3 SCA | Regulation | Day 1 tasarim | Surekli | €0 (design) | Evet |
-| CSA STAR Level 1 | Self-assessment | Day 1 | 2-4 hafta | **Ucretsiz** | Evet |
-| **Faz 1 — Hizli Kazanimlar** |
-| OpenID Connect Certified | Self-certification | Ay 1-3 | Gunler-haftalar | €700 (uye) / €3,500 (non-uye) | Evet |
-| FAPI 2.0 Certified | Self-certification | Ay 1-3 | 1-3 ay | €1K (uye) / €5K (non-uye) + engineering effort €15K-€40K | Evet |
-| FIDO2 Server L1 | Automated test | Ay 1-3 | 2-4 ay | **~$15K-$30K USD** (uyelik dahil) | Evet |
-| Penetration test (3rd party) | Rapor | Ay 3 | 2-4 hafta | €5K-€15K | Evet |
-| **Faz 2 — Enterprise** |
-| SOC 2 Type II | CPA audit | Ay 6-12 | 6-15 ay | €25K-€80K | Evet (reduced scope — dev practices, SDLC) |
-| ISO 27001:2022 | Accredited CB | Ay 6-12 | 3-12 ay | €15K-€50K (SOC 2 ile paralel %20-35 tasarruf) | **Tam uygulanabilir** (en degerli sertifika self-hosted icin) |
-| HIPAA BAA | BAA | SOC 2 ile | - | €15K-€50K | Evet (reduced — musteri PHI hosting sorumlulugu tasir) |
-| DPF (EU-US Data Privacy Framework) | Self-certification | Ay 6 | 2-4 hafta | Minimal | Evet |
-| **Faz 3 — Financial + Signing** |
-| ISO 27701 (Privacy) | Certification | Ay 13+ | 2-4 ay | €15K-€50K (ISO 27001 uzerine incremental) | Evet |
-| DORA readiness | Compliance docs | Ay 13+ | 3-6 ay | **€30K-€100K** | Evet |
-| QTSP partnership | Entegrasyon | Ay 13+ | 1-3 ay | €10K-€50K + €2.50-€5/QES | Evet |
-| OpenID4VP/VCI conformance | Self-certification | Ay 13+ | Gunler-haftalar | €700-€3,500 | Evet |
-| ETSI TS 119 461 (Identity proofing) | Compliance | Ay 13+ (Agustos 2027 zorunlu) | 2-4 ay | QTSP audit icinde | Evet |
-| CSA STAR Level 2 | Certification | ISO 27001 sonrasi | 2-4 ay | €10K-€30K (ISO uzerine) | Evet |
-| PCI DSS v4.0.1 | QSA audit | Ay 13-18 | 3-12 ay | €5K-€200K | Evet (reduced — musteri CDE sorumlulugu tasir) |
-| **Faz 4 — Global** |
-| FIPS 140-3 | Crypto module validation | Ay 24+ | 2-24 ay | €50K-€400K (VaaS ile €50K-€150K, ~2 ay) | **Ideal** (urun-seviye, deployment-agnostic) |
-| Common Criteria (EAL2-4) | CCTL evaluation | Ay 24+ | 12-24 ay | €100K-€500K | **Ideal** (urun-seviye) |
-| ISO 27017 (Cloud security) | Certification | Ay 24+ | 2-4 ay | €10K-€30K (ISO uzerine) | Evet |
-| ISO 27018 (PII in cloud) | Certification | Ay 24+ | 2-4 ay | €10K-€30K (ISO uzerine) | Evet |
-| FedRAMP High | US gov authorization | Sadece hosted versiyon icin | 12-24 ay | €500K-€2M+ (PIV/CAC zorunlu IA-2(12)) | **HAYIR** — cloud-only. Self-hosted icin FISMA ATO kullanilir |
-| QTSP status (own) | EU Trusted List | Volume hakliyorsa | 2-3 yil | €500K-€1M+ initial, €200K-€500K/yil | Kismi |
-| eIDAS LoA High | EU regulation | Ay 24+ | 2-6 ay | €10K-€100K | Evet |
+> Tam sertifika portfolyosu, maliyet tablosu, regulasyon detaylari: [spec-compliance.md](spec-compliance.md)
 
-> **Self-hosted avantaji:** FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deployment modeline bagli degil — yazilimla birlikte gider. SOC 2, HIPAA, PCI DSS gibi operasyonel sertifikalarda ise scope daraliyor cunku musteri kendi altyapisini yonetiyor.
-
-> **Strateji:** Urun sertifikalarina (FIDO2, FAPI, FIPS, CC) agirlik ver — bunlar self-hosted'da en yuksek degeri tasiyor. Operasyonel sertifikalari (SOC 2, ISO 27001) satista "must have" oldugu icin al. Compliance'i urune gom: audit log export, compliance dashboard, hardening guide, STIG config, responsibility matrix.
-
-> **FedRAMP notu:** Self-hosted yazilim FedRAMP'a tabi degil. Musterinin altyapisinda calisan yazilim FISMA agency-level ATO ile degerlendirilir. Eger ileride hosted component (management console, telemetry) sunarsak sadece o component FedRAMP gerektirir.
-
-### 1.4 Sertifika Maliyet Ozeti
-
-| Faz | Sure | Min Maliyet | Max Maliyet | Kumulatif Min | Kumulatif Max |
-|-----|------|-------------|-------------|---------------|---------------|
-| Faz 1: MVP Auth | Ay 1-6 | €40K | €100K | €40K | €100K |
-| Faz 2: Enterprise | Ay 7-12 | €75K | €230K | €115K | €330K |
-| Faz 3: Financial + Signing | Ay 13-24 | €75K | €340K | €190K | €670K |
-| Faz 4: Global | Ay 24-36 | €270K | €1M | €460K | €1.67M |
-| Yillik bakim (3. yil sonrasi) | Surekli | €40K/yil | €120K/yil | — | — |
-
-**Opsiyonel yuksek maliyetler (dahil degil):**
-
-| Opsiyonel | Maliyet | Ne zaman |
-|-----------|---------|----------|
-| FedRAMP Moderate/High | €500K-€2M+ | Sadece US gov geliri hakliyorsa |
-| QTSP (kendi) | €500K-€1M+ initial + €200K-€500K/yil | 10,000-50,000+ QES/ay hacminde |
-| Common Criteria EAL4+ | €200K-€500K+ | Sadece QSCD donanimi yapiyorsak |
-
-**Gercekci startup yolu (Faz 1-3, opsiyoneller haric): €190K-€670K / 2 yil.** Descope/Stytch ile rekabet paritesi, Clerk/WorkOS'u sertifika genisliginde gecer, signing + financial-grade onlarda yok.
 
 ---
 
@@ -1154,269 +1106,10 @@ Auth server bir OpenID Connect Provider olarak calisir.
 
 ---
 
-## 25. Edge SDK
+## 25-26: SDK Tasarimi
 
-### 25.1 Amac
-
-Cloudflare Workers, Vercel Edge, Deno Deploy gibi edge runtime'larda JWT dogrulama.
-
-### 25.2 Ozellikler
-
-- JWKS fetching + caching
-- JWT signature verification
-- Claims validation
-- DPoP proof verification
-- <50KB bundle size
-- Sifir network round-trip (JWT self-contained dogrulama)
-
----
-
-## 26. SDK Tasarimi
-
-### 26.0 SDK Genel Bakis
-
-Go auth server REST API sunar. SDK'lar bu API'nin thin wrapper'lari — OpenAPI spec'ten (`api/openapi.yaml`) generate edilir.
-
-| SDK | Dil | Platform | Amac |
-|-----|-----|----------|------|
-| `@palauth/client` | TypeScript | Next.js, React, Vue, browser | Frontend auth (login, signup, MFA, session) |
-| `@palauth/server` | TypeScript | NestJS, Express, Fastify | Backend token verify, admin ops, hooks |
-| `@palauth/edge` | TypeScript | Cloudflare Workers, Vercel Edge | JWT dogrulama (<50KB) |
-| `@palauth/nestjs` | TypeScript | NestJS | Decorator-based wrapper (@RequireAuth, @CurrentUser) |
-| `palauth-go` | Go | Go backends | Native Go SDK |
-| `palauth-mobile` | Kotlin (KMP) | iOS + Android | Kotlin Multiplatform — tek codebase, iki platform |
-| `palauth-python` | Python | Django, FastAPI, Flask | Ileride |
-| `palauth-java` | Java/Kotlin | Spring Boot | Ileride |
-
-### 26.1 Client SDK (`@palauth/client`)
-
-```typescript
-// Initialization
-const auth = createAuthClient({
-  url: 'https://auth.myapp.com',
-  apiKey: 'pk_live_...'
-});
-
-// Email + Password
-await auth.signUp({ email, password });
-await auth.signIn({ email, password });
-
-// OTP
-await auth.signInWithOtp({ email });
-await auth.verifyOtp({ email, code });
-
-// Social Login
-await auth.signInWithOAuth({ provider: 'google' });          // Web: redirect/popup
-await auth.signInWithCredential({ provider, token });         // Mobile: native token
-
-// Magic Link
-await auth.signInWithMagicLink({ email });
-
-// Passkeys
-await auth.signInWithPasskey();
-await auth.registerPasskey();
-
-// MFA
-await auth.mfa.enroll({ method: 'totp' });                   // QR code doner
-await auth.mfa.challenge();
-await auth.mfa.verify({ code });
-
-// Step-Up Auth
-await auth.stepUp({ method: 'passkey' });
-
-// Transaction Approval (PSD2 SCA)
-await auth.transaction.approve({ amount: 100, currency: 'EUR', payee: 'Alice' });
-
-// Session
-await auth.signOut();
-await auth.getSession();
-await auth.getUser();
-auth.onAuthStateChange((event, session) => { ... });
-
-// Device
-await auth.device.register();                                  // Device binding
-await auth.device.attest();                                    // Platform attestation
-
-// Recovery
-const codes = await auth.recovery.generateCodes();
-await auth.recovery.useCode(code);
-```
-
-### 26.2 Server SDK (`@palauth/server`)
-
-```typescript
-// Initialization
-const auth = createAuthServer({
-  url: 'https://auth.myapp.com',
-  serviceKey: 'sk_live_...'
-});
-
-// Token Verification
-const user = await auth.verifyToken(jwt);
-
-// Admin Operations
-await auth.admin.createUser({ email, password });
-await auth.admin.updateUser(uid, { email_verified: true });
-await auth.admin.deleteUser(uid);
-const users = await auth.admin.listUsers({ page: 1, limit: 20 });
-await auth.admin.setCustomClaims(uid, { role: 'admin', plan: 'pro' });
-await auth.admin.revokeAllSessions(uid);
-const token = await auth.admin.createCustomToken(uid, { custom: 'data' });
-
-// Impersonation
-const impersonationToken = await auth.admin.impersonate(targetUid);
-
-// Blocking Hooks
-auth.hooks.before('user.create', async (event) => {
-  const user = await db.users.create({ authId: event.user.id });
-  return { allow: true, metadata: { dbUserId: user.id } };
-});
-
-auth.hooks.before('login', async (event) => {
-  if (event.user.banned) return { deny: true, reason: 'banned' };
-  return { allow: true };
-});
-
-auth.hooks.before('transaction.approve', async (event) => {
-  const balance = await getBalance(event.user.id);
-  if (balance < event.transaction.amount) {
-    return { deny: true, reason: 'insufficient_funds' };
-  }
-  return { allow: true };
-});
-
-// Non-Blocking Events
-auth.on('user.created', async (event) => {
-  await sendWelcomeEmail(event.user.email);
-  await crm.createContact(event.user);
-});
-
-auth.on('login.failed', async (event) => {
-  await alerting.notify('login_failure', event);
-});
-
-// Organizations
-await auth.orgs.create({ name: 'Acme Corp', domain: 'acme.com' });
-await auth.orgs.addMember(orgId, userId, 'admin');
-await auth.orgs.configureSso(orgId, { provider: 'saml', metadata_url: '...' });
-```
-
-### 26.3 Edge SDK (`@palauth/edge`)
-
-```typescript
-import { createVerifier } from '@palauth/edge';
-
-const verifier = createVerifier({
-  jwksUrl: 'https://auth.myapp.com/.well-known/jwks.json',
-  issuer: 'https://auth.myapp.com',
-  audience: 'my-app'
-});
-
-// Cloudflare Worker / Vercel Edge
-export default {
-  async fetch(request) {
-    const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-    const { valid, claims, error } = await verifier.verify(token);
-
-    if (!valid) return new Response('Unauthorized', { status: 401 });
-
-    // DPoP verification (optional)
-    const dpopProof = request.headers.get('DPoP');
-    if (dpopProof) {
-      const dpopValid = await verifier.verifyDPoP(dpopProof, token, request);
-      if (!dpopValid) return new Response('Invalid DPoP', { status: 401 });
-    }
-
-    return fetch(request);
-  }
-};
-```
-
-### 26.4 KMP Mobile SDK (`palauth-mobile`)
-
-Kotlin Multiplatform — tek codebase'den iOS ve Android SDK'i uretir.
-
-```kotlin
-// Android + iOS ortak kod
-val auth = PalAuth.create(
-    url = "https://auth.myapp.com",
-    apiKey = "pk_live_xxx"
-)
-
-// Login
-auth.signIn(email = "user@example.com", password = "...")
-
-// Passkey
-auth.passkey.register()
-auth.passkey.authenticate()
-
-// Device attestation (platform-specific)
-auth.device.attest()  // Android: Play Integrity, iOS: App Attest
-
-// Transaction approval (PSD2 SCA)
-auth.transaction.approve(
-    amount = 100.0, currency = "EUR", payee = "Alice"
-)
-
-// Auth state observation
-auth.onAuthStateChange { event, session -> ... }
-```
-
-**Platform-specific:**
-- Android: EncryptedSharedPreferences, Android Keystore, Play Integrity API, BiometricPrompt
-- iOS: Keychain, Secure Enclave, App Attest, LAContext (Face ID / Touch ID)
-- Ortak: Token persistence, auto-refresh, PKCE, DPoP proof generation
-
-### 26.5 NestJS SDK (`@palauth/nestjs`)
-
-> NestJS backend'ler icin decorator-based wrapper. `@palauth/server` uzerine kurulu, Go auth server'a istek atar.
-
-```typescript
-// Module Registration
-@Module({
-  imports: [
-    AuthServerModule.register({
-      url: 'https://auth.myapp.com',
-      serviceKey: process.env.AUTH_SERVICE_KEY,
-      hooks: {
-        'before.user.create': BeforeUserCreateHandler,
-        'before.login': BeforeLoginHandler,
-        'before.transaction.approve': BeforeTransactionHandler,
-      }
-    })
-  ]
-})
-export class AppModule {}
-
-// Guard
-@Controller('protected')
-@UseGuards(AuthGuard)
-export class ProtectedController {
-
-  @Get('profile')
-  @RequireAuth()                                // AAL1 yeterli
-  getProfile(@CurrentUser() user: AuthUser) {}
-
-  @Post('transfer')
-  @RequireAuth({ acr: 'aal2', mfa: true })     // Step-up zorunlu
-  transfer(@CurrentUser() user: AuthUser) {}
-
-  @Post('high-value-transfer')
-  @RequireAuth({ acr: 'aal3', dpop: true })    // Hardware key + DPoP zorunlu
-  highValueTransfer(@CurrentUser() user: AuthUser) {}
-}
-
-// Hook Handler
-@Injectable()
-export class BeforeUserCreateHandler implements AuthHookHandler {
-  constructor(private readonly userService: UserService) {}
-
-  async handle(event: AuthHookEvent): Promise<AuthHookResponse> {
-    const user = await this.userService.create({ authId: event.user.id });
-    return { allow: true, metadata: { dbUserId: user.id } };
-  }
-}
-```
+> Tum SDK tasarimi, kod ornekleri, platform detaylari: [spec-sdk.md](spec-sdk.md)
+> Client SDK, Server SDK, Edge SDK, NestJS SDK, Go SDK, KMP Mobile SDK
 
 ---
 
@@ -1531,19 +1224,29 @@ authserver/
 | JWT | go-jose/v4 | Full JOSE (JWE, JWS, JWT, JWK), RFC uyumlu |
 | OIDC | zitadel/oidc (OpenID Certified) | OP + RP, production-tested |
 | WebAuthn | go-webauthn (FIDO Conformant) | Passkey, MFA, attestation |
-| SAML | crewjam/saml | SP + IdP, XXE koruması |
-| Argon2id | golang.org/x/crypto/argon2 | Stdlib kalitesi, pure Go |
-| DPoP | AxisCommunications/go-dpop | Proof generation + validation |
-| SCIM | elimity-com/scim | CRUD + schema validation |
-| Event system | ThreeDotsLabs/watermill | In-memory + Kafka + Redis pub/sub |
-| Config | koanf | Lightweight, YAML/env/JSON |
-| Logging | slog (stdlib) | Go 1.21+, structured, zero-dep |
-| Validation | go-playground/validator v10 | Struct tag-based, cross-field |
-| Migration | golang-migrate | SQL-based, versioned |
-| OpenAPI codegen | oapi-codegen | Spec-first, Chi uyumlu |
+| SAML | crewjam/saml v0.5.1 | SP + IdP, CVE'ler fixli |
+| Argon2id | alexedwards/argon2id | Secure defaults, PHC format wrapper |
+| DPoP | AxisCommunications/go-dpop v1.1.2 | Proof generation + validation (vendor/fork) |
+| SCIM | elimity-com/scim | CRUD + schema validation (pin commit) |
+| Event system | Go channels (Faz 0), watermill v1.5.1 (Faz 2+) | In-memory → Kafka/Redis/NATS |
+| Config | knadh/koanf v2.3.4 | Viper'dan %313 kucuk, modular |
+| Logging | slog (stdlib) + samber/slog-multi | Go 1.24, structured, fan-out |
+| Validation | go-playground/validator v10 | Struct tag-based, 19.8K stars |
+| Migration | pressly/goose v3.27.0 | SQL + Go migrations |
+| OpenAPI codegen | oapi-codegen v2.6.0 | Spec-first, Chi first-class |
 | FIPS 140-3 | Go 1.24 native module | Sertifika A6650, cgo gerektirmez |
-| Metrics | Prometheus client_golang | /metrics endpoint |
-| Rate limiting | NVIDIA/go-ratelimit + go-redis | Distributed sliding window |
+| Metrics | prometheus/client_golang v1.23.2 | /metrics endpoint |
+| Rate limiting | go-chi/httprate + httprate-redis | Chi-native sliding window |
+| CORS | rs/cors v1.11.1 | Router-agnostic, 2.8K stars |
+| ID generation | google/uuid (UUIDv7) | RFC 9562, PG native uuid |
+| TOTP (Faz 1) | pquerna/otp v1.5.0 | TOTP + HOTP |
+| OAuth2 client (Faz 1) | golang.org/x/oauth2 v0.36.0 | Native PKCE destegi |
+| IP Geolocation (Faz 2) | oschwald/geoip2-golang v2.1.0 | MaxMind GeoLite2 |
+| ACME/TLS (Faz 4) | caddyserver/certmagic v0.25.2 | Auto HTTPS, distributed |
+| Play Integrity (Faz 3) | google.golang.org/api/playintegrity/v1 | Resmi Google client |
+| App Attest (Faz 3) | splitsecure/go-app-attest | En aktif, kodu audit et |
+
+> Tam paket referansi: [packages.md](packages.md)
 
 ### 28.2 Dashboard (Next.js)
 
@@ -1648,187 +1351,12 @@ helm install authserver authserver/authserver \
 
 ---
 
-## 29. PSD3 / PSR Hazirlik
+## 29-34: Sertifikasyon & Regulasyon
 
-Politik anlasma: 27 Kasim 2025. Resmi yayin: Q2 2026 bekleniyor. PSR dogrudan uygulanabilir regulation olarak 18-24 ay sonra yururluge girer (H2 2027 - basi 2028).
-
-**Kritik yapisal degisiklik:** SCA kurallari artik PSD3'te degil, **PSR (Payment Services Regulation) Articles 85-89**'da. Dogrudan uygulanabilir regulation — ulkeler arasi tutarsiz transposition sorunu ortadan kalkiyor.
-
-### Yeni SCA Gereksinimleri (PSR)
-
-- **Iki inherence faktoru artik izinli** (Art. 85): Ornegin parmak izi + yuz tanima. Ancak SADECE inherence kategorisinde gecerli — iki possession veya iki knowledge YASAK
-- **Genisletilmis SCA kapsami**: Login, mandate setup, cihaz recovery islemleri de SCA gerektiriyor
-- **SCA erisilebirligi yasal hak**: Akilli telefon disinda yontemler sunulmak ZORUNDA
-- **SCA delegasyonu = outsourcing**: Dokumantasyon ve denetim gereksinimleri artiyor
-- **Impersonation fraud sorumlulugu**: PSP'ler artik impersonation fraud'dan da sorumlu
-- Gercek zamanli fraud monitoring zorunlulugu
-- API hardening gereksinimleri
-- eIDAS 2.0 (EUDI Wallet) ile uyum
+> Bu bolumler [spec-compliance.md](spec-compliance.md) dosyasina tasinmistir:
+> PSD3/PSR, DORA, FIPS 140-3, ETSI TS 119 461, QES stratejisi, rakip sertifika analizi, NIST 800-63B-4 AAL seviyeleri, GDPR, data residency, operasyonel prosedurler.
 
 ---
-
-## 30. DORA (Digital Operational Resilience Act)
-
-### 30.1 Nedir?
-
-AB finansal sektoru icin dijital operasyonel dayaniklilik regülasyonu. **17 Ocak 2025'te tam olarak yururluge girdi.** Bankalar, sigorta sirketleri, yatirim firmalari ve onlarin **ICT ucuncu taraf hizmet saglayicilari** icin gecerli.
-
-### 30.2 Bizi Neden Ilgilendiriyor?
-
-Auth platformumuz banka musterilerine hizmet verdiginde **ICT ucuncu taraf hizmet saglayicisi** oluyoruz. DORA dogrudan bize uygulanir.
-
-### 30.3 Gereksinimler
-
-**Sozlesme gereksinimleri (Art. 28-30):**
-- SLA'lar (uptime, response time, RTO/RPO)
-- Cikis stratejisi (exit plan — musteri baska saglayiciya gecebilmeli)
-- Denetim haklari (musteri veya regulator bizim sistemlerimizi denetleyebilmeli)
-- Olay bildirimi (incident reporting — 24 saat icinde)
-- Is surekliligi testi (business continuity testing)
-
-**Teknik gereksinimler (5 temel sutun):**
-1. ICT risk management framework
-2. Incident classification ve reporting
-3. Digital operational resilience testing (TLPT — Threat-Led Penetration Testing)
-4. Ucuncu taraf risk yonetimi dokumantasyonu
-5. **Bilgi ve istihbarat paylasimi** (Chapter VI, Art. 45) — siber tehdit istihbaratinin finansal kurumlar arasinda paylasimi tesvik edilir
-
-**Cezalar:**
-- Finansal kurumlar: en agir ihlallerde **yillik dunya cirosunun %2'sine** kadar ceza (Art. 50-52)
-- Kritik ICT Ucuncu Taraf Saglayicilar (CTPP): devam eden uyumsuzlukta **gunluk dunya cirosunun %1'ine** kadar ceza + **€5M'a** kadar sabit ceza
-
-### 30.4 Implementasyon
-
-- DORA-compliant sozlesme template'leri hazirla
-- SLA/SLO dokumantasyonu
-- Incident response + reporting proseduru (24 saat)
-- Exit/transition plani
-- Denetim erisim mekanizmasi (read-only audit access)
-- Is surekliligi test kanit raporu (6 aylik)
-- Maliyet: €30K-€100K (dokumantasyon + prosedur)
-
----
-
-## 31. FIPS 140-3 (Cryptographic Module Validation)
-
-### 31.1 Nedir?
-
-Kriptografik modullerin guvenligini dogrulayan ABD federal standardi. FIPS 140-2 **21 Eylul 2026'da** sunset oluyor, bundan sonra sadece FIPS 140-3 gecerli.
-
-### 31.2 Self-Hosted icin Neden Ideal?
-
-- **Urun-seviye sertifika** — deployment modeline bagli degil
-- Platformun kendisi degil, **kullandigi kriptografik modul** validate edilir
-- Validate edilmis kutuphane kullanarak platform FIPS-compliant olabilir
-- Musteri kendi altyapisinda FIPS-validated binary deploy eder
-
-### 31.3 Uygulama Stratejisi
-
-**Yol 1: Validate edilmis kutuphane kullan (oneri)**
-- OpenSSL FIPS module (validated)
-- BoringCrypto (Go — Google tarafindan validated)
-- Bouncy Castle FIPS (Java)
-- Node.js icin: OpenSSL FIPS provider + `--enable-fips` flag
-
-**Yol 2: Validation-as-a-Service (VaaS)**
-- SafeLogic gibi saglayicilar pre-validated modulleri lisanslar
-- Sure: ~2 ay (geleneksel 12-24 ay yerine)
-- Maliyet: €50K-€150K (geleneksel €150K-€400K yerine)
-
-### 31.4 FIPS Mode Konfigurasyonu
-
-- FIPS mode project bazinda aktiflestirilir
-- FIPS modunda sadece approved algoritmalar: AES-128/192/256, SHA-2, HMAC, RSA 2048+, ECDSA P-256/P-384, EdDSA
-- Chacha20, MD5, SHA-1 (signing icin), RSA 1024 FIPS modunda YASAK
-- Argon2id FIPS-approved degil — FIPS modunda PBKDF2-HMAC-SHA256 (600K+ iteration) kullanilir
-
----
-
-## 32. ETSI TS 119 461 (Identity Proofing)
-
-### 32.1 Nedir?
-
-Trust service'ler icin kimlik dogrulama standardi. **Agustos 2027'de zorunlu** oluyor (EU Implementing Regulation 2025/1566).
-
-### 32.2 Seviyeler
-
-- **Baseline Level**: Temel kimlik dogrulama. Document verification + liveness check
-- **Extended Level**: Guclendirilmis dogrulama. Yuz yuze veya esdeger remote verification
-
-### 32.3 Senaryolar
-
-- Yuz yuze (face-to-face) dogrulama
-- Uzaktan destekli (remote assisted) — video call ile operator
-- Gozetimsiz uzaktan (unattended remote) — AI-based document + liveness
-
-### 32.4 Bizim Icin Anlami
-
-- QTSP partnership yaptigimizda, QTSP zaten ETSI TS 119 461 uyumlu olmali
-- Auth server olarak bizim rolumuz: KYC provider entegrasyonu (Onfido, Veridas, Namirial, Sumsub, IDnow — hepsi ETSI TS 119 461 sertifikali)
-- Identity proofing hook'u: `before.identity.verify` blocking hook ile backend KYC sonucunu onaylayabilir
-
----
-
-## 33. QES (Qualified Electronic Signature) Stratejisi
-
-### 33.1 QTSP Partnerligi vs Kendi QTSP
-
-| | QTSP Partnerligi | Kendi QTSP |
-|---|---|---|
-| Sure | 1-3 ay | 2-3 yil |
-| Maliyet | €10K-€50K + €2.50-€5/QES | €500K-€1M+ initial |
-| Yillik | Per-signature maliyet | €200K-€500K+ |
-| Kontrol | Sinirli | Tam |
-| Risk | Dusuk | Yuksek |
-| Breakeven | - | 10,000-50,000+ QES/ay |
-
-**Karar: Faz 3'te QTSP partnerligi.** Kendi QTSP icin gercekci breakeven 10,000-50,000+ QES/ay (HSM altyapisi, 24 aylik conformity assessment, NIS2 uyumlulugu, sigorta ve personel maliyetleri nedeniyle). Volume ancak bu seviyeye ulasirsa Faz 5'te kendi QTSP degerlendirmesi.
-
-### 33.2 Potansiyel QTSP Partnerleri
-
-- **Swisscom Trust Services** (Isvicre merkezli, eIDAS QTSP akreditasyonu Avusturya uzerinden) — Genis partner ekosistemi, API
-- **Namirial** (Italya) — Full API, white-label
-- **InfoCert** (Italya) — Banka/finans odakli
-- **SK ID Solutions** (Estonya) — Smart-ID/Mobile-ID, Baltik bolgesi
-- **Evrotrust** (Bulgaristan) — Mobil QES, 58 ulke
-
-### 33.3 Entegrasyon
-
-- CSC API (Cloud Signature Consortium) standardi — ETSI TS 119 432
-- Signing akisi: Auth Server (kullanici dogrulama) -> QTSP API (sertifika + imza) -> Signed document
-- Document hash signing (dokuman QTSP'ye gonderilmez, sadece hash)
-
----
-
-## 34. Rakip Analizi Ozeti
-
-Hedefledigimiz sertifika portfolyosu hicbir mevcut provider'da tam olarak bulunmuyor:
-
-| Ozellik | Biz | Auth0 | Firebase | Supabase | Descope | Hanko | WorkOS | Zitadel | Ory | SuperTokens |
-|---------|-----|-------|----------|----------|---------|-------|--------|---------|-----|-------------|
-| OpenID FAPI 2.0 | Hedef | FAPI 1 | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-| FIDO2 Certified | Hedef | Hayir | Hayir | Hayir | Evet | Evet | Hayir | Hayir | Hayir | Hayir |
-| OpenID Certified | Hedef | Evet | Evet* | Hayir | Hayir | Hayir | Hayir | Evet (Basic OP) | Evet (Hydra) | Hayir |
-| SOC 2 Type II | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Evet | Evet | Evet |
-| ISO 27001 | Hedef | Evet | Evet | Beklemede | Evet | Hayir | Hayir | Evet | Evet | Hayir |
-| PCI DSS v4.0.1 | Hedef | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
-| FedRAMP High | Hedef | Hayir | Evet* | Hayir | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
-| HIPAA | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir |
-| PSD2/PSD3 SCA | Hedef | Evet | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-| eIDAS / EUDI | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Blocking Hooks | Hedef | Evet | Hayir | Kismi | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Device Attestation | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Transaction Approval | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Self-hosted | Evet | Hayir | Hayir | Evet | Hayir | Evet | Hayir | Evet | Evet | Evet |
-| AI Agent Auth | Hedef | Evet | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-| PIV/CAC Auth | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
-
-*\* = inherited from Google Cloud*
-*Not: Stytch Kasim 2025'te Twilio tarafindan satin alindi — bagimsiz fiyatlandirmasi degisebilir*
-*Not: Descope su an en guclu compliance portfolyosune sahip yeni girisimci (SOC 2 + ISO + FIDO + FedRAMP High)*
-
----
-
 ## 35. Email Altyapisi & Guvenligi
 
 ### 35.1 Anti-Spoofing (PCI DSS v4.0.1 zorunlu)
@@ -1968,71 +1496,11 @@ token=<token>&token_type_hint=refresh_token
 
 ---
 
-## 39. Data Residency & Sovereignty
+## 39-40: Compliance & Operasyonel
 
-### 39.1 Region-Based Deployment
-
-- Kullanici verileri project'in sectigi region'da saklanir
-- Desteklenen region'lar: EU (Frankfurt), US (Virginia), APAC (Singapore), TR (Istanbul)
-- Cross-region veri transferi YASAK (GDPR Art. 44-49)
-- Encryption key'ler region-local KMS'te uretilir ve saklanir
-- Backup'lar ayni region'da
-- Log'lar ayni region'da
-
-### 39.2 DPA (Data Processing Agreement)
-
-- Her project ile DPA imzalanir (GDPR Art. 28)
-- Sub-processor listesi seffaf
-- Veri isleme amaci ve kapsamini acikca tanimlar
+> Data residency, network segmentation, backup/DR, change management, incident response, vulnerability management: [spec-compliance.md](spec-compliance.md)
 
 ---
-
-## 40. Altyapi Guvenligi & Operasyonel Prosedurler
-
-### 40.1 Backup & Disaster Recovery
-
-- **RPO** (Recovery Point Objective): Max 1 saat veri kaybi
-- **RTO** (Recovery Time Objective): Max 4 saat restore suresi
-- PostgreSQL: Continuous WAL archiving + PITR (Point-in-Time Recovery)
-- Redis: AOF persistence + snapshot
-- Backup'lar sifreli (AES-256-GCM), ayri region'da kopya
-- DR testi: 6 ayda bir tam restore testi (SOC 2 kaniti)
-
-### 40.2 Network Segmentation
-
-- Auth server kendi VPC/subnet'inde (PCI DSS zorunlu)
-- Database public internet'ten erisilemez
-- Bastion host / VPN uzerinden admin erisimi
-- Security group'lar: sadece gerekli portlar acik
-
-### 40.3 Change Management
-
-- Tum kod degisiklikleri PR + code review + approval (min 1 reviewer)
-- Staging ortaminda test zorunlu
-- Rollback proseduru dokumante
-- Emergency change proseduru (P1 icin hizlandirilmis, ama yine loglanir)
-
-### 40.4 Incident Response Plan
-
-1. **Detection**: Monitoring + alerting ile tespit
-2. **Triage**: Severity belirleme (P1-P4)
-3. **Containment**: Etkilenen sistemi izole et
-4. **Eradication**: Root cause'u gider
-5. **Recovery**: Sistemi normal duruma getir
-6. **Post-mortem**: Olay sonrasi analiz, lessons learned
-- GDPR breach notification: 72 saat icinde supervisory authority'ye
-- Yilda 1 tabletop exercise (SOC 2 kaniti)
-
-### 40.5 Vulnerability Management
-
-- Dependency scanning: Her CI/CD pipeline'inda (npm audit, Snyk, Trivy)
-- Container image scanning: Her build'de
-- DAST (Dynamic Application Security Testing): Aylik
-- Penetration testing: Yillik (3rd party, PCI DSS zorunlu)
-- Remediation SLA: Critical = 7 gun, High = 30 gun, Medium = 90 gun
-
----
-
 ## 41. i18n & Accessibility
 
 ### 41.1 Internationalization
@@ -2691,18 +2159,6 @@ Tum admin endpoint'leri `sk_live_*` veya `sk_test_*` key ile authenticate edilir
 
 ---
 
-## 45. SaaS Platform (Ileride — Ayri Spec)
+## 45. SaaS Platform
 
-> SaaS detaylari bu spec'in kapsaminda DEGIL. Faz 4+'te ayri bir spec dosyasinda detaylandirilacak.
-> Temel mimari: SaaS platform (Next.js, ayri repo) -> PalAuth Go server'in Admin API'sini kullanir.
-> Self-hosted musteri icin hicbir sey degismiyor.
-
-**Ileride detaylanacak:**
-- Fiyatlandirma tier'lari
-- Stripe billing
-- Shared vs dedicated instance yonetimi
-- Onboarding akisi
-- MAU metering
-- Project migration (shared -> dedicated)
-- Landing page
-- Open core vs full open source karari
+> SaaS detaylari: [spec-saas.md](spec-saas.md)

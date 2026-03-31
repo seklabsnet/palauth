@@ -104,13 +104,26 @@ CREATE INDEX idx_wd_dlq ON webhook_deliveries(subscription_id) WHERE status = 'd
 
 -- 019_add_users_has_mfa.up.sql
 ALTER TABLE users ADD COLUMN has_mfa BOOLEAN NOT NULL DEFAULT false;
+
+-- 020_create_trusted_devices.up.sql (spec Section 5.2)
+CREATE TABLE trusted_devices (
+  id              TEXT PRIMARY KEY NOT NULL,
+  user_id         TEXT NOT NULL REFERENCES users(id),
+  project_id      TEXT NOT NULL REFERENCES projects(id),
+  token_hash      BYTEA NOT NULL UNIQUE,
+  device_fp_hash  TEXT NOT NULL,
+  device_name     TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at      TIMESTAMPTZ NOT NULL   -- 30 gun
+);
+CREATE INDEX idx_td_user ON trusted_devices(user_id) WHERE expires_at > now();
 ```
 
 ---
 
-## T1.1 — TOTP MFA Enrollment + Verification
+## T1.1 — TOTP + Email OTP MFA Enrollment + Verification
 
-**Ne:** TOTP (authenticator app) ile MFA. QR code enrollment, 6 haneli dogrulama, backup codes.
+**Ne:** TOTP (authenticator app) + Email OTP ile MFA. QR code enrollment, 6 haneli dogrulama, backup codes.
 
 **Yapilacaklar:**
 - `internal/mfa/totp.go`:
@@ -133,6 +146,12 @@ ALTER TABLE users ADD COLUMN has_mfa BOOLEAN NOT NULL DEFAULT false;
     - **5dk expiry** (PSD2 RTS max 5dk auth code lifetime)
     - Tek kullanimlik — MFA challenge tamamlaninca veya expire olunca gecersiz
     - Redis'te saklanir (user_id + session bilgisi ile)
+- `internal/mfa/email_otp.go` — Email OTP as MFA factor (spec Section 2.2 + Section 3.2):
+  - `Challenge(userID)`: 6 haneli OTP uret, email gonder, 5dk expiry (PSD2 RTS)
+  - `Verify(userID, code)`: OTP dogrula (constant-time, replay koruması, max 3 basarisiz → yeni OTP gerekli)
+  - MFA enrollment olarak eklenebilir (type: "email")
+  - TOTP'ye alternatif — kullanici tercih eder
+
 - `internal/mfa/recovery.go`:
   - `GenerateCodes(userID string) ([]string, error)`:
     1. 10 adet 8 karakterlik recovery code uret (crypto/rand, base32)
@@ -142,6 +161,9 @@ ALTER TABLE users ADD COLUMN has_mfa BOOLEAN NOT NULL DEFAULT false;
     1. Tum unused kodlari cek, her biriyle constant-time compare
     2. Eslesen varsa: `used = true`, `used_at = now()`
     3. MFA yerine gecerli (recovery)
+    4. **Tum diger session'lar sonlandirilir** (spec Section 11.2)
+    5. **`user.has_mfa = false`** set edilir → kullanici yeni MFA enrollment yapmak ZORUNDA (spec Section 11.2)
+    6. `mfa.recovery.used` audit event loglanir
 
 **Faz 0'da degisen kodlar:**
 - `internal/auth/login.go` → MFA kontrolu eklenir:
@@ -168,6 +190,9 @@ POST /auth/mfa/recovery     → { mfa_token, code } → { access_token, refresh_
 GET  /auth/mfa/factors      → { factors: [...] } (enrolled MFA methods)
 DELETE /auth/mfa/factors/:id → MFA enrollment sil (re-auth gerekli)
 POST /auth/mfa/recovery-codes/regenerate → { recovery_codes } (yeni kodlar, eskiler gecersiz)
+POST /auth/mfa/email/enroll     → { } → Email OTP enrollment (mevcut verified email kullanilir)
+POST /auth/mfa/email/challenge  → { mfa_token } → Email OTP gonder
+POST /auth/mfa/email/verify     → { mfa_token, code } → Email OTP dogrula
 ```
 
 **Audit event'ler:** `mfa.enroll`, `mfa.verify.success`, `mfa.verify.failure`, `mfa.remove`, `mfa.recovery.used`
@@ -187,6 +212,9 @@ POST /auth/mfa/recovery-codes/regenerate → { recovery_codes } (yeni kodlar, es
 - [ ] MFA token 5dk sonra expire oluyor (PSD2 RTS max 5dk)
 - [ ] MFA challenge → basarili → access token + refresh token donuyor
 - [ ] TOTP secret AES-GCM ile sifreli saklanir
+- [ ] Email OTP: 6 haneli, 5dk expiry, replay koruması calisiyor
+- [ ] Email OTP: 3 basarisiz → yeni OTP gerekli
+- [ ] Email OTP: MFA challenge olarak kullanilabiliyor (TOTP alternatifi)
 - [ ] MFA silme re-auth gerektiriyor
 - [ ] Admin login MFA zorunlu (SOC 2 + PCI DSS 8.4.1): MFA enrolled degilse zorla enrollment
 - [ ] Admin JWT sadece MFA tamamlandiktan sonra veriliyor
@@ -304,6 +332,7 @@ DELETE /auth/identities/:id          → social hesap ayir (en az 1 auth method 
   - `mfa/totp.go` → `before.mfa.verify` hook cagir (spec Section 8.2)
   - `social/handler.go` → `before.social.link` hook cagir (account linking oncesi, spec Section 8.2)
   - `token/jwt.go` → `before.token.issue` hook cagir (custom claims ekleme — spec Section 8.2)
+  - `token/refresh.go` → `before.token.refresh` hook cagir (session risk re-evaluation — spec Section 8.2)
   - Hook response'daki `custom_claims` → JWT'ye ekle
   - Hook response'daki `metadata` → audit log'a ekle
 
@@ -328,6 +357,7 @@ GET    /admin/projects/:id/hooks/:hid/logs → son 100 hook cagri logu (hook_log
 - [ ] `before.mfa.verify` hook calisiyor — deny donerse MFA reddedilir (spec Section 8.2)
 - [ ] `before.social.link` hook calisiyor — deny donerse account linking reddedilir (spec Section 8.2)
 - [ ] `before.token.issue` hook calisiyor — custom claims JWT'ye ekleniyor (spec Section 8.2)
+- [ ] `before.token.refresh` hook calisiyor — session risk re-evaluation (spec Section 8.2)
 - [ ] HMAC-SHA256 imzalama dogru (Standard Webhooks spec)
 - [ ] Bidirectional: Response imzasi da dogrulaniyor
 - [ ] Timeout: 15sn icinde cevap gelmezse failure_mode'a gore davranir
@@ -429,6 +459,13 @@ POST   /admin/projects/:id/webhooks/replay        → { from_timestamp } → eve
   - Project config'den `max_concurrent_sessions` (default: sinirsiz)
   - Limit asildiginda strateji: `deny_new` veya `revoke_oldest`
 
+- `internal/session/trusted.go` — Trusted device registry (spec Section 5.2):
+  - "Bu cihazi hatirla" secenegi → device token uretilir (256-bit, SHA-256 hash DB'de, 30 gun)
+  - Sonraki girislerde bu token varsa MFA atlanir
+  - Max 5 trusted device per user
+  - Trusted device revoke edilebilir (dashboard + API)
+  - Device fingerprint degisirse trusted token gecersiz olur
+
 **Faz 0'da degisen kodlar:**
 - `internal/session/service.go` → device binding + concurrent limit eklenir
 
@@ -446,6 +483,11 @@ POST /auth/magic-link/verify  → { token } → { access_token, refresh_token, u
 - [ ] Device binding: Session'a IP + user-agent + fingerprint kaydediliyor
 - [ ] Major device degisikligi → session revoke
 - [ ] Concurrent limit: max asildiginda oldest revoke (veya deny)
+- [ ] Trusted device: "Bu cihazi hatirla" → sonraki login MFA atliyor
+- [ ] Trusted device: Max 5 per user
+- [ ] Trusted device: 30 gun sonra expire
+- [ ] Trusted device: Revoke calisiyor (dashboard + API)
+- [ ] Trusted device: Fingerprint degisirse token gecersiz
 - [ ] Var olmayan email icin de 200 doner (enumeration koruması)
 
 **Bagimlilk:** Faz 0 (session, email, verification_tokens)

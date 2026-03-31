@@ -9,7 +9,7 @@
 ## Yeni DB Migration'lar
 
 ```sql
--- 035_create_trusted_contacts.up.sql (spec Section 11.1.2 — N-of-M recovery)
+-- 036_create_trusted_contacts.up.sql (spec Section 11.1.2 — N-of-M recovery)
 CREATE TABLE trusted_contacts (
   id              TEXT PRIMARY KEY NOT NULL,
   user_id         TEXT NOT NULL REFERENCES users(id),
@@ -21,7 +21,7 @@ CREATE TABLE trusted_contacts (
 );
 CREATE INDEX idx_tc_user ON trusted_contacts(user_id);
 
--- 036_create_recovery_requests.up.sql
+-- 037_create_recovery_requests.up.sql
 CREATE TABLE recovery_requests (
   id              TEXT PRIMARY KEY NOT NULL,
   user_id         TEXT NOT NULL REFERENCES users(id),
@@ -33,7 +33,7 @@ CREATE TABLE recovery_requests (
   expires_at      TIMESTAMPTZ NOT NULL  -- 72 saat
 );
 
--- 037_create_recovery_approvals.up.sql
+-- 038_create_recovery_approvals.up.sql
 CREATE TABLE recovery_approvals (
   id              TEXT PRIMARY KEY NOT NULL,
   recovery_request_id TEXT NOT NULL REFERENCES recovery_requests(id),
@@ -45,7 +45,7 @@ CREATE TABLE recovery_approvals (
   expires_at      TIMESTAMPTZ NOT NULL
 );
 
--- 038_create_custom_domains.up.sql
+-- 039_create_custom_domains.up.sql
 CREATE TABLE custom_domains (
   id          TEXT PRIMARY KEY NOT NULL,
   project_id  TEXT NOT NULL REFERENCES projects(id),
@@ -56,7 +56,7 @@ CREATE TABLE custom_domains (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 039_create_migration_jobs.up.sql (Auth0/Firebase/Supabase/Clerk import)
+-- 040_create_migration_jobs.up.sql (Auth0/Firebase/Supabase/Clerk import)
 CREATE TABLE migration_jobs (
   id          TEXT PRIMARY KEY NOT NULL,
   project_id  TEXT NOT NULL REFERENCES projects(id),
@@ -188,10 +188,19 @@ GET    /auth/recovery/status         → { pending_approvals, required, current 
 **Yapilacaklar:**
 - `internal/region/service.go`:
   - Project config'e `region` field eklenir: `eu`, `us`, `apac`, `tr`
-  - Database connection region-based routing
-  - Encryption key'ler region-local KMS'te uretilir
+  - **Mimari**: Her region icin ayri PostgreSQL instance. Go server baglanti havuzunu region'a gore secer:
+    ```go
+    // Region-based connection routing
+    func (s *RegionService) GetPool(region string) *pgxpool.Pool {
+      return s.pools[region] // eu → eu-postgres, us → us-postgres, ...
+    }
+    ```
+  - Project olusturulurken region secilir, sonra degistirilemez (migration haric)
+  - Tum query'ler project'in region'indaki DB'ye gider
+  - Encryption key'ler region-local KMS'te uretilir (AWS: eu-west-1 KMS, us-east-1 KMS, ...)
   - Backup'lar ayni region'da
   - Audit loglar ayni region'da
+  - Cross-region query YASAK — middleware ile enforce edilir
 - Project config genisletme:
   ```json
   { "region": "eu", "data_residency": { "enforce": true, "allowed_regions": ["eu"] } }
@@ -360,6 +369,25 @@ GET  /admin/projects/:id/migrations/:mid → job detay (progress, errors)
     - Information Security Policy
     - Risk Assessment methodology
     - Statement of Applicability (SoA)
+  - PCI DSS Customized Approach dokumantasyonu (spec Section 2.1):
+    - Password composition rules uygulanmama gerekcelendirmesi
+    - NIST 800-63B tam kontrol seti kaniti (HIBP, no rotation, Argon2id)
+    - Targeted Risk Analysis
+    - Kontrol matrisi + yonetici onayi
+    - QSA validasyonu icin hazirlik
+  - Key ceremony proseduru (spec Section 17.5):
+    - Split knowledge (Shamir's Secret Sharing 3-of-5)
+    - Dual control (min 2 yetkili kisi)
+    - Ceremony script + checklist
+    - Witness + video kayit proseduru
+    - Share distribution + safe storage
+  - DORA compliance (spec-compliance Section 8):
+    - DORA-compliant sozlesme template'leri (SLA, exit plan, denetim haklari)
+    - ICT risk management framework dokumantasyonu
+    - Incident classification + 24 saat reporting proseduru
+    - TLPT (Threat-Led Penetration Testing) plani
+    - Is surekliligi test raporu template (6 aylik)
+    - Denetim erisim mekanizmasi (read-only audit access endpoint)
 
 **Kabul kriterleri:**
 - [ ] Backup/DR proseduru dokumante

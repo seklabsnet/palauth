@@ -8,7 +8,7 @@
 ## Yeni DB Migration'lar
 
 ```sql
--- 040_create_agents.up.sql (AI Agent / MCP)
+-- 041_create_agents.up.sql (AI Agent / MCP)
 CREATE TABLE agents (
   id              TEXT PRIMARY KEY NOT NULL,
   project_id      TEXT NOT NULL REFERENCES projects(id),
@@ -22,7 +22,7 @@ CREATE TABLE agents (
   revoked_at      TIMESTAMPTZ
 );
 
--- 041_create_agent_delegations.up.sql
+-- 042_create_agent_delegations.up.sql
 CREATE TABLE agent_delegations (
   id              TEXT PRIMARY KEY NOT NULL,
   agent_id        TEXT NOT NULL REFERENCES agents(id),
@@ -34,7 +34,7 @@ CREATE TABLE agent_delegations (
 CREATE INDEX idx_ad_agent ON agent_delegations(agent_id) WHERE revoked_at IS NULL;
 CREATE INDEX idx_ad_user ON agent_delegations(user_id) WHERE revoked_at IS NULL;
 
--- 042_create_verifiable_presentations.up.sql (EUDI Wallet)
+-- 043_create_verifiable_presentations.up.sql (EUDI Wallet)
 CREATE TABLE verifiable_presentations (
   id              TEXT PRIMARY KEY NOT NULL,
   project_id      TEXT NOT NULL REFERENCES projects(id),
@@ -46,7 +46,7 @@ CREATE TABLE verifiable_presentations (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 043_create_kyc_verifications.up.sql
+-- 044_create_kyc_verifications.up.sql
 CREATE TABLE kyc_verifications (
   id              TEXT PRIMARY KEY NOT NULL,
   project_id      TEXT NOT NULL REFERENCES projects(id),
@@ -197,7 +197,13 @@ POST /admin/projects/:id/kyc/config → { provider, api_key_encrypted, level }
 
 ---
 
-## T5.4 — Continuous Auth (Behavioral Signals)
+## T5.4 — Continuous Auth + Session Transfer
+
+**Session Transfer (spec Section 5.2):**
+- Cihazlar arasi session aktarimi (QR code ile)
+- Oturumdaki cihaz QR code gosterir, yeni cihaz tarar
+- Yeni cihazda session olusur, eski devam eder veya sonlanir (configurable)
+- Session transfer sirasinda MFA re-verify gerekli
 
 **Ne:** Session suresince davranissal sinyaller ile risk engine'e surekli girdi.
 
@@ -389,12 +395,12 @@ POST /admin/projects/:id/kyc/config → { provider, api_key_encrypted, level }
 | Faz | Migration Aralik | Tablo Sayisi |
 |-----|------------------|-------------|
 | Faz 0 | 001-011 | 11 tablo |
-| Faz 1 | 012-019 | 7 tablo + 1 ALTER |
-| Faz 2 | 020-026 | 6 tablo + 1 ALTER |
-| Faz 3 | 027-034 | 8 tablo (user_consents Faz 0'da) |
-| Faz 4 | 035-039 | 5 tablo |
-| Faz 5 | 040-043 | 4 tablo |
-| **TOPLAM** | **001-043** | **~42 tablo/ALTER** |
+| Faz 1 | 012-020 | 7 tablo + 1 ALTER + trusted_devices |
+| Faz 2 | 021-027 | 6 tablo + 1 ALTER |
+| Faz 3 | 028-035 | 8 tablo (user_consents Faz 0'da) |
+| Faz 4 | 036-040 | 5 tablo |
+| Faz 5 | 041-044 | 4 tablo |
+| **TOPLAM** | **001-044** | **~44 tablo/ALTER** |
 
 ---
 

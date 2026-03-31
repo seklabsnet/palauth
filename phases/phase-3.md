@@ -9,7 +9,7 @@
 ## Yeni DB Migration'lar
 
 ```sql
--- 027_create_devices.up.sql
+-- 028_create_devices.up.sql
 -- Not: Faz 0 sessions tablosundaki device_fp_hash = passive fingerprint (UA, screen, etc.)
 -- Bu devices tablosu = active cryptographic binding (hardware enclave key pair + platform attestation)
 -- Farkli amaclar: session.device_fp_hash anomaly detection icin, devices.public_key transaction signing icin
@@ -31,7 +31,7 @@ CREATE TABLE devices (
 );
 CREATE INDEX idx_devices_user ON devices(user_id) WHERE attestation_status = 'verified';
 
--- 028_create_transactions.up.sql
+-- 029_create_transactions.up.sql
 CREATE TABLE transactions (
   id              TEXT PRIMARY KEY NOT NULL,
   project_id      TEXT NOT NULL REFERENCES projects(id),
@@ -51,7 +51,7 @@ CREATE TABLE transactions (
 );
 CREATE INDEX idx_tx_user ON transactions(user_id, created_at DESC);
 
--- 029_create_org_sso_connections.up.sql
+-- 030_create_org_sso_connections.up.sql
 CREATE TABLE org_sso_connections (
   id                      TEXT PRIMARY KEY NOT NULL,
   org_id                  TEXT NOT NULL REFERENCES organizations(id),
@@ -64,7 +64,7 @@ CREATE TABLE org_sso_connections (
 );
 CREATE INDEX idx_sso_org ON org_sso_connections(org_id) WHERE enabled = true;
 
--- 030_create_scim_tokens.up.sql
+-- 031_create_scim_tokens.up.sql
 CREATE TABLE scim_tokens (
   id          TEXT PRIMARY KEY NOT NULL,
   org_id      TEXT NOT NULL REFERENCES organizations(id),
@@ -74,7 +74,7 @@ CREATE TABLE scim_tokens (
   revoked_at  TIMESTAMPTZ
 );
 
--- 031_create_service_accounts.up.sql (PCI DSS v4.0.1 §8.6.1-8.6.3)
+-- 032_create_service_accounts.up.sql (PCI DSS v4.0.1 §8.6.1-8.6.3)
 CREATE TABLE service_accounts (
   id                      TEXT PRIMARY KEY NOT NULL,
   project_id              TEXT NOT NULL REFERENCES projects(id),
@@ -91,7 +91,7 @@ CREATE TABLE service_accounts (
   revoked_at              TIMESTAMPTZ
 );
 
--- 032_create_personal_access_tokens.up.sql
+-- 033_create_personal_access_tokens.up.sql
 CREATE TABLE personal_access_tokens (
   id          TEXT PRIMARY KEY NOT NULL,
   user_id     TEXT NOT NULL REFERENCES users(id),
@@ -106,7 +106,7 @@ CREATE TABLE personal_access_tokens (
 );
 CREATE INDEX idx_pat_user ON personal_access_tokens(user_id) WHERE revoked_at IS NULL;
 
--- 033_create_scoped_api_keys.up.sql
+-- 034_create_scoped_api_keys.up.sql
 -- Faz 0'daki api_keys tablosu project-level auth (pk/sk). Bu tablo user/org-scoped granular keys.
 CREATE TABLE scoped_api_keys (
   id          TEXT PRIMARY KEY NOT NULL,
@@ -123,24 +123,9 @@ CREATE TABLE scoped_api_keys (
 );
 CREATE INDEX idx_sak_hash ON scoped_api_keys(key_hash) WHERE revoked_at IS NULL;
 
--- user_consents tablosu Faz 0'da olusturuldu (011). Bu fazda CRUD endpoint'leri eklenir.
-CREATE TABLE user_consents (
-  id          TEXT PRIMARY KEY NOT NULL,
-  user_id     TEXT NOT NULL REFERENCES users(id),
-  project_id  TEXT NOT NULL REFERENCES projects(id),
-  purpose     TEXT NOT NULL,                   -- 'marketing', 'analytics', 'third_party_sharing'
-  granted     BOOLEAN NOT NULL,
-  version     TEXT,                            -- consent policy version
-  ip          TEXT,
-  user_agent  TEXT,
-  granted_at  TIMESTAMPTZ,
-  revoked_at  TIMESTAMPTZ,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_consent_user ON user_consents(user_id);
+-- user_consents tablosu Faz 0'da olusturuldu (011). Bu fazda CREATE TABLE YOK, sadece CRUD endpoint'ler eklenir.
 
--- 034_create_breach_checks.up.sql
--- Not: user_consents tablosu Faz 0'da (011) olusturuldu. Faz 3'te sadece endpoint'ler eklenir.
+-- 035_create_breach_checks.up.sql
 CREATE TABLE breach_checks (
   id          TEXT PRIMARY KEY NOT NULL,
   user_id     TEXT NOT NULL REFERENCES users(id),

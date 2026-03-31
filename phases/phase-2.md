@@ -9,7 +9,7 @@
 ## Yeni DB Migration'lar
 
 ```sql
--- 020_create_webauthn_credentials.up.sql
+-- 021_create_webauthn_credentials.up.sql
 CREATE TABLE webauthn_credentials (
   id                TEXT PRIMARY KEY NOT NULL,
   project_id        TEXT NOT NULL REFERENCES projects(id),
@@ -32,7 +32,7 @@ CREATE TABLE webauthn_credentials (
 CREATE UNIQUE INDEX idx_wc_cred ON webauthn_credentials(project_id, credential_id);
 CREATE INDEX idx_wc_user ON webauthn_credentials(user_id);
 
--- 021_create_organizations.up.sql
+-- 022_create_organizations.up.sql
 CREATE TABLE organizations (
   id              TEXT PRIMARY KEY NOT NULL,
   project_id      TEXT NOT NULL REFERENCES projects(id),
@@ -47,7 +47,7 @@ CREATE TABLE organizations (
 CREATE UNIQUE INDEX idx_org_slug ON organizations(project_id, slug);
 CREATE INDEX idx_org_domain ON organizations(domain) WHERE domain_verified = true;
 
--- 022_create_org_members.up.sql
+-- 023_create_org_members.up.sql
 CREATE TABLE org_members (
   id          TEXT PRIMARY KEY NOT NULL,
   org_id      TEXT NOT NULL REFERENCES organizations(id),
@@ -59,7 +59,7 @@ CREATE TABLE org_members (
 );
 CREATE UNIQUE INDEX idx_om_user_org ON org_members(org_id, user_id);
 
--- 023_create_org_invitations.up.sql
+-- 024_create_org_invitations.up.sql
 CREATE TABLE org_invitations (
   id          TEXT PRIMARY KEY NOT NULL,
   org_id      TEXT NOT NULL REFERENCES organizations(id),
@@ -73,7 +73,7 @@ CREATE TABLE org_invitations (
 );
 CREATE INDEX idx_oi_token ON org_invitations(token_hash) WHERE accepted = false;
 
--- 024_create_oauth_clients.up.sql (OIDC Provider icin)
+-- 025_create_oauth_clients.up.sql (OIDC Provider icin)
 CREATE TABLE oauth_clients (
   id              TEXT PRIMARY KEY NOT NULL,
   project_id      TEXT NOT NULL REFERENCES projects(id),
@@ -87,7 +87,7 @@ CREATE TABLE oauth_clients (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 025_create_risk_signals.up.sql
+-- 026_create_risk_signals.up.sql
 CREATE TABLE risk_signals (
   id          TEXT PRIMARY KEY NOT NULL,
   project_id  TEXT NOT NULL,
@@ -100,7 +100,7 @@ CREATE TABLE risk_signals (
 );
 CREATE INDEX idx_rs_user ON risk_signals(user_id, created_at DESC);
 
--- 026_add_users_phone.up.sql (SMS OTP icin)
+-- 027_add_users_phone.up.sql (SMS OTP icin)
 ALTER TABLE users ADD COLUMN phone_encrypted BYTEA;
 ALTER TABLE users ADD COLUMN phone_hash BYTEA;
 ALTER TABLE users ADD COLUMN phone_verified BOOLEAN NOT NULL DEFAULT false;

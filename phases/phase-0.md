@@ -200,7 +200,7 @@ GET  /metrics
     project_id      TEXT NOT NULL REFERENCES projects(id),
     email_encrypted BYTEA NOT NULL,
     email_hash      BYTEA NOT NULL,  -- deterministic hash for lookup
-    password_hash   TEXT,
+    password_hash   TEXT,                 -- NULLABLE: passkey-first kayit icin (Faz 2'de sifresiz user olusturulabilir)
     email_verified  BOOLEAN NOT NULL DEFAULT false,
     banned          BOOLEAN NOT NULL DEFAULT false,
     ban_reason      TEXT,
@@ -492,8 +492,9 @@ GET    /admin/projects/:id/keys     → API key listesi (hash'siz, prefix + meta
   - Email encryption (AES-256-GCM, per-project DEK)
   - Email hash (deterministic, lookup icin)
   - User DB kaydı
-  - Verification token uret (256-bit, SHA-256 hash DB'de, **24 saat expiry**)
-  - Email gonder (verification link veya 6-haneli OTP, **5dk expiry** — PSD2 RTS)
+  - **Verification link**: Token uret (256-bit, SHA-256 hash DB'de), **24 saat expiry**. Email'deki link ile dogrulama
+  - **VEYA Verification OTP**: 6-haneli kod uret, **5dk expiry** (PSD2 RTS). Email'deki kodu girerek dogrulama
+  - Project config ile secilir: `email_verification_method: "link" | "otp"`. Bunlar AYRI mekanizmalar, ayni token degil. Link = uzun omurlu (24h), OTP = kisa omurlu (5dk)
   - JWT + refresh token issue
   - Audit log yaz
 - `internal/auth/verify_email.go`:
@@ -549,8 +550,9 @@ POST /auth/resend-verification → { email } → { success } (rate limited)
     2. Ozel JWT uret (user claims + custom claims, configurable expiry, max 1 saat)
     3. Client bu token'i `POST /auth/token/exchange` ile access + refresh token'a cevirir
   - `ExchangeCustomToken(customToken string) (accessToken, refreshToken string, error)`:
-    1. Custom token dogrula (signature, expiry, single-use)
-    2. User'i bul, session olustur, normal token'lar ver
+    1. Custom token dogrula (signature, expiry)
+    2. **Single-use kontrolu**: Token'in `jti` claim'ini Redis'te kontrol et. Daha once kullanildiysa → reject. Kullanildiysa `jti`'yi Redis'te sakla (TTL = token expiry)
+    3. User'i bul, session olustur, normal token'lar ver
 - `internal/token/introspect.go`:
   - `POST /oauth/introspect` → RFC 7662. Opaque token gecerli mi? Client auth zorunlu
   - Response: `{ "active": true/false, "sub", "scope", "exp", "project_id" }`
@@ -605,6 +607,7 @@ GET  /.well-known/jwks.json → { keys: [...] }
   - Redis counter: `lockout:{project_id}:{user_id}` → failed count
   - 10 failed → lockout timestamp set
   - Lockout suresi: 30dk (configurable per project)
+  - **Not**: Password login lockout = 10 basarisiz (PCI DSS Req 8.3.4). MFA lockout = 5 basarisiz (PSD2 RTS). Farkli threshold'lar KASITLI — MFA daha hassas cunku saldirgan zaten password'u biliyordur
 
 **Endpoint'ler:**
 ```

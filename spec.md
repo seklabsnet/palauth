@@ -21,22 +21,65 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 
 ### 1.3 Hedef Sertifika Portfolyosu
 
-| Sertifika | Oncelik | Tahmini Sure | Maliyet (Audit) |
-|-----------|---------|-------------|-----------------|
-| NIST SP 800-63B (AAL1-3) | Day 1 tasarim | - | Ucretsiz (guideline) |
-| GDPR compliance | Day 1 tasarim | Surekli | Ongoing |
-| OpenID Certified (Basic + FAPI 2.0) | Ay 1-3 | 1-4 hafta | ~$2,500 |
-| FIDO2 Server Certified | Ay 1-3 | 1-3 ay | ~$5,000 + uyelik |
-| SOC 2 Type II | Ay 6-18 | 9-18 ay | $30K-$150K |
-| ISO 27001:2022 | SOC 2 ile paralel | 6-18 ay | $15K-$50K |
-| HIPAA | SOC 2 ile birlikte | - | SOC 2 icinde |
-| CSA STAR Level 2 | ISO 27001 sonrasi | 2-4 ay | $5K-$15K |
-| PCI DSS v4.0 | Ay 12-18 | 3-12 ay | $30K-$200K |
-| PSD2/PSD3 SCA | Finansal islem basladiginda | Day 1 tasarim | PSP lisansi ile |
-| FedRAMP (High) | Ay 18-24 | 12-18 ay | $250K+ |
-| eIDAS LoA High | Ay 12-18 | 2-6 ay | $10K-$100K |
+| Sertifika | Tip | Oncelik | Sure | Maliyet | Self-Hosted Uygulanabilir? |
+|-----------|-----|---------|------|---------|---------------------------|
+| **Temel — Day 1** |
+| NIST SP 800-63B-4 (AAL1-3) | Guideline | Day 1 tasarim | - | Ucretsiz | Evet |
+| GDPR compliance | Regulation | Day 1 tasarim | Surekli | €20K-€40K setup | Evet |
+| PSD2/PSD3 SCA | Regulation | Day 1 tasarim | Surekli | €0 (design) | Evet |
+| CSA STAR Level 1 | Self-assessment | Day 1 | 2-4 hafta | **Ucretsiz** | Evet |
+| **Faz 1 — Hizli Kazanimlar** |
+| OpenID Connect Certified | Self-certification | Ay 1-3 | Gunler-haftalar | €700 (uye) / €3,500 (non-uye) | Evet |
+| FAPI 2.0 Certified | Self-certification | Ay 1-3 | 1-3 ay | €1K (uye) / €5K (non-uye) + engineering effort €15K-€40K | Evet |
+| FIDO2 Server L1 | Automated test | Ay 1-3 | 2-4 ay | **€20K-€50K** + uyelik | Evet |
+| Penetration test (3rd party) | Rapor | Ay 3 | 2-4 hafta | €5K-€15K | Evet |
+| **Faz 2 — Enterprise** |
+| SOC 2 Type II | CPA audit | Ay 6-12 | 6-15 ay | €25K-€80K | Evet (reduced scope — dev practices, SDLC) |
+| ISO 27001:2022 | Accredited CB | Ay 6-12 | 3-12 ay | €15K-€50K (SOC 2 ile paralel %20-35 tasarruf) | **Tam uygulanabilir** (en degerli sertifika self-hosted icin) |
+| HIPAA BAA | BAA | SOC 2 ile | - | €15K-€50K | Evet (reduced — musteri PHI hosting sorumlulugu tasir) |
+| DPF (EU-US Data Privacy Framework) | Self-certification | Ay 6 | 2-4 hafta | Minimal | Evet |
+| **Faz 3 — Financial + Signing** |
+| ISO 27701 (Privacy) | Certification | Ay 13+ | 2-4 ay | €15K-€50K (ISO 27001 uzerine incremental) | Evet |
+| DORA readiness | Compliance docs | Ay 13+ | 3-6 ay | **€30K-€100K** | Evet |
+| QTSP partnership | Entegrasyon | Ay 13+ | 1-3 ay | €10K-€50K + €0.50-€5/QES | Evet |
+| OpenID4VP/VCI conformance | Self-certification | Ay 13+ | Gunler-haftalar | €700-€3,500 | Evet |
+| ETSI TS 119 461 (Identity proofing) | Compliance | Ay 13+ (Agustos 2027 zorunlu) | 2-4 ay | QTSP audit icinde | Evet |
+| CSA STAR Level 2 | Certification | ISO 27001 sonrasi | 2-4 ay | €10K-€30K (ISO uzerine) | Evet |
+| PCI DSS v4.0.1 | QSA audit | Ay 13-18 | 3-12 ay | €5K-€200K | Evet (reduced — musteri CDE sorumlulugu tasir) |
+| **Faz 4 — Global** |
+| FIPS 140-3 | Crypto module validation | Ay 24+ | 2-24 ay | €50K-€400K (VaaS ile €50K-€150K, ~2 ay) | **Ideal** (urun-seviye, deployment-agnostic) |
+| Common Criteria (EAL2-4) | CCTL evaluation | Ay 24+ | 12-24 ay | €100K-€500K | **Ideal** (urun-seviye) |
+| ISO 27017 (Cloud security) | Certification | Ay 24+ | 2-4 ay | €10K-€30K (ISO uzerine) | Evet |
+| ISO 27018 (PII in cloud) | Certification | Ay 24+ | 2-4 ay | €10K-€30K (ISO uzerine) | Evet |
+| FedRAMP High | US gov authorization | Sadece hosted versiyon icin | 12-24 ay | €500K-€2M+ (PIV/CAC zorunlu IA-2(12)) | **HAYIR** — cloud-only. Self-hosted icin FISMA ATO kullanilir |
+| QTSP status (own) | EU Trusted List | Volume hakliyorsa | 2-3 yil | €500K-€1M+ initial, €200K-€500K/yil | Kismi |
+| eIDAS LoA High | EU regulation | Ay 24+ | 2-6 ay | €10K-€100K | Evet |
 
-> Bu portfolyonun tamamina sahip sifir auth provider var. En yakini Descope (FedRAMP + SOC 2 + ISO + PCI + FIDO) ve Auth0 (SOC 2 + ISO + PCI + OpenID FAPI).
+> **Self-hosted avantaji:** FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deployment modeline bagli degil — yazilimla birlikte gider. SOC 2, HIPAA, PCI DSS gibi operasyonel sertifikalarda ise scope daraliyor cunku musteri kendi altyapisini yonetiyor.
+
+> **Strateji:** Urun sertifikalarina (FIDO2, FAPI, FIPS, CC) agirlik ver — bunlar self-hosted'da en yuksek degeri tasiyor. Operasyonel sertifikalari (SOC 2, ISO 27001) satista "must have" oldugu icin al. Compliance'i urune gom: audit log export, compliance dashboard, hardening guide, STIG config, responsibility matrix.
+
+> **FedRAMP notu:** Self-hosted yazilim FedRAMP'a tabi degil. Musterinin altyapisinda calisan yazilim FISMA agency-level ATO ile degerlendirilir. Eger ileride hosted component (management console, telemetry) sunarsak sadece o component FedRAMP gerektirir.
+
+### 1.4 Sertifika Maliyet Ozeti
+
+| Faz | Sure | Min Maliyet | Max Maliyet | Kumulatif Min | Kumulatif Max |
+|-----|------|-------------|-------------|---------------|---------------|
+| Faz 1: MVP Auth | Ay 1-6 | €40K | €100K | €40K | €100K |
+| Faz 2: Enterprise | Ay 7-12 | €75K | €230K | €115K | €330K |
+| Faz 3: Financial + Signing | Ay 13-24 | €75K | €340K | €190K | €670K |
+| Faz 4: Global | Ay 24-36 | €270K | €1M | €460K | €1.67M |
+| Yillik bakim (3. yil sonrasi) | Surekli | €40K/yil | €120K/yil | — | — |
+
+**Opsiyonel yuksek maliyetler (dahil degil):**
+
+| Opsiyonel | Maliyet | Ne zaman |
+|-----------|---------|----------|
+| FedRAMP Moderate/High | €500K-€2M+ | Sadece US gov geliri hakliyorsa |
+| QTSP (kendi) | €500K-€1M+ initial + €200K-€500K/yil | 1,000+ QES/ay hacminde |
+| Common Criteria EAL4+ | €200K-€500K+ | Sadece QSCD donanimi yapiyorsak |
+
+**Gercekci startup yolu (Faz 1-3, opsiyoneller haric): €190K-€670K / 2 yil.** Descope/Stytch ile rekabet paritesi, Clerk/WorkOS'u sertifika genisliginde gecer, signing + financial-grade onlarda yok.
 
 ---
 
@@ -44,15 +87,15 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 
 ### 2.1 Email + Password
 
-- Minimum 12 karakter (PCI DSS v4.0 Req 8.3.5)
-- Numerik + alfabetik zorunlu (PCI DSS v4.0 Req 8.3.5)
-- Son 4 sifre tekrar yasak (PCI DSS v4.0 Req 8.3.7)
-- Max 64 karakter ust limit, truncate yasak (NIST 800-63B)
-- Compromised password kontrolu: HaveIBeenPwned k-Anonymity API (NIST 800-63B zorunlu)
+- **Minimum 15 karakter** (tek faktorlu auth icin — NIST 800-63B-4 Sec 3.1.1.2, SHALL). MFA aktif ise minimum 8 karakter yeterli
+- Max 64 karakter ust limit, truncate yasak (NIST 800-63B-4)
+- Composition rules (numerik + alfa zorunlulugu) UYGULANMAZ (NIST 800-63B-4 SHALL NOT). PCI DSS v4.0.1 Req 8.3.6 bunu zorunlu kiliyor — bu catisma compensating control ile dokumante edilir: 15+ karakter uzunlugu composition kuralini gereksiz kilar
+- Son 4 sifre tekrar yasak (PCI DSS v4.0.1 Req 8.3.7)
+- Compromised password kontrolu: HaveIBeenPwned k-Anonymity API (NIST 800-63B-4 zorunlu)
 - Hashing: **Argon2id** (m=64MB+, t=3, p=1, ~300ms target)
 - Pepper: HMAC-SHA256, HSM/KMS'te saklanir, DB'de tutulmaz
 - Salt: 16+ byte, her password'a unique, `crypto.randomBytes()`
-- Max 10 basarisiz deneme -> 30dk lockout (PCI DSS v4.0 Req 8.3.4)
+- Max 10 basarisiz deneme -> 30dk lockout (PCI DSS v4.0.1 Req 8.3.4)
 - Constant-time karsilastirma: `crypto.timingSafeEqual` (timing attack korunmasi)
 
 ### 2.2 OTP (One-Time Password)
@@ -78,8 +121,17 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 ### 2.3 WebAuthn / Passkeys (FIDO2)
 
 - FIDO2 Server sertifikasi hedeflenir
-- Desteklenen attestation formatlari: **packed** (zorunlu), **none** (zorunlu), fido-u2f, tpm, apple
-- Minimum algoritma: ES256 (zorunlu), EdDSA, RS256
+- Desteklenen attestation formatlari: **packed** (zorunlu), **none** (zorunlu), **android-key** (zorunlu — SafetyNet Mayis 2025'te kapandi, android icin tek aktif format), fido-u2f, tpm, apple
+- `android-safetynet` deprecated (Mayis 2025 oncesi legacy credential'lar icin read-only destek)
+- `compound` format tracking (WebAuthn Level 3 Sec 8.9 — henuz IANA'da degil)
+- Minimum algoritma: ES256 (zorunlu), EdDSA, RS256 (non-FAPI), PS256 (FAPI zorunlu)
+- **Backup Eligibility (BE) ve Backup State (BS) flag'leri** (WebAuthn Level 3):
+  - BE=0, BS=0: Device-bound credential — AAL3 uygun, en yuksek guven
+  - BE=1, BS=0: Sync-eligible ama henuz yedeklenmemis — kullaniciya recovery uyarisi goster
+  - BE=1, BS=1: Synced passkey (iCloud/Google) — AAL2 uygun, recovery mevcut
+  - BE=0, BS=1: Gecersiz kombinasyon — reddet
+  - BE registration'da set edilir (degismez), BS her ceremony'de guncellenir
+  - AAL-based policy enforcement: BE=0 ise AAL3 izin ver, BE=1 ise max AAL2
 - Challenge: 16+ byte `crypto.randomBytes()`, tek kullanimlik
 - Counter validation: clone detection icin signCount kontrolu
 - FIDO MDS v3 entegrasyonu: compromised authenticator tespiti
@@ -97,8 +149,10 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 ### 2.4 Social Login (OAuth 2.0 / OpenID Connect)
 
 **Desteklenen flow: Authorization Code + PKCE (tek flow)**
-- Implicit flow desteklenmez (OAuth 2.1 tarafindan kaldirildi)
-- PKCE tum client'lar icin zorunlu (FAPI 2.0 zorunlu)
+- Implicit flow desteklenmez (OAuth 2.1 draft-ietf-oauth-v2-1-15 tarafindan kaldirildi — henuz RFC degil ama core gereksinimleri stabil)
+- PKCE tum client'lar icin zorunlu, sadece S256 (plain method kaldirildi)
+- Resource Owner Password Credentials grant desteklenmez (OAuth 2.1'de kaldirildi)
+- Bearer token URI query parameter'da YASAK (sadece Authorization header ve form body)
 
 **Provider'lar:**
 - Google, Apple, Microsoft, GitHub, Facebook/Meta, X/Twitter, LinkedIn, Discord, Slack, Spotify
@@ -169,10 +223,19 @@ Server SDK -> provider token alir -> Auth Server API ile dogrular -> Session tok
 - MFA bypass yasak, istisna = yonetim onayi + sure limiti + dokumantasyon (PCI DSS 8.5.1)
 - Max 5 basarisiz MFA denemesi -> lockout (PSD2 RTS)
 - MFA tamamlandiktan sonra session ID yenilenir (OWASP)
+- **AAL2'de en az bir phishing-resistant secenek SUNULMALI** (NIST 800-63B-4 Sec 2.2.2 — SHALL). Yani passkey/WebAuthn her AAL2 deployment'da mevcut olmali, kullanici secmese bile
+- Sifre periyodik rotasyonu UYGULANMAZ (NIST 800-63B-4 SHALL NOT). PCI DSS v4.0.1 Req 8.3.9 sadece single-factor auth icin gecerli — MFA aktif ise rotation gereksiz
+- Inaktif hesaplar 90 gun sonra devre disi birakilir veya silinir (PCI DSS v4.0.1 Req 8.2.6)
 
-### 3.4 Step-Up Authentication
+### 3.4 Step-Up Authentication (RFC 9470)
 
 - Hassas islemler icin mevcut session uzerinde ek dogrulama
+- **RFC 9470** (Standards Track, Eylul 2023) protokolune uyumlu:
+  - Resource server yetersiz auth seviyesi tespit ettiginde: `HTTP 401 WWW-Authenticate: Bearer error="insufficient_user_authentication", acr_values="urn:nist:800-63:aal2", max_age=300`
+  - Client yeni authorization request'e `acr_values` ve `max_age` parametrelerini ekler
+  - AS karsilayamiyorsa `unmet_authentication_requirements` hatasi doner
+- Access token'larda `acr` ve `auth_time` claim'leri zorunlu (RFC 9068 JWT access token / RFC 9470 Sec 6.2)
+- AS `acr_values_supported` metadata field'ini yayinlar
 - ACR (Authentication Context Class Reference) ve AMR (Authentication Methods References) claim'leri ile yonetilir
 - Ornek: Kullanici giris yapti (AAL1) -> para transferi istedi -> passkey ile step-up (AAL2/AAL3) -> yeni token issued with higher ACR
 - Step-up token'lari kisa omurlu (5-15dk)
@@ -184,10 +247,25 @@ Server SDK -> provider token alir -> Auth Server API ile dogrular -> Session tok
 ### 4.1 Access Token (JWT)
 
 - Format: JWT (RFC 7519)
-- Imzalama: Asimetrik — RS256 veya EdDSA (FAPI 2.0 uyumlu)
-- Omur: Kisa — 15-60dk (tenant tarafindan yapilandirilabilir)
-- Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `kid`, `acr`, `amr`, `tenant_id`, custom claims
+- Imzalama (genel mod): RS256, PS256, ES256, veya EdDSA
+- Imzalama (FAPI 2.0 modu): **Sadece PS256, ES256, veya EdDSA (Ed25519 only)** (RS256 YASAK — RSASSA-PKCS1-v1_5 FAPI 2.0 Sec 5.4.1 tarafindan yasaklandi)
+- Omur (genel mod): 15-60dk (tenant yapilandirilabilir)
+- Omur (FAPI 2.0 modu): Kisa omur ONERILIR ama normatif zorunluluk YOK. FAPI 2.0 Sec 6.1 non-normative: "consider using short-lived access tokens." **Varsayilan: 5dk.** Tenant override edebilir
+- Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `kid`, `acr`, `amr`, `auth_time`, `tenant_id`, custom claims
+- `auth_time` claim'i zorunlu (RFC 9068 + RFC 9470 step-up auth icin gerekli)
 - JWKS endpoint: `/.well-known/jwks.json` — public key'ler burada yayinlanir
+
+**FAPI 2.0 ek zorunluluklar (Sec 5.3):**
+- Authorization code max omur: **60 saniye** (Sec 5.3.2.1 item 11 — SHALL)
+- PAR request_uri expiry: **600 saniye altinda** (Sec 5.3.2.2 item 12 — SHALL)
+- Sadece **confidential client'lar** desteklenir (Sec 5.3.2.1 item 3 — SHALL). Public client YASAK
+- HTTP 307 redirect YASAK (Sec 5.3.2.2 item 10 — SHALL NOT). Sadece 303 kullan
+- RFC 9207 issuer identification zorunlu — `iss` parameter donmeli (Sec 5.3.2.2 item 7 — SHALL)
+- Sender-constrained access token'lar zorunlu: mTLS (RFC 8705) veya DPoP (RFC 9449). Bearer-only token YASAK
+- PKCE S256 zorunlu (Sec 5.3.2.2 item 5)
+- **Refresh token rotation: SHALL NOT** (Sec 5.3.3) — "SHALL NOT use refresh token rotation except in extraordinary circumstances." FAPI modunda rotation degil, sender-constraining (DPoP/mTLS) ile guvenlik saglenir. Istisnai durumlarda rotation kullanilirsa mandatory retry window gerekli
+- JARM: Base Security Profile'da GEREKLI DEGIL (sadece Message Signing profile'da)
+- `s_hash` claim'i kaldirildi — PKCE ile degistirildi
 
 ### 4.2 Refresh Token (Opaque)
 
@@ -195,7 +273,7 @@ Server SDK -> provider token alir -> Auth Server API ile dogrular -> Session tok
 - Saklama: Server-side (DB), SHA-256 hash olarak
 - Rotation: Her kullanildiginda yeni refresh token uretilir, eski invalidate edilir
 - Family-based revocation: Eski bir refresh token tekrar kullanilirsa, tum token ailesi (descendants) iptal edilir (stolen token tespiti)
-- Reuse interval: Kisa bir pencere (2-5sn) concurrent request'ler icin izin verir (race condition onleme)
+- Reuse grace period: **30 saniye** (Okta default, production-tested at scale). 2-5sn cok agresif — mobil uygulamalarda network latency, background/foreground gecisleri ve retry storm'lari false-positive revocation'a neden olur. RFC 9700 sure belirtmiyor, 10-30sn arasi ideal
 
 ### 4.3 DPoP (Demonstration of Proof-of-Possession)
 
@@ -227,15 +305,20 @@ Server SDK -> provider token alir -> Auth Server API ile dogrular -> Session tok
 
 ## 5. Session Yonetimi
 
-### 5.1 Session Politikalari
+### 5.1 Session Politikalari (NIST 800-63B-4, Agustos 2025)
 
-| Politika | Deger | Standart |
-|----------|-------|----------|
-| Idle timeout (yuksek guvenlik) | 15dk | PCI DSS 8.2.8, NIST AAL3 |
-| Idle timeout (standart) | 30dk | NIST AAL1-2 |
-| Absolute timeout | 8-24 saat | NIST 800-63B (max 12 saat) |
-| Auth code/OTP omru | Max 5dk | PSD2 RTS |
-| Concurrent session limiti | Yapilandirilabilir | SOC 2 best practice |
+| Politika | Deger | Standart | Not |
+|----------|-------|----------|-----|
+| AAL1 idle timeout | Gereksinim yok | NIST 800-63B-4 | Rev 4'te AAL1 icin idle timeout zorunlulugu yok |
+| AAL1 absolute timeout | SHALL var, SHOULD 30 gun | NIST 800-63B-4 Sec 2.1.3 | Mutlaka bir absolute timeout OLMALI (SHALL), deger SHOULD 30 gun |
+| AAL2 idle timeout | SHOULD 1 saat | NIST 800-63B-4 | Rev 3'te 30dk idi, Rev 4'te 1 saate cikti ve SHALL->SHOULD oldu |
+| AAL3 idle timeout | SHOULD 15dk | NIST 800-63B-4, PCI DSS 8.2.8 | Deger ayni, normatif keyword Rev 4'te SHALL->SHOULD |
+| AAL2 absolute timeout | SHOULD 24 saat | NIST 800-63B-4 | Rev 3'te 12 saat idi, Rev 4'te 24 saate cikti |
+| AAL3 absolute timeout | SHALL 12 saat | NIST 800-63B-4 | Degismedi |
+| Auth code/OTP omru | Max 5dk | PSD2 RTS | |
+| Concurrent session limiti | Yapilandirilabilir | SOC 2 best practice | |
+
+> **SHALL vs SHOULD**: SHALL = zorunlu, SHOULD = strongly recommended. Rev 4'te AAL2 timeout'lari SHOULD'a gecti — esneklik sagliyor ama uygulamayı oneririz.
 
 ### 5.2 Session Ozellikleri
 
@@ -537,10 +620,11 @@ Ucuncu parti risk sinyali entegrasyonlari:
 
 ### 10.1 Built-in: Proof-of-Work Challenge
 
-- Self-hostable, privacy-preserving (ALTCHA modeli)
-- Client kriptografik puzzle cozer
+- Self-hostable, privacy-preserving (ALTCHA modeli — MIT lisans, ~30KB widget)
+- Client kriptografik puzzle cozer (SHA-256, configurable difficulty via `maxnumber`)
 - Insan dogrulama gerektirmez, cihaz CPU'su ile dogrulama
-- GDPR uyumlu (tracking yok)
+- GDPR uyumlu (cookie yok, fingerprint yok, tracking yok)
+- **Tek basina yeterli DEGIL**: CAPTCHA-solving servisleri (2Captcha, CapMonster) ALTCHA cozebiliyor. PoW, savunma stackinin bir katmani olmali — rate limiting, IP reputation, account lockout ve risk engine ile birlikte kullanilmali
 
 ### 10.2 Pluggable Entegrasyonlar
 
@@ -748,6 +832,9 @@ Her tenant icin tam izolasyon:
 - Herhangi bir log degistirilirse zincir kirilir -> tespit edilir
 - Canonical JSON serialization (key'ler alfabetik sirali)
 - Dogrulama: O(n) — tum zincir basla tekrar hesapla
+- **Hash chain CIPHERTEXT uzerinden hesaplanir, plaintext degil** — boylece cryptographic erasure (DEK silme) hash chain'i BOZMAZ. Ciphertext byte'lari degismedigi icin zincir dogrulanabilir kalir
+- Her erasure islemi icin `ERASURE` event tipi loglanir (hangi entry'ler etkilendi)
+- Non-PII metadata (timestamp, event_type, action code) plaintext kalir — erasure sonrasi entry'ler kismi okunabilir
 
 ### 16.4 GDPR Uyumu (Cryptographic Erasure)
 
@@ -933,11 +1020,18 @@ Auth server bir OpenID Connect Provider olarak calisir.
 - `act` claim'i ile asil calisan agent belirtilir
 - `may_act` claim'i ile delegation sinirlari tanimlanir
 
-### 21.3 MCP Server Uyumu
+### 21.3 MCP Server Uyumu (Kasim 2025 spec revizyonu)
 
-- OAuth 2.1 + PKCE zorunlu (MCP spec)
-- Dynamic client registration destegi
-- Agent identity ve kullanici identity ayristirmasi
+- OAuth 2.1 + PKCE zorunlu — "PKCE is REQUIRED for all clients" (Implementation Req #2)
+- MCP server'lar **OAuth Resource Server** olarak siniflandirilir (Haziran 2025+)
+- Protected Resource Metadata (RFC 9728) yayinlanir — authorization server'i deklare eder
+- **Client ID Metadata Documents (CIMD)**: Dynamic Client Registration yerine DNS-based trust modeli — client JSON dokumani kontrol ettigi URL'de yayinlar
+- RFC 8693 token exchange MCP core spec'te zorunlu degil ama downstream erisim icin **onerilen pattern**
+
+**Takip edilecek IETF draft'lari:**
+- `draft-klrc-aiagent-auth-00` (Mart 2026): Agent'lari workload olarak tanimlar
+- `draft-oauth-ai-agents-on-behalf-of-user-00`: Kullanici-agent delegasyonu
+- `draft-ni-wimse-ai-agent-identity-02`: Workload identity mimarisi
 
 ---
 
@@ -945,8 +1039,9 @@ Auth server bir OpenID Connect Provider olarak calisir.
 
 ### 22.1 EUDI Wallet Destegi
 
-- eIDAS 2.0: 2026 sonuna kadar tum AB uye devletleri EUDI Wallet sunmali
-- 2027'den itibaren bankacilik, telekom, saglik sektorleri EUDI Wallet'i kabul etmek zorunda
+- eIDAS 2.0: **6 Aralik 2026**'ya kadar uye devletler en az bir EUDI Wallet sunmali + kamu kurumlari ve VLOP'lar kabul etmeli (uygulama kanunlarindan 24 ay sonra, 4 Aralik 2024 tarihli ilk batch)
+- **Aralik 2027 sonu**: Bankacilik, telekom, saglik sektorleri EUDI Wallet'i kabul etmek ZORUNDA (36 ay sonra)
+- Not: Bazi uye devletler (Hollanda, Bulgaristan) gecikme sinyali verdi. Ek uygulama kanunlari hala danisma surecinde (Mart 2026 itibariyle). ARF v2.7.3
 - Teknik stack: OpenID for Verifiable Credentials (OID4VCI/OID4VP) + SD-JWT VC
 
 ### 22.2 Auth Server Rolu
@@ -1253,14 +1348,99 @@ export class BeforeUserCreateHandler implements AuthHookHandler {
 
 ## 28. Altyapi Gereksinimleri
 
-### 28.1 Runtime
+### 28.1 Monorepo Yapisi
+
+```
+authserver/
+  packages/
+    server/          → NestJS auth server (core API, headless)
+    dashboard/       → Next.js admin panel (self-hosted + SaaS ortak)
+    client-sdk/      → @authserver/client (Web, React Native, Flutter)
+    server-sdk/      → @authserver/server (Node.js backend SDK)
+    edge-sdk/        → @authserver/edge (<50KB, Cloudflare/Vercel)
+    nestjs-sdk/      → @authserver/nestjs (decorator-based)
+    shared/          → Ortak tipler, validasyon, utils
+  docker/
+    docker-compose.yml    → Dev ortami (server + postgres + redis)
+    Dockerfile.server     → Production server image
+    Dockerfile.dashboard  → Production dashboard image
+  helm/
+    authserver/           → Kubernetes Helm chart
+  docs/
+    quickstart/           → Framework-bazli quickstart rehberleri
+    api-reference/        → OpenAPI spec'ten otomatik uretim
+```
+
+### 28.2 Dashboard (Next.js)
+
+Self-hosted'da da SaaS'ta da ayni dashboard kullanilir.
+
+**Teknoloji:**
+- Next.js 15 (App Router)
+- shadcn/ui + Tailwind CSS
+- React Query (server state)
+- Auth server API'yi tuketir (kendi dogfood'u)
+
+**Self-hosted'da:**
+- Auth server ile ayni Docker Compose'da ayaga kalkar
+- `http://localhost:3001` uzerinden erisim
+- Ilk acilista setup wizard: admin hesap olustur, temel konfigurasyon
+
+**Dashboard sayfalari:**
+- Overview: MAU, login trendi, aktif session, alertler
+- Users: liste, detay, ban, password reset, MFA reset, import/export
+- Authentication: provider toggle, password policy, session policy
+- Hooks & Webhooks: endpoint, test, loglar, DLQ
+- Organizations (B2B): org, member, SSO, SCIM
+- Audit Logs: real-time stream, filtre, export, integrity verify
+- Security: risk engine, IP whitelist, geo-blocking, device attestation
+- Analytics: auth method dagilim, MFA adoption, risk score
+- Settings: domain, email/SMS provider, branding, CORS, i18n
+
+### 28.3 Runtime
 
 - **Framework**: NestJS (Node.js)
 - **Veritabani**: PostgreSQL (primary), Redis (cache, rate limiting, session store)
 - **Message Queue**: Redis Streams veya NATS (webhook delivery, async events)
 - **KMS**: AWS KMS / GCP KMS / HashiCorp Vault (key management)
 
-### 28.2 Guvenlik Altyapisi
+### 28.4 Self-Hosted Deployment
+
+**Docker Compose (gelistirme + kucuk olcek):**
+```bash
+docker compose up -d
+# authserver-api:    localhost:3000
+# authserver-admin:  localhost:3001
+# postgres:          localhost:5432
+# redis:             localhost:6379
+```
+
+**Docker (production):**
+```bash
+docker run -d \
+  --name authserver \
+  -p 3000:3000 \
+  -e DATABASE_URL=postgres://... \
+  -e REDIS_URL=redis://... \
+  -e ENCRYPTION_KEY=... \
+  authserver/server:latest
+```
+
+**Kubernetes / Helm:**
+```bash
+helm install authserver authserver/authserver \
+  --set database.url=postgres://... \
+  --set redis.url=redis://... \
+  --set dashboard.enabled=true
+```
+
+**Konfigurasyon:**
+- Environment variables (12-factor app)
+- Config file (YAML) opsiyonel
+- Tum ayarlar dashboard veya API ile de degistirilebilir
+- Ilk acilista setup wizard (admin hesap + temel konfigurasyon)
+
+### 28.5 Guvenlik Altyapisi
 
 - WAF (PCI DSS 6.4.2 zorunlu)
 - DDoS korumasi
@@ -1268,7 +1448,7 @@ export class BeforeUserCreateHandler implements AuthHookHandler {
 - Penetration testing (yillik, PCI DSS zorunlu)
 - SIEM entegrasyonu (log aggregation, alerting)
 
-### 28.3 Monitoring & Alerting
+### 28.6 Monitoring & Alerting
 
 - Brute force tespiti: 5-10 basarisiz login / 5dk -> alert
 - Impossible travel: Cografi uzaklik / zaman orani -> alert
@@ -1278,46 +1458,187 @@ export class BeforeUserCreateHandler implements AuthHookHandler {
 
 ---
 
-## 29. PSD3 Hazirlik
+## 29. PSD3 / PSR Hazirlik
 
-PSD3 Kasim 2025'te politik anlasmaya varildi, 2026 ortasinda resmi yayin, 2027 sonunda zorunlu uyum bekleniyor.
+Politik anlasma: 27 Kasim 2025. Resmi yayin: Q2 2026 bekleniyor. PSR dogrudan uygulanabilir regulation olarak 18-24 ay sonra yururluge girer (H2 2027 - basi 2028).
 
-### Yeni Gereksinimler
+**Kritik yapisal degisiklik:** SCA kurallari artik PSD3'te degil, **PSR (Payment Services Regulation) Articles 85-89**'da. Dogrudan uygulanabilir regulation — ulkeler arasi tutarsiz transposition sorunu ortadan kalkiyor.
 
-- Guclendirilmis SCA gereksinimleri
+### Yeni SCA Gereksinimleri (PSR)
+
+- **Iki inherence faktoru artik izinli** (Art. 85): Ornegin parmak izi + yuz tanima. Ancak SADECE inherence kategorisinde gecerli — iki possession veya iki knowledge YASAK
+- **Genisletilmis SCA kapsami**: Login, mandate setup, cihaz recovery islemleri de SCA gerektiriyor
+- **SCA erisilebirligi yasal hak**: Akilli telefon disinda yontemler sunulmak ZORUNDA
+- **SCA delegasyonu = outsourcing**: Dokumantasyon ve denetim gereksinimleri artiyor
+- **Impersonation fraud sorumlulugu**: PSP'ler artik impersonation fraud'dan da sorumlu
 - Gercek zamanli fraud monitoring zorunlulugu
 - API hardening gereksinimleri
 - eIDAS 2.0 (EUDI Wallet) ile uyum
-- Daha genis compliance kapsami
-- Daha siki fraud sorumluluk kurallari
 
 ---
 
-## 30. Rakip Analizi Ozeti
+## 30. DORA (Digital Operational Resilience Act)
+
+### 30.1 Nedir?
+
+AB finansal sektoru icin dijital operasyonel dayaniklilik regülasyonu. **17 Ocak 2025'te tam olarak yururluge girdi.** Bankalar, sigorta sirketleri, yatirim firmalari ve onlarin **ICT ucuncu taraf hizmet saglayicilari** icin gecerli.
+
+### 30.2 Bizi Neden Ilgilendiriyor?
+
+Auth platformumuz banka musterilerine hizmet verdiginde **ICT ucuncu taraf hizmet saglayicisi** oluyoruz. DORA dogrudan bize uygulanir.
+
+### 30.3 Gereksinimler
+
+**Sozlesme gereksinimleri (Art. 28-30):**
+- SLA'lar (uptime, response time, RTO/RPO)
+- Cikis stratejisi (exit plan — musteri baska saglayiciya gecebilmeli)
+- Denetim haklari (musteri veya regulator bizim sistemlerimizi denetleyebilmeli)
+- Olay bildirimi (incident reporting — 24 saat icinde)
+- Is surekliligi testi (business continuity testing)
+
+**Teknik gereksinimler:**
+- ICT risk management framework
+- Incident classification ve reporting
+- Digital operational resilience testing (TLPT — Threat-Led Penetration Testing)
+- Ucuncu taraf risk yonetimi dokumantasyonu
+
+**Cezalar:** Kritik ICT Ucuncu Taraf olarak tanimlanirsa, **gunluk dunya cirosunun %1'ine** kadar ceza.
+
+### 30.4 Implementasyon
+
+- DORA-compliant sozlesme template'leri hazirla
+- SLA/SLO dokumantasyonu
+- Incident response + reporting proseduru (24 saat)
+- Exit/transition plani
+- Denetim erisim mekanizmasi (read-only audit access)
+- Is surekliligi test kanit raporu (6 aylik)
+- Maliyet: €30K-€100K (dokumantasyon + prosedur)
+
+---
+
+## 31. FIPS 140-3 (Cryptographic Module Validation)
+
+### 31.1 Nedir?
+
+Kriptografik modullerin guvenligini dogrulayan ABD federal standardi. FIPS 140-2 **21 Eylul 2026'da** sunset oluyor, bundan sonra sadece FIPS 140-3 gecerli.
+
+### 31.2 Self-Hosted icin Neden Ideal?
+
+- **Urun-seviye sertifika** — deployment modeline bagli degil
+- Platformun kendisi degil, **kullandigi kriptografik modul** validate edilir
+- Validate edilmis kutuphane kullanarak platform FIPS-compliant olabilir
+- Musteri kendi altyapisinda FIPS-validated binary deploy eder
+
+### 31.3 Uygulama Stratejisi
+
+**Yol 1: Validate edilmis kutuphane kullan (oneri)**
+- OpenSSL FIPS module (validated)
+- BoringCrypto (Go — Google tarafindan validated)
+- Bouncy Castle FIPS (Java)
+- Node.js icin: OpenSSL FIPS provider + `--enable-fips` flag
+
+**Yol 2: Validation-as-a-Service (VaaS)**
+- SafeLogic gibi saglayicilar pre-validated modulleri lisanslar
+- Sure: ~2 ay (geleneksel 12-24 ay yerine)
+- Maliyet: €50K-€150K (geleneksel €150K-€400K yerine)
+
+### 31.4 FIPS Mode Konfigurasyonu
+
+- FIPS mode tenant bazinda aktiflestirilir
+- FIPS modunda sadece approved algoritmalar: AES-128/192/256, SHA-2, HMAC, RSA 2048+, ECDSA P-256/P-384, EdDSA
+- Chacha20, MD5, SHA-1 (signing icin), RSA 1024 FIPS modunda YASAK
+- Argon2id FIPS-approved degil — FIPS modunda PBKDF2-HMAC-SHA256 (600K+ iteration) kullanilir
+
+---
+
+## 32. ETSI TS 119 461 (Identity Proofing)
+
+### 32.1 Nedir?
+
+Trust service'ler icin kimlik dogrulama standardi. **Agustos 2027'de zorunlu** oluyor (EU Implementing Regulation 2025/1566).
+
+### 32.2 Seviyeler
+
+- **Baseline Level**: Temel kimlik dogrulama. Document verification + liveness check
+- **Extended Level**: Guclendirilmis dogrulama. Yuz yuze veya esdeger remote verification
+
+### 32.3 Senaryolar
+
+- Yuz yuze (face-to-face) dogrulama
+- Uzaktan destekli (remote assisted) — video call ile operator
+- Gozetimsiz uzaktan (unattended remote) — AI-based document + liveness
+
+### 32.4 Bizim Icin Anlami
+
+- QTSP partnership yaptigimizda, QTSP zaten ETSI TS 119 461 uyumlu olmali
+- Auth server olarak bizim rolumuz: KYC provider entegrasyonu (Onfido, Jumio, Veriff, Sumsub, IDnow — hepsi zaten sertifikali)
+- Identity proofing hook'u: `before.identity.verify` blocking hook ile backend KYC sonucunu onaylayabilir
+
+---
+
+## 33. QES (Qualified Electronic Signature) Stratejisi
+
+### 33.1 QTSP Partnerligi vs Kendi QTSP
+
+| | QTSP Partnerligi | Kendi QTSP |
+|---|---|---|
+| Sure | 1-3 ay | 2-3 yil |
+| Maliyet | €10K-€50K + €0.50-€5/QES | €500K-€1M+ initial |
+| Yillik | Per-signature maliyet | €200K-€500K+ |
+| Kontrol | Sinirli | Tam |
+| Risk | Dusuk | Yuksek |
+| Breakeven | - | 1,000+ QES/ay |
+
+**Karar: Faz 3'te QTSP partnerligi.** Volume hakliyorsa (1,000+ QES/ay) Faz 5'te kendi QTSP degerlendirmesi.
+
+### 33.2 Potansiyel QTSP Partnerleri
+
+- **Swisscom Trust Services** (Avusturya) — Genis partner ekosistemi, API
+- **Namirial** (Italya) — Full API, white-label
+- **InfoCert** (Italya) — Banka/finans odakli
+- **SK ID Solutions** (Estonya) — Smart-ID/Mobile-ID, Baltik bolgesi
+- **Evrotrust** (Bulgaristan) — Mobil QES, 58 ulke
+
+### 33.3 Entegrasyon
+
+- CSC API (Cloud Signature Consortium) standardi — ETSI TS 119 432
+- Signing akisi: Auth Server (kullanici dogrulama) -> QTSP API (sertifika + imza) -> Signed document
+- Document hash signing (dokuman QTSP'ye gonderilmez, sadece hash)
+
+---
+
+## 34. Rakip Analizi Ozeti
 
 Hedefledigimiz sertifika portfolyosu hicbir mevcut provider'da tam olarak bulunmuyor:
 
-| Ozellik | Biz | Auth0 | Firebase | Supabase | Descope | Hanko |
-|---------|-----|-------|----------|----------|---------|-------|
-| OpenID FAPI 2.0 | Hedef | FAPI 1 | Hayir | Hayir | Hayir | Hayir |
-| FIDO2 Certified | Hedef | Hayir | Hayir | Hayir | Evet | Evet |
-| SOC 2 Type II | Hedef | Evet | Evet | Evet | Evet | Hayir |
-| ISO 27001 | Hedef | Evet | Evet | Beklemede | Evet | Hayir |
-| PCI DSS v4.0 | Hedef | Evet | Evet | Hayir | Evet | Hayir |
-| FedRAMP High | Hedef | Hayir | Evet* | Hayir | Evet | Hayir |
-| PSD2/PSD3 SCA | Hedef | Evet | Hayir | Hayir | Hayir | Hayir |
-| eIDAS / EUDI | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Blocking Hooks | Hedef | Evet | Hayir | Kismi | Hayir | Hayir |
-| Device Attestation | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Transaction Approval | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir |
-| Self-hosted | Evet | Hayir | Hayir | Evet | Hayir | Evet |
-| AI Agent Auth | Hedef | Evet | Hayir | Hayir | Hayir | Hayir |
+| Ozellik | Biz | Auth0 | Firebase | Supabase | Descope | Hanko | WorkOS | Zitadel | Ory | SuperTokens |
+|---------|-----|-------|----------|----------|---------|-------|--------|---------|-----|-------------|
+| OpenID FAPI 2.0 | Hedef | FAPI 1 | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+| FIDO2 Certified | Hedef | Hayir | Hayir | Hayir | Evet | Evet | Hayir | Hayir | Hayir | Hayir |
+| OpenID Certified | Hedef | Evet | Evet* | Hayir | Hayir | Hayir | Hayir | Hayir | Evet (Hydra) | Hayir |
+| SOC 2 Type II | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Evet | Hayir | Hayir |
+| ISO 27001 | Hedef | Evet | Evet | Beklemede | Evet | Hayir | Hayir | Evet | Hayir | Hayir |
+| PCI DSS v4.0.1 | Hedef | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
+| FedRAMP High | Hedef | Hayir | Evet* | Hayir | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
+| HIPAA | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir |
+| PSD2/PSD3 SCA | Hedef | Evet | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+| eIDAS / EUDI | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+| Blocking Hooks | Hedef | Evet | Hayir | Kismi | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+| Device Attestation | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+| Transaction Approval | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+| Self-hosted | Evet | Hayir | Hayir | Evet | Hayir | Evet | Hayir | Evet | Evet | Evet |
+| AI Agent Auth | Hedef | Evet | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+| PIV/CAC Auth | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+
+*\* = inherited from Google Cloud*
+*Not: Stytch Kasim 2025'te Twilio tarafindan satin alindi — bagimsiz fiyatlandirmasi degisebilir*
+*Not: Descope su an en guclu compliance portfolyosune sahip yeni girisimci (SOC 2 + ISO + FIDO + FedRAMP High)*
 
 ---
 
-## 31. Email Altyapisi & Guvenligi
+## 35. Email Altyapisi & Guvenligi
 
-### 31.1 Anti-Spoofing (PCI DSS v4.0 zorunlu)
+### 31.1 Anti-Spoofing (PCI DSS v4.0.1 zorunlu)
 
 - **SPF**: DNS'te hangi sunucularin email gonderebilecegi tanimlanir
 - **DKIM**: Her email kriptografik olarak imzalanir
@@ -1335,7 +1656,7 @@ Hedefledigimiz sertifika portfolyosu hicbir mevcut provider'da tam olarak bulunm
 
 ---
 
-## 32. SAML 2.0 Destegi
+## 36. SAML 2.0 Destegi
 
 ### 32.1 SP (Service Provider) Modu
 
@@ -1357,7 +1678,16 @@ Auth server kendisi SAML IdP olarak calisir — eski sistemlere SAML ile entegra
 - Attribute mapping (SAML attributes -> user claims)
 - Per-tenant IdP konfigurasyonu
 
-### 32.3 Guvenlik
+### 36.3 PIV/CAC Authentication (FedRAMP High Zorunlu)
+
+- NIST SP 800-53 Rev. 5 IA-2(12): "Accept and electronically verify Personal Identity Verification-compliant credentials"
+- FedRAMP High'da Low/Moderate/High tum seviyeler icin zorunlu
+- Uygulama yolu: Federated identity — SAML/OIDC ile PIV/CAC destekleyen harici IdP uzerinden
+- Auth server PIV-aware SAML SP olarak calisir, IdP (ornek: ICAM, Login.gov) PIV/CAC dogrulamasini yapar
+- Certificate-based auth: X.509 client sertifikasi ile mTLS destegi
+- PIV credential verification: OCSP/CRL ile sertifika gecerlilik kontrolu
+
+### 36.4 Guvenlik
 
 - XXE korumasi: External entity resolution KAPALI
 - DTD processing KAPALI
@@ -1365,7 +1695,7 @@ Auth server kendisi SAML IdP olarak calisir — eski sistemlere SAML ile entegra
 
 ---
 
-## 33. HTTP & Transport Guvenligi
+## 37. HTTP & Transport Guvenligi
 
 ### 33.1 Security Headers
 
@@ -1403,7 +1733,7 @@ Cache-Control: no-store, no-cache, must-revalidate (auth endpoint'lerinde)
 
 ---
 
-## 34. Token Introspection & Revocation
+## 38. Token Introspection & Revocation
 
 ### 34.1 Token Introspection (RFC 7662)
 
@@ -1445,7 +1775,7 @@ token=<token>&token_type_hint=refresh_token
 
 ---
 
-## 35. Data Residency & Sovereignty
+## 39. Data Residency & Sovereignty
 
 ### 35.1 Region-Based Deployment
 
@@ -1464,7 +1794,7 @@ token=<token>&token_type_hint=refresh_token
 
 ---
 
-## 36. Altyapi Guvenligi & Operasyonel Prosedurler
+## 40. Altyapi Guvenligi & Operasyonel Prosedurler
 
 ### 36.1 Backup & Disaster Recovery
 
@@ -1510,7 +1840,7 @@ token=<token>&token_type_hint=refresh_token
 
 ---
 
-## 37. i18n & Accessibility
+## 41. i18n & Accessibility
 
 ### 37.1 Internationalization
 
@@ -1532,28 +1862,52 @@ token=<token>&token_type_hint=refresh_token
 
 ---
 
-## 38. Fonksiyonel Faz Plani
+## 42. Fonksiyonel Faz Plani
 
-### Faz 0: Core Auth (Ay 1-2)
+> **Oncelik: Self-hosted first.** Tum fazlarda birincil deployment self-hosted (Docker/Helm).
+> Dashboard (Next.js) her fazda self-hosted ile birlikte gelir.
+> SaaS katmani (billing, onboarding, managed hosting) Faz 4+'te eklenir.
 
-> Hedef: Piyasadaki servislerin %95'inden daha guvenli bir temel.
+### Faz 0: Core Auth (Ay 1-4)
 
-1. NestJS monorepo (server + client SDK + server SDK)
-2. PostgreSQL + Redis altyapisi
-3. Tenant yonetimi (temel CRUD, API key uretimi)
-4. Email + Password (Argon2id + pepper + salt + HIBP + constant-time)
-5. Email verification (OTP veya magic link)
-6. Password reset (256-bit token, 15dk)
-7. JWT access token (RS256, 30dk) + JWKS endpoint
-8. Opaque refresh token (rotation + family-based revocation)
-9. Session yonetimi (idle/absolute timeout, aktif session listesi)
-10. Audit log (structured JSON, SHA-256 hash chain, PII encryption)
-11. Rate limiting (Redis sliding window, per-IP + per-endpoint)
-12. Security headers (HSTS, CSP, CORS, X-Frame-Options)
-13. Request validation (body size, content-type, JSON depth)
-14. Email altyapisi (pluggable provider, SPF/DKIM/DMARC rehberi)
-15. Client SDK: signUp, signIn, signOut, getSession, getUser, onAuthStateChange, auto-refresh
-16. Server SDK: verifyToken, admin.createUser, updateUser, deleteUser, listUsers
+> Hedef: Piyasadaki servislerin %95'inden daha guvenli bir temel. `docker compose up` ile ayaga kalkar.
+> 24 deliverable, 14-16 hafta. Library kullanimi: `argon2`, `jose`, `ioredis`, vb.
+> Solo developer icin gercekci timeline. 12 haftada MVP, 16 haftada production-quality.
+
+**Deployment:**
+- Docker Compose: server + dashboard + postgres + redis
+- Setup wizard: Ilk acilista admin hesap + temel konfigurasyon
+- `http://localhost:3000` (API) + `http://localhost:3001` (Dashboard)
+
+**Core:**
+1. NestJS monorepo (server + dashboard + client SDK + server SDK + shared)
+2. PostgreSQL + Redis altyapisi + CI/CD pipeline
+3. Database schema + migration sistemi
+4. Tenant yonetimi (temel CRUD, API key uretimi: `pk_test_`, `sk_test_`)
+5. Email + Password (Argon2id + pepper + salt + HIBP + constant-time)
+6. Email verification (OTP veya magic link)
+7. Password reset (256-bit token, 15dk)
+8. JWT access token (PS256/ES256, 30dk) + JWKS endpoint
+9. Opaque refresh token (rotation + family-based revocation, 30sn grace period)
+10. Session yonetimi (idle/absolute timeout, aktif session listesi)
+11. Audit log (structured JSON, SHA-256 hash chain on ciphertext, PII encryption)
+12. Rate limiting (Redis sliding window, per-IP + per-endpoint)
+13. Security headers (HSTS, CSP, CORS, X-Frame-Options)
+14. Request validation (body size, content-type, JSON depth)
+15. Email altyapisi (pluggable provider, SPF/DKIM/DMARC rehberi)
+16. Health check + readiness endpoints
+17. Test suite (unit + integration + E2E temel)
+
+**SDK'lar:**
+18. Client SDK: signUp, signIn, signOut, getSession, getUser, onAuthStateChange, auto-refresh
+19. Server SDK: verifyToken, admin.createUser, updateUser, deleteUser, listUsers
+
+**Dashboard (Next.js):**
+20. Overview: aktif kullanici, login trendi
+21. Users: liste, detay, ban, password reset
+22. Authentication: provider toggle, password policy, session policy
+23. Settings: email provider, CORS, redirect URLs
+24. Audit Logs: real-time stream, filtre
 
 **Neden %95'inden guvenli:**
 - Argon2id + pepper + salt (cogu sistem bcrypt bile kullanmiyor)
@@ -1567,10 +1921,11 @@ token=<token>&token_type_hint=refresh_token
 
 ---
 
-### Faz 1: MFA + Social + Hooks (Ay 3-4)
+### Faz 1: MFA + Social + Hooks (Ay 5-7)
 
-> Hedef: Firebase/Supabase seviyesi + blocking hooks avantaji.
+> Hedef: Firebase/Supabase seviyesi + blocking hooks avantaji. Self-hosted + Helm chart.
 
+**Core:**
 1. TOTP MFA (QR enrollment, AES-256-GCM secret, backup codes)
 2. Social login: Google, Apple, GitHub, Microsoft (Auth Code + PKCE)
 3. Account linking (verified email ile otomatik)
@@ -1578,18 +1933,29 @@ token=<token>&token_type_hint=refresh_token
 5. Blocking hooks (before.user.create, before.login + after variants)
 6. Webhook sistemi (HMAC imza, retry, temel)
 7. Session: device metadata binding, concurrent limit, remote revocation
+
+**SDK'lar:**
 8. Client SDK: signInWithOAuth, signInWithCredential, mfa.enroll/verify, recovery codes
 9. Server SDK: hooks.before(), on(), admin.setCustomClaims, revokeAllSessions
-10. Admin panel (temel): kullanici listesi, session yonetimi, konfigurasyon, log viewer
+
+**Dashboard:**
+10. Hooks & Webhooks: endpoint, test, loglar, failure mode
+11. Authentication: social provider konfig UI (Client ID/Secret girisi)
+12. Users: MFA durumu, login gecmisi
+
+**Deployment:**
+13. Helm chart (Kubernetes)
+14. Production Docker image'lar (multi-stage build, non-root)
 
 **Sertifika:** NIST AAL2, OpenID Basic OP basvurusu baslar
 
 ---
 
-### Faz 2: Passkeys + Enterprise (Ay 5-7)
+### Faz 2: Passkeys + Enterprise (Ay 8-10)
 
 > Hedef: Clerk/WorkOS seviyesi. FIDO2 + OpenID sertifika basvurulari.
 
+**Core:**
 1. WebAuthn/Passkeys (packed+none attestation, ES256, counter validation, MDS v3)
 2. Passkey-first kayit + cross-device QR login
 3. Step-up auth (ACR/AMR claims, per-endpoint seviye)
@@ -1600,17 +1966,25 @@ token=<token>&token_type_hint=refresh_token
 8. Key rotation (JWKS'te eski+yeni, kid bazli)
 9. Bot detection (Proof-of-Work, credential stuffing tespiti)
 10. SMS OTP (pluggable provider, ulke whitelist)
+
+**SDK'lar:**
 11. NestJS SDK (@RequireAuth, @CurrentUser, hook handler interface)
 12. Edge SDK (<50KB, JWKS cache, JWT verify, Cloudflare Workers + Vercel Edge)
+
+**Dashboard:**
+13. Organizations: org listesi, member yonetimi, davet
+14. Security: risk engine konfig, IP whitelist, geo-blocking, bot detection
+15. Analytics: auth method dagilim, MFA adoption, risk score dagilimi
 
 **Sertifika:** FIDO2 basvuru, OpenID Basic OP, SOC 2 gozlem baslar
 
 ---
 
-### Faz 3: Financial-Grade (Ay 8-12)
+### Faz 3: Financial-Grade (Ay 11-16)
 
-> Hedef: Auth0 seviyesi + device attestation + PSD2 SCA.
+> Hedef: Auth0 seviyesi + device attestation + PSD2 SCA. SAML tek basina 2-4 ay surebilir.
 
+**Core:**
 1. DPoP (ephemeral key, proof JWT, cnf.jkt claim)
 2. PAR (Pushed Authorization Requests)
 3. Device attestation (Play Integrity API, Apple App Attest)
@@ -1623,42 +1997,62 @@ token=<token>&token_type_hint=refresh_token
 10. OpenID FAPI 2.0 (PAR + PKCE + DPoP)
 11. GDPR DSAR endpoint'leri (export, delete, consent)
 12. Breach detection (HIBP monitoring, credential stuffing)
-13. Admin panel: org yonetimi, SSO konfig, webhook DLQ, risk dashboard
+
+**Dashboard:**
+13. Organizations: SSO konfig (SAML metadata upload, OIDC discovery), SCIM
+14. Webhook: DLQ, replay, fan-out
+15. Security: device attestation sonuclari
+16. Compliance: GDPR DSAR islem paneli
 
 **Sertifika:** FIDO2 alinir, FAPI basvuru, SOC 2 gozlem devam
 
 ---
 
-### Faz 4: Scale + Compliance (Ay 13-18)
+### Faz 4: Scale + Compliance + SaaS Baslangic (Ay 17-22)
 
-> Hedef: SOC 2 raporu alma. Multi-region, full enterprise.
+> Hedef: SOC 2 raporu alma. Multi-region. SaaS katmani baslar.
 
+**Core:**
 1. Multi-region deployment (data residency: EU, US, APAC, TR)
 2. Custom domain per tenant (Let's Encrypt/ACME)
 3. White-label (login sayfalari, email template'ler, branding)
 4. Advanced risk engine (3rd party connectors, behavioral signals)
 5. Admin impersonation (RFC 8693 token exchange, audit trail)
 6. Advanced webhook (DLQ, replay, fan-out, delivery logs)
+
+**Operasyonel (sertifika icin):**
 7. Backup & DR (PITR, encrypted backup, 6 aylik DR test)
 8. Vulnerability management (dependency scan, DAST, pentest)
 9. Incident response plan (documented, yillik exercise)
 10. Change management proseduru
-11. i18n (en, tr + framework)
+
+**SaaS katmani (baslangiç):**
+11. Stripe billing entegrasyonu (subscription + usage-based MAU)
+12. SaaS onboarding akisi (signup -> proje olustur -> quickstart)
+13. Managed hosting altyapisi
+14. Landing page / marketing site
+
+**Diger:**
+15. i18n (en, tr + framework)
+16. Migration araclari (Auth0, Firebase, Supabase, Clerk import)
 
 **Sertifika:** SOC 2 Type II ALINIR, ISO 27001 baslar, PCI DSS gap analysis
 
 ---
 
-### Faz 5: Global Compliance (Ay 19-30)
+### Faz 5: Global Compliance + Full SaaS (Ay 23-36)
 
-> Hedef: Tam sertifika portfolyosu. Piyasada esdegeri olmayan platform.
+> Hedef: Tam sertifika portfolyosu + tam SaaS platform. Piyasada esdegeri olmayan platform.
 
+**Sertifikalar:**
 1. ISO 27001 sertifikasi
-2. PCI DSS v4.0 sertifikasi
+2. PCI DSS v4.0.1 sertifikasi
 3. HIPAA BAA
 4. CSA STAR Level 2
 5. FedRAMP High basvurusu
 6. eIDAS LoA High (QTSP entegrasyonu)
+
+**Yeni ozellikler:**
 7. AI Agent / MCP auth (agent entity, OAuth 2.1, RFC 8693 token exchange)
 8. EUDI Wallet (OpenID4VP, selective disclosure)
 9. Continuous auth (behavioral signals -> risk engine)
@@ -1666,32 +2060,43 @@ token=<token>&token_type_hint=refresh_token
 11. Full i18n (10+ dil, RTL)
 12. WCAG 2.1 AA
 
+**SaaS olgunlastirma:**
+13. Free/Pro/Business/Enterprise tier'lar tam islevsel
+14. Self-service SSO provisioning
+15. Usage dashboard + billing alertleri
+16. Developer documentation portal
+17. Interactive API playground
+
 **Sertifika:** ISO 27001, PCI DSS, HIPAA, CSA STAR, FedRAMP suruyor, FAPI 2.0, eIDAS
 
 ---
 
 ### Faz Ozet
 
-| Faz | Sure | Piyasa Esdegeri | Sertifika |
-|-----|------|-----------------|-----------|
-| **0** | Ay 1-2 | %95'inden guvenli | NIST AAL1, GDPR |
-| **1** | Ay 3-4 | Supabase/Firebase + hooks | NIST AAL2, OpenID basvuru |
-| **2** | Ay 5-7 | Clerk/WorkOS + FIDO2 | FIDO2 + OpenID basvuru, SOC 2 gozlem |
-| **3** | Ay 8-12 | Auth0 + PSD2 SCA + device attestation | FIDO2, FAPI basvuru |
-| **4** | Ay 13-18 | Descope seviyesi | SOC 2 alinir, ISO + PCI baslar |
-| **5** | Ay 19-30 | Piyasada esdegeri YOK | Tam portfolyo |
+| Faz | Sure | Deployment | Piyasa Esdegeri | Sertifika |
+|-----|------|------------|-----------------|-----------|
+| **0** | Ay 1-4 | Docker Compose | %95'inden guvenli | NIST AAL1, GDPR |
+| **1** | Ay 5-7 | + Helm chart | Supabase/Firebase + hooks | NIST AAL2, OpenID basvuru |
+| **2** | Ay 8-10 | Self-hosted production-ready | Clerk/WorkOS + FIDO2 | FIDO2 + OpenID, SOC 2 gozlem |
+| **3** | Ay 11-16 | Financial-grade self-hosted | Auth0 + PSD2 SCA | FIDO2, FAPI basvuru |
+| **4** | Ay 17-22 | + SaaS katmani baslar | Descope seviyesi | SOC 2 alinir, ISO + PCI baslar |
+| **5** | Ay 23-36 | Full SaaS + self-hosted | Piyasada esdegeri YOK | Tam portfolyo |
 
 ---
 
-## 39. SaaS Platform & Business Model
+## 43. SaaS Platform & Business Model
+
+> **Not:** SaaS katmani Faz 4'te baslar. Self-hosted birincil deployment.
+> Ancak mimari Day 1'den multi-tenant ve SaaS-ready tasarlanir.
+> Dashboard (Next.js) her iki modda da ayni — SaaS'a ozel sadece billing + onboarding eklenir.
 
 ### 39.1 Deployment Modelleri
 
-| Model | Aciklama | Hedef Kitle |
-|-------|----------|-------------|
-| **SaaS (Managed)** | Biz host ediyoruz, dashboard'dan proje olustur | Startup, SMB, mid-market |
-| **Self-Hosted** | Docker/Helm ile kendi sunucusunda | Regulated industries, on-prem |
-| **Private Cloud** | Dedicated instance, biz yonetiyoruz | Bankalar, fintech, devlet |
+| Model | Faz | Aciklama | Hedef Kitle |
+|-------|-----|----------|-------------|
+| **Self-Hosted** | Faz 0+ | Docker/Helm ile kendi sunucusunda | Herkes, regulated industries |
+| **SaaS (Managed)** | Faz 4+ | Biz host ediyoruz, dashboard'dan proje olustur | Startup, SMB, mid-market |
+| **Private Cloud** | Faz 5+ | Dedicated instance, biz yonetiyoruz | Bankalar, fintech, devlet |
 
 ### 39.2 Fiyatlandirma
 

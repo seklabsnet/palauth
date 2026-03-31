@@ -31,7 +31,7 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 | **Faz 1 — Hizli Kazanimlar** |
 | OpenID Connect Certified | Self-certification | Ay 1-3 | Gunler-haftalar | €700 (uye) / €3,500 (non-uye) | Evet |
 | FAPI 2.0 Certified | Self-certification | Ay 1-3 | 1-3 ay | €1K (uye) / €5K (non-uye) + engineering effort €15K-€40K | Evet |
-| FIDO2 Server L1 | Automated test | Ay 1-3 | 2-4 ay | **€20K-€50K** + uyelik | Evet |
+| FIDO2 Server L1 | Automated test | Ay 1-3 | 2-4 ay | **~$15K-$30K USD** (uyelik dahil) | Evet |
 | Penetration test (3rd party) | Rapor | Ay 3 | 2-4 hafta | €5K-€15K | Evet |
 | **Faz 2 — Enterprise** |
 | SOC 2 Type II | CPA audit | Ay 6-12 | 6-15 ay | €25K-€80K | Evet (reduced scope — dev practices, SDLC) |
@@ -41,7 +41,7 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 | **Faz 3 — Financial + Signing** |
 | ISO 27701 (Privacy) | Certification | Ay 13+ | 2-4 ay | €15K-€50K (ISO 27001 uzerine incremental) | Evet |
 | DORA readiness | Compliance docs | Ay 13+ | 3-6 ay | **€30K-€100K** | Evet |
-| QTSP partnership | Entegrasyon | Ay 13+ | 1-3 ay | €10K-€50K + €0.50-€5/QES | Evet |
+| QTSP partnership | Entegrasyon | Ay 13+ | 1-3 ay | €10K-€50K + €2.50-€5/QES | Evet |
 | OpenID4VP/VCI conformance | Self-certification | Ay 13+ | Gunler-haftalar | €700-€3,500 | Evet |
 | ETSI TS 119 461 (Identity proofing) | Compliance | Ay 13+ (Agustos 2027 zorunlu) | 2-4 ay | QTSP audit icinde | Evet |
 | CSA STAR Level 2 | Certification | ISO 27001 sonrasi | 2-4 ay | €10K-€30K (ISO uzerine) | Evet |
@@ -76,7 +76,7 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 | Opsiyonel | Maliyet | Ne zaman |
 |-----------|---------|----------|
 | FedRAMP Moderate/High | €500K-€2M+ | Sadece US gov geliri hakliyorsa |
-| QTSP (kendi) | €500K-€1M+ initial + €200K-€500K/yil | 1,000+ QES/ay hacminde |
+| QTSP (kendi) | €500K-€1M+ initial + €200K-€500K/yil | 10,000-50,000+ QES/ay hacminde |
 | Common Criteria EAL4+ | €200K-€500K+ | Sadece QSCD donanimi yapiyorsak |
 
 **Gercekci startup yolu (Faz 1-3, opsiyoneller haric): €190K-€670K / 2 yil.** Descope/Stytch ile rekabet paritesi, Clerk/WorkOS'u sertifika genisliginde gecer, signing + financial-grade onlarda yok.
@@ -89,7 +89,7 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 
 - **Minimum 15 karakter** (tek faktorlu auth icin — NIST 800-63B-4 Sec 3.1.1.2, SHALL). MFA aktif ise minimum 8 karakter yeterli
 - Max 64 karakter ust limit, truncate yasak (NIST 800-63B-4)
-- Composition rules (numerik + alfa zorunlulugu) UYGULANMAZ (NIST 800-63B-4 SHALL NOT). PCI DSS v4.0.1 Req 8.3.6 bunu zorunlu kiliyor — bu catisma compensating control ile dokumante edilir: 15+ karakter uzunlugu composition kuralini gereksiz kilar
+- Composition rules (numerik + alfa zorunlulugu) UYGULANMAZ (NIST 800-63B-4 SHALL NOT). PCI DSS v4.0.1 Req 8.3.6 bunu zorunlu kiliyor — bu catisma PCI DSS v4.0 **Customized Approach** veya **Compensating Controls Worksheet** ile dokumante edilir (her ikisi de **QSA validasyonu** gerektirir, SAQ ile kullanilamaz). Uygulanacak tam NIST 800-63B kontrol seti: compromised password DB kontrolu (HIBP), yaygin sifre bloklama, zorunlu rotasyon yok, salted hash (Argon2id). 15+ karakter uzunlugu + bu kontroller composition kuralini gereksiz kilar. Customized Approach icin ek gereksinimler: targeted risk analysis, kontrol matrisi, yonetici onayi, surekli izleme
 - Son 4 sifre tekrar yasak (PCI DSS v4.0.1 Req 8.3.7)
 - Compromised password kontrolu: HaveIBeenPwned k-Anonymity API (NIST 800-63B-4 zorunlu)
 - Hashing: **Argon2id** (m=64MB+, t=3, p=1, ~300ms target)
@@ -712,6 +712,33 @@ Organization
 - Kullanici tarafindan olusturulan programmatic erisim token'lari
 - Scope'lu, sureli
 - GitHub PAT modeli
+
+### 13.4 Service Account Credential Yonetimi (PCI DSS v4.0.1 §8.6.1–8.6.3)
+
+> **31 Mart 2025 itibariyle zorunlu.** PCI DSS'in ilk kez non-human identity credential yonetimini acikca hedef alan gereksinimleri.
+
+**8.6.1 — Interaktif erisimli service account'lar:**
+- Her service/system account **benzersiz** tanimlanir (paylasimli hesap YASAK)
+- Interaktif login yetenegi olan hesaplar icin: zaman sinirli erisim, yonetim onayi, tum aksiyonlarin bireysel kullaniciya atfedilmesi
+- Sadece interaktif login *yapabilen* hesaplara uygulanir
+
+**8.6.2 — Hard-coded credential yasagi:**
+- Script, config dosyasi veya kaynak kodda hard-coded sifre/secret YASAK
+- Credential'lar secrets vault'ta (HashiCorp Vault, AWS Secrets Manager, vb.) saklanir, runtime'da inject edilir
+- Alternatif: sertifika-bazli auth (mTLS / `private_key_jwt`) ile static secret ihtiyacini ortadan kaldir
+
+**8.6.3 — Credential rotation (en genis kapsam):**
+- **Tum** application ve system account credential'lari periyodik olarak rotate edilir — interaktif olsun veya olmasin
+- Rotation frekansi **Targeted Risk Analysis** (Req 12.3.1) ile belirlenir
+- Supheli compromise durumunda **aninda** rotation
+- Dual-credential overlap window: yeni credential aktif, eski credential grace period icinde gecerli (zero-downtime rotation)
+- Auth server credential lifecycle event'lerini tamamen loglar (olusturma, rotation, iptal)
+
+**Uygulama:**
+- Credential rotation API: `POST /admin/service-accounts/{id}/rotate` — yeni credential uretir, eski icin yapilandirilabilir grace period baslatir
+- Credential TTL: service account olusturulurken max omur belirlenir
+- TRA export: credential lifecycle verileri Targeted Risk Analysis dokumantasyonunu desteklemek icin export edilebilir
+- Dashboard'da service account credential durumu: son rotation, sonraki planlanan rotation, risk analizi baglantisi
 
 ---
 
@@ -1496,13 +1523,16 @@ Auth platformumuz banka musterilerine hizmet verdiginde **ICT ucuncu taraf hizme
 - Olay bildirimi (incident reporting — 24 saat icinde)
 - Is surekliligi testi (business continuity testing)
 
-**Teknik gereksinimler:**
-- ICT risk management framework
-- Incident classification ve reporting
-- Digital operational resilience testing (TLPT — Threat-Led Penetration Testing)
-- Ucuncu taraf risk yonetimi dokumantasyonu
+**Teknik gereksinimler (5 temel sutun):**
+1. ICT risk management framework
+2. Incident classification ve reporting
+3. Digital operational resilience testing (TLPT — Threat-Led Penetration Testing)
+4. Ucuncu taraf risk yonetimi dokumantasyonu
+5. **Bilgi ve istihbarat paylasimi** (Chapter VI, Art. 45) — siber tehdit istihbaratinin finansal kurumlar arasinda paylasimi tesvik edilir
 
-**Cezalar:** Kritik ICT Ucuncu Taraf olarak tanimlanirsa, **gunluk dunya cirosunun %1'ine** kadar ceza.
+**Cezalar:**
+- Finansal kurumlar: en agir ihlallerde **yillik dunya cirosunun %2'sine** kadar ceza (Art. 50-52)
+- Kritik ICT Ucuncu Taraf Saglayicilar (CTPP): devam eden uyumsuzlukta **gunluk dunya cirosunun %1'ine** kadar ceza + **€5M'a** kadar sabit ceza
 
 ### 30.4 Implementasyon
 
@@ -1571,7 +1601,7 @@ Trust service'ler icin kimlik dogrulama standardi. **Agustos 2027'de zorunlu** o
 ### 32.4 Bizim Icin Anlami
 
 - QTSP partnership yaptigimizda, QTSP zaten ETSI TS 119 461 uyumlu olmali
-- Auth server olarak bizim rolumuz: KYC provider entegrasyonu (Onfido, Jumio, Veriff, Sumsub, IDnow — hepsi zaten sertifikali)
+- Auth server olarak bizim rolumuz: KYC provider entegrasyonu (Onfido, Veridas, Namirial, Sumsub, IDnow — hepsi ETSI TS 119 461 sertifikali)
 - Identity proofing hook'u: `before.identity.verify` blocking hook ile backend KYC sonucunu onaylayabilir
 
 ---
@@ -1583,17 +1613,17 @@ Trust service'ler icin kimlik dogrulama standardi. **Agustos 2027'de zorunlu** o
 | | QTSP Partnerligi | Kendi QTSP |
 |---|---|---|
 | Sure | 1-3 ay | 2-3 yil |
-| Maliyet | €10K-€50K + €0.50-€5/QES | €500K-€1M+ initial |
+| Maliyet | €10K-€50K + €2.50-€5/QES | €500K-€1M+ initial |
 | Yillik | Per-signature maliyet | €200K-€500K+ |
 | Kontrol | Sinirli | Tam |
 | Risk | Dusuk | Yuksek |
-| Breakeven | - | 1,000+ QES/ay |
+| Breakeven | - | 10,000-50,000+ QES/ay |
 
-**Karar: Faz 3'te QTSP partnerligi.** Volume hakliyorsa (1,000+ QES/ay) Faz 5'te kendi QTSP degerlendirmesi.
+**Karar: Faz 3'te QTSP partnerligi.** Kendi QTSP icin gercekci breakeven 10,000-50,000+ QES/ay (HSM altyapisi, 24 aylik conformity assessment, NIS2 uyumlulugu, sigorta ve personel maliyetleri nedeniyle). Volume ancak bu seviyeye ulasirsa Faz 5'te kendi QTSP degerlendirmesi.
 
 ### 33.2 Potansiyel QTSP Partnerleri
 
-- **Swisscom Trust Services** (Avusturya) — Genis partner ekosistemi, API
+- **Swisscom Trust Services** (Isvicre merkezli, eIDAS QTSP akreditasyonu Avusturya uzerinden) — Genis partner ekosistemi, API
 - **Namirial** (Italya) — Full API, white-label
 - **InfoCert** (Italya) — Banka/finans odakli
 - **SK ID Solutions** (Estonya) — Smart-ID/Mobile-ID, Baltik bolgesi
@@ -1615,9 +1645,9 @@ Hedefledigimiz sertifika portfolyosu hicbir mevcut provider'da tam olarak bulunm
 |---------|-----|-------|----------|----------|---------|-------|--------|---------|-----|-------------|
 | OpenID FAPI 2.0 | Hedef | FAPI 1 | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
 | FIDO2 Certified | Hedef | Hayir | Hayir | Hayir | Evet | Evet | Hayir | Hayir | Hayir | Hayir |
-| OpenID Certified | Hedef | Evet | Evet* | Hayir | Hayir | Hayir | Hayir | Hayir | Evet (Hydra) | Hayir |
-| SOC 2 Type II | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Evet | Hayir | Hayir |
-| ISO 27001 | Hedef | Evet | Evet | Beklemede | Evet | Hayir | Hayir | Evet | Hayir | Hayir |
+| OpenID Certified | Hedef | Evet | Evet* | Hayir | Hayir | Hayir | Hayir | Evet (Basic OP) | Evet (Hydra) | Hayir |
+| SOC 2 Type II | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Evet | Evet | Evet |
+| ISO 27001 | Hedef | Evet | Evet | Beklemede | Evet | Hayir | Hayir | Evet | Evet | Hayir |
 | PCI DSS v4.0.1 | Hedef | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
 | FedRAMP High | Hedef | Hayir | Evet* | Hayir | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
 | HIPAA | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir |
@@ -1638,13 +1668,13 @@ Hedefledigimiz sertifika portfolyosu hicbir mevcut provider'da tam olarak bulunm
 
 ## 35. Email Altyapisi & Guvenligi
 
-### 31.1 Anti-Spoofing (PCI DSS v4.0.1 zorunlu)
+### 35.1 Anti-Spoofing (PCI DSS v4.0.1 zorunlu)
 
 - **SPF**: DNS'te hangi sunucularin email gonderebilecegi tanimlanir
 - **DKIM**: Her email kriptografik olarak imzalanir
 - **DMARC**: `p=reject` ile sahte emailler reddedilir
 
-### 31.2 Email Gonderim
+### 35.2 Email Gonderim
 
 - Pluggable provider: AWS SES, SendGrid, Postmark, SMTP
 - Tenant bazinda email konfigurasyonu (kendi SMTP'sini kullanabilir)
@@ -1658,7 +1688,7 @@ Hedefledigimiz sertifika portfolyosu hicbir mevcut provider'da tam olarak bulunm
 
 ## 36. SAML 2.0 Destegi
 
-### 32.1 SP (Service Provider) Modu
+### 36.1 SP (Service Provider) Modu
 
 Auth server SAML SP olarak calisir — harici SAML IdP'lerden (ADFS, Okta, Azure AD) identity kabul eder.
 
@@ -1669,7 +1699,7 @@ Auth server SAML SP olarak calisir — harici SAML IdP'lerden (ADFS, Okta, Azure
 - Single Logout (SLO) destegi
 - Metadata endpoint: `/.well-known/saml-metadata.xml`
 
-### 32.2 IdP (Identity Provider) Modu
+### 36.2 IdP (Identity Provider) Modu
 
 Auth server kendisi SAML IdP olarak calisir — eski sistemlere SAML ile entegrasyon saglar.
 
@@ -1683,7 +1713,7 @@ Auth server kendisi SAML IdP olarak calisir — eski sistemlere SAML ile entegra
 - NIST SP 800-53 Rev. 5 IA-2(12): "Accept and electronically verify Personal Identity Verification-compliant credentials"
 - FedRAMP High'da Low/Moderate/High tum seviyeler icin zorunlu
 - Uygulama yolu: Federated identity — SAML/OIDC ile PIV/CAC destekleyen harici IdP uzerinden
-- Auth server PIV-aware SAML SP olarak calisir, IdP (ornek: ICAM, Login.gov) PIV/CAC dogrulamasini yapar
+- Auth server PIV-aware SAML SP olarak calisir, IdP (ornek: ICAM, Login.gov) PIV/CAC dogrulamasini yapar. **Not:** Login.gov su an FedRAMP Moderate — FedRAMP High sistemler icin FedRAMP High yetkili bir IdP veya kurum-owned PIV altyapisi gerekir
 - Certificate-based auth: X.509 client sertifikasi ile mTLS destegi
 - PIV credential verification: OCSP/CRL ile sertifika gecerlilik kontrolu
 
@@ -1697,7 +1727,7 @@ Auth server kendisi SAML IdP olarak calisir — eski sistemlere SAML ile entegra
 
 ## 37. HTTP & Transport Guvenligi
 
-### 33.1 Security Headers
+### 37.1 Security Headers
 
 Tum response'larda:
 ```
@@ -1711,20 +1741,20 @@ Permissions-Policy: camera=(), microphone=(), geolocation=()
 Cache-Control: no-store, no-cache, must-revalidate (auth endpoint'lerinde)
 ```
 
-### 33.2 CORS
+### 37.2 CORS
 
 - Tenant bazinda origin whitelist
 - Wildcard (`*`) origin YASAK
 - Credentials mode'da sadece explicit origin'ler
 - Preflight cache: max 1 saat
 
-### 33.3 IP Allowlisting
+### 37.3 IP Allowlisting
 
 - Admin API'leri icin IP allowlist (tenant yapilandirilabilir)
 - Management API icin ayri allowlist
 - IPv4 ve IPv6 CIDR destegi
 
-### 33.4 Request Validation
+### 37.4 Request Validation
 
 - Max request body size: 1MB
 - Content-Type validation: Sadece `application/json`
@@ -1735,7 +1765,7 @@ Cache-Control: no-store, no-cache, must-revalidate (auth endpoint'lerinde)
 
 ## 38. Token Introspection & Revocation
 
-### 34.1 Token Introspection (RFC 7662)
+### 38.1 Token Introspection (RFC 7662)
 
 ```
 POST /oauth/introspect
@@ -1760,7 +1790,7 @@ Response:
 - Client authentication zorunlu
 - Rate limited
 
-### 34.2 Token Revocation (RFC 7009)
+### 38.2 Token Revocation (RFC 7009)
 
 ```
 POST /oauth/revoke
@@ -1777,7 +1807,7 @@ token=<token>&token_type_hint=refresh_token
 
 ## 39. Data Residency & Sovereignty
 
-### 35.1 Region-Based Deployment
+### 39.1 Region-Based Deployment
 
 - Kullanici verileri tenant'in sectigi region'da saklanir
 - Desteklenen region'lar: EU (Frankfurt), US (Virginia), APAC (Singapore), TR (Istanbul)
@@ -1786,7 +1816,7 @@ token=<token>&token_type_hint=refresh_token
 - Backup'lar ayni region'da
 - Log'lar ayni region'da
 
-### 35.2 DPA (Data Processing Agreement)
+### 39.2 DPA (Data Processing Agreement)
 
 - Her tenant ile DPA imzalanir (GDPR Art. 28)
 - Sub-processor listesi seffaf
@@ -1796,7 +1826,7 @@ token=<token>&token_type_hint=refresh_token
 
 ## 40. Altyapi Guvenligi & Operasyonel Prosedurler
 
-### 36.1 Backup & Disaster Recovery
+### 40.1 Backup & Disaster Recovery
 
 - **RPO** (Recovery Point Objective): Max 1 saat veri kaybi
 - **RTO** (Recovery Time Objective): Max 4 saat restore suresi
@@ -1805,21 +1835,21 @@ token=<token>&token_type_hint=refresh_token
 - Backup'lar sifreli (AES-256-GCM), ayri region'da kopya
 - DR testi: 6 ayda bir tam restore testi (SOC 2 kaniti)
 
-### 36.2 Network Segmentation
+### 40.2 Network Segmentation
 
 - Auth server kendi VPC/subnet'inde (PCI DSS zorunlu)
 - Database public internet'ten erisilemez
 - Bastion host / VPN uzerinden admin erisimi
 - Security group'lar: sadece gerekli portlar acik
 
-### 36.3 Change Management
+### 40.3 Change Management
 
 - Tum kod degisiklikleri PR + code review + approval (min 1 reviewer)
 - Staging ortaminda test zorunlu
 - Rollback proseduru dokumante
 - Emergency change proseduru (P1 icin hizlandirilmis, ama yine loglanir)
 
-### 36.4 Incident Response Plan
+### 40.4 Incident Response Plan
 
 1. **Detection**: Monitoring + alerting ile tespit
 2. **Triage**: Severity belirleme (P1-P4)
@@ -1830,7 +1860,7 @@ token=<token>&token_type_hint=refresh_token
 - GDPR breach notification: 72 saat icinde supervisory authority'ye
 - Yilda 1 tabletop exercise (SOC 2 kaniti)
 
-### 36.5 Vulnerability Management
+### 40.5 Vulnerability Management
 
 - Dependency scanning: Her CI/CD pipeline'inda (npm audit, Snyk, Trivy)
 - Container image scanning: Her build'de
@@ -1842,7 +1872,7 @@ token=<token>&token_type_hint=refresh_token
 
 ## 41. i18n & Accessibility
 
-### 37.1 Internationalization
+### 41.1 Internationalization
 
 - Hata mesajlari: 10+ dil destegi (en, tr, de, fr, es, ar, zh, ja, ko, pt minimum)
 - Email template'leri: Tenant + dil bazinda
@@ -1851,7 +1881,7 @@ token=<token>&token_type_hint=refresh_token
 - Tarih/saat formati: Locale-aware
 - Telefon numarasi formati: E.164 + ulke kodu destegi
 
-### 37.2 Accessibility (WCAG 2.1 AA)
+### 41.2 Accessibility (WCAG 2.1 AA)
 
 - Login/register sayfalari WCAG 2.1 AA uyumlu
 - Screen reader destegi (ARIA labels)
@@ -1872,7 +1902,7 @@ token=<token>&token_type_hint=refresh_token
 
 > Hedef: Piyasadaki servislerin %95'inden daha guvenli bir temel. `docker compose up` ile ayaga kalkar.
 > 24 deliverable, 14-16 hafta. Library kullanimi: `argon2`, `jose`, `ioredis`, vb.
-> Solo developer icin gercekci timeline. 12 haftada MVP, 16 haftada production-quality.
+> **Takim varsayimi: Solo developer** (deneyimli NestJS gelistirici). 12 haftada MVP, 16 haftada production-quality. Haftada ~1.5-1.7 deliverable — her biri bagimsiz modül (ornek: "JWT service", "rate limiter middleware"). Bazi deliverable'lar paralelize edilebilir (ornek: SDK + Dashboard).
 
 **Deployment:**
 - Docker Compose: server + dashboard + postgres + redis
@@ -2084,13 +2114,253 @@ token=<token>&token_type_hint=refresh_token
 
 ---
 
-## 43. SaaS Platform & Business Model
+## 43. Test Stratejisi
+
+### 43.1 Yaklasim
+
+**"Testing Pyramid + Security Layers"** modeli. TDD sadece unit test katmaninda — tum strateji degil, stratejinin %20'si. Auth server icin tek bir test yaklasimiyla yetinmek yetersiz: Trail of Bits (Eylul 2025) %96 code coverage olan bir projede mutation testing skorunun %34 oldugunu buldu — testlerin 2/3'u sahte guvenlik hissi veriyordu.
+
+### 43.2 Test Piramidi (11 Katman + AI Security)
+
+#### Katman 1: Unit Tests (TDD)
+
+- **Arac:** Jest
+- **Yaklasim:** Test-first (Security Test-Driven Development — STDD)
+- **Kapsam:** Core business logic — password policy, token claim uretimi, risk score hesaplama, rate limit counter, hash chain hesaplama, OTP uretimi/dogrulama
+- **Kapsam DISI:** Kripto kutuphaneleri (Argon2id, jose), DB sorgu motoru, framework internals
+- **Hedef:** Guvenlik-kritik modullerde %90+ line coverage
+
+```typescript
+// Ornek: Timing attack korumasi testi
+it('should use constant-time comparison', async () => {
+  const hash = await passwordService.hash('correct-password');
+  const times = [];
+  for (let i = 0; i < 100; i++) {
+    const start = process.hrtime.bigint();
+    await passwordService.verify('wrong-password-' + i, hash);
+    times.push(Number(process.hrtime.bigint() - start));
+  }
+  const stdDev = standardDeviation(times);
+  expect(stdDev).toBeLessThan(1_000_000); // < 1ms variance
+});
+```
+
+#### Katman 2: Property-Based Tests
+
+- **Arac:** fast-check
+- **Yaklasim:** Invariant tanimlama — "HER input icin bu kural gecerli olmali"
+- 10,000+ rastgele input uretir, insanin dusunemeyecegi edge case'leri bulur
+
+**Auth icin invariantlar:**
+- Her iki farkli password'un hash'i farkli olmali (salt uniqueness)
+- Her JWT'nin `exp > iat` olmali
+- Refresh token rotation sonrasi eski token HER ZAMAN gecersiz olmali
+- Risk score her zaman 0.0-1.0 arasinda olmali
+- Canonical JSON serialization her zaman deterministic olmali (audit log hash chain)
+- Token family revocation sonrasi tum descendants gecersiz olmali
+
+```typescript
+// Ornek: Salt uniqueness invariant
+fc.assert(
+  fc.asyncProperty(fc.string(), fc.string(), async (pw1, pw2) => {
+    const hash1 = await passwordService.hash(pw1);
+    const hash2 = await passwordService.hash(pw1); // ayni password
+    expect(hash1).not.toBe(hash2); // farkli salt = farkli hash
+  })
+);
+```
+
+#### Katman 3: AI Security Review
+
+- **Arac:** Claude Code Security Review (GitHub Action — `anthropics/claude-code-security-review`, MIT lisans)
+- **Ne yapar:** Her PR'daki diff'i analiz eder, pattern matching degil **baglam anlayarak** guvenlik acigi arar
+- **Tespit ettikleri:**
+  - Injection saldirilari (SQL, command, NoSQL, XXE, XPath)
+  - Auth/authorization hatalari (privilege escalation, IDOR, bypass logic)
+  - Hardcoded secret'lar, hassas loglama, PII ihlalleri
+  - Zayif kriptografi, kotu key management
+  - Business logic hatalari (race condition, TOCTOU)
+  - Supply chain riskleri (vulnerable dependency, typosquatting)
+- **Cikti:** PR'da dogrudan kod satirina yorum, severity rating, remediation onerisi
+- **Ek:** Development sirasinda `claude /security-review` CLI komutu ile lokal tarama
+
+```yaml
+# .github/workflows/security-review.yml
+name: Security Review
+on: [pull_request]
+jobs:
+  security-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-security-review@main
+        with:
+          claude_api_key: ${{ secrets.CLAUDE_API_KEY }}
+```
+
+#### Katman 4: Integration Tests
+
+- **Arac:** Testcontainers (PostgreSQL + Redis) + Supertest
+- **Yaklasim:** Mock YOK. Gercek DB container'lari ayaga kaldir, gercek sorgu calistir
+- **Kapsam:**
+  - Tam signup -> login -> MFA -> session akisi
+  - Token rotation + family revocation DB'de calisiyor mu
+  - Rate limiting Redis'te atomik mi
+  - Audit log hash chain DB'de tutarli mi
+  - Blocking hook timeout davranisi (deny_on_failure)
+  - User enumeration korumasi (ayni hata mesaji + ayni response time)
+  - Account lockout (10 basarisiz -> 30dk lockout)
+  - GDPR cryptographic erasure (user sil -> log chain bozulmamali)
+
+```typescript
+// Testcontainers setup
+const postgres = await new PostgreSqlContainer('postgres:16').start();
+const redis = await new GenericContainer('redis:7').withExposedPorts(6379).start();
+```
+
+#### Katman 5: Contract Tests
+
+- **Arac:** Pact
+- **Amac:** Client SDK <-> Server API uyumu garanti
+- **Ne zaman:** SDK veya API degisikliklerinde otomatik calisir
+- **Kapsam:** Custom API'ler (hooks, admin endpoints, custom claims). OAuth2/OIDC standart flow'lari Pact ile test edilmez (Pact'in kendi tavsiyesi — standartlar zaten iyi tanimli)
+- Consumer-driven: Client SDK beklenen API seklini tanimlar, server dogrular
+
+#### Katman 6: DAST (Dynamic Application Security Testing)
+
+- **Arac:** OWASP ZAP
+- **Yaklasim:** Calisan sunucuya karsi otomatik saldiri simulasyonu
+- **Baseline scan:** Her PR'da (hizli, pasif tarama)
+- **Active scan:** Aylik (tam saldiri simulasyonu — SQL injection, XSS, CSRF, header eksiklikleri)
+- **CI/CD entegrasyonu:** ZAP Docker image, baseline scan API endpoint'lerine karsi
+- **Claude Security ile farki:** ZAP pattern matching yapar, Claude baglam anlar. Birbirini tamamlar
+
+#### Katman 7: E2E Tests
+
+- **Arac:** Playwright
+- **Kapsam:**
+  - OAuth redirect/callback tam akisi (multi-tab, cross-domain)
+  - WebAuthn registration (virtual authenticator ile)
+  - MFA enrollment QR -> TOTP dogrulama
+  - Dashboard login -> kullanici listesi -> detay
+  - Session timeout sonrasi redirect
+  - Password reset tam akisi (email -> link -> yeni sifre)
+- **Auth state reuse:** Global setup'ta login ol, tum testlerde kullan (her testte login olma)
+
+#### Katman 8: Mutation Testing
+
+- **Arac:** Stryker JS
+- **Amac:** Testlerin GERCEKTEN guvenlik buglarini yakalayip yakalamadigini olcer
+- **Nasil calisir:** Kodu otomatik degistirir (if tersine cevir, validation sil, return degerini degistir), testlerin bunu yakalayip yakalamadigini kontrol eder
+- **Hedef:** Guvenlik-kritik modullerde (token validation, password hashing, authorization checks) **%80+ mutation score**
+- **Code coverage yalan soyler, mutation score soylemez**
+
+```bash
+npx stryker run --mutate "src/auth/**/*.ts,src/token/**/*.ts,src/session/**/*.ts"
+```
+
+#### Katman 9: API Fuzzing
+
+- **Arac:** Microsoft RESTler
+- **Nasil calisir:** OpenAPI spec'i okur, endpoint'ler arasi bagimliliklari cikarir (create user -> login -> token al -> resource eris), rastgele ama anlamli request zincirleri uretir
+- **Bulduklari:** Auth bypass, cross-user resource erisimi, beklenmeyen input'larda crash, information leakage
+- **Referans:** GitLab'da 28 bug buldu, auth bypass dahil
+
+#### Katman 10: Chaos Testing
+
+- **Arac:** Toxiproxy + Testcontainers
+- **Senaryolar:**
+  - Redis coktu -> rate limiter ne yapiyor? (fail-closed olmali)
+  - DB baglanti havuzu doldu -> login calisiyor mu?
+  - Hook endpoint 15sn cevap vermedi -> deny_on_failure calisiyor mu?
+  - Network partition -> token validation calisiyor mu? (JWT self-contained, calismali)
+  - Redis latency 500ms -> session performansi?
+- **Amac:** Production'da degil, test ortaminda ariza simule et
+
+#### Katman 11: Load Tests
+
+- **Arac:** Grafana k6
+- **SLO'lar:**
+  - Login endpoint p99 < 500ms (1000 concurrent user)
+  - Token refresh p99 < 100ms
+  - Rate limiter baskisi altinda dogru calisiyor mu
+  - 50 farkli IP'den ayni hesaba saldiri -> hesap kilitlenmeli
+- **Reporting:** k6 Cloud veya InfluxDB + Grafana dashboard
+
+#### Katman 12: Conformance Tests
+
+- **Araclar:** OpenID Foundation conformance suite, FIDO Alliance conformance tools
+- **Kapsam:** Protokol uyumu — kendi testlerimizi yazmiyoruz, sertifika kurumlarinin test setlerini calistiriyoruz
+- **OpenID Connect:** Basic OP, Config OP, Dynamic OP profilleri
+- **FIDO2:** Attestation format dogrulama, signature verification, counter validation
+- **FAPI 2.0:** PAR, PKCE, DPoP, sender-constrained token dogrulama
+
+### 43.3 Ne Zaman Ne Calisir?
+
+| Tetikleme | Calisan Testler | Tahmini Sure |
+|-----------|-----------------|--------------|
+| Her `git push` | Unit + property-based + lint | ~30sn |
+| Her PR | + AI Security Review + integration + contract + DAST baseline | ~5dk |
+| PR merge to main | + E2E + mutation (security modules) | ~15dk |
+| Haftalik (CI cron) | + Full mutation + fuzzing (RESTler) + load test | ~1-2 saat |
+| Aylik | + Chaos testing + full DAST active scan | ~4 saat |
+| Release oncesi | + Conformance suites (OpenID, FIDO2, FAPI) | ~1 saat |
+| Yillik | 3rd party penetration test (harici firma) | Harici |
+| Development sirasinda | `claude /security-review` (manuel, istege bagli) | ~2-5dk |
+
+### 43.4 OWASP ASVS v5.0 Hedefi
+
+**Level 2** (hassas veri iceren uygulamalar — bizim icin uygun). Ileriki fazlarda Level 3 (critical applications — finansal islemler aktif olunca).
+
+Kritik bolumler:
+- V6.2: Password Security
+- V6.3: General Authentication Security
+- V6.4: Authentication Factor Lifecycle and Recovery
+- V6.5: Multi-factor Authentication
+- V6.6: Out-of-Band Authentication
+- V6.7: Cryptographic Authentication
+- V7.1-V7.6: Session Management
+
+### 43.5 Sertifika Kanit Uretimi
+
+Testlerimiz asagidaki sertifika kanitlarini otomatik uretir:
+
+| Kanit | Kaynak | Sertifika |
+|-------|--------|-----------|
+| CI/CD pipeline loglari (test gecti/kaldi) | GitHub Actions | SOC 2, ISO 27001 |
+| Coverage raporlari (line + branch + mutation score) | Jest + Stryker | SOC 2 |
+| DAST tarama raporlari | OWASP ZAP (HTML/JSON) | SOC 2, PCI DSS, ISO 27001 |
+| AI security review raporlari | Claude Code Security Review | SOC 2, ISO 27001 |
+| Remediation tracker (bug -> fix -> retest) | GitHub Issues + PR linkage | SOC 2, PCI DSS |
+| Conformance test sonuclari | OpenID/FIDO2 suite output | OpenID Cert, FIDO2 Cert |
+| Load test raporlari | k6 JSON output | SOC 2 (Availability) |
+| Chaos test sonuclari | Toxiproxy logs | SOC 2 (Availability), DORA |
+| Pentest raporu (yillik) | Harici firma | SOC 2, PCI DSS, ISO 27001 |
+| Test plani (versiyonlanmis, her release) | Markdown/Confluence | ISO 27001 (Annex A 8.29) |
+
+### 43.6 Coverage Hedefleri
+
+| Modul | Line Coverage | Branch Coverage | Mutation Score |
+|-------|--------------|-----------------|----------------|
+| Password hashing & validation | %95+ | %90+ | %85+ |
+| Token issuance & validation | %95+ | %90+ | %85+ |
+| Session management | %90+ | %85+ | %80+ |
+| Rate limiting | %90+ | %85+ | %80+ |
+| Audit log + hash chain | %95+ | %90+ | %85+ |
+| Hook pipeline | %90+ | %85+ | %80+ |
+| Risk engine | %85+ | %80+ | %75+ |
+| CRUD / admin endpoints | %80+ | %75+ | %70+ |
+| SDK'lar | %85+ | %80+ | %75+ |
+| Genel ortalama | %90+ | %85+ | %80+ |
+
+---
+
+## 44. SaaS Platform & Business Model
 
 > **Not:** SaaS katmani Faz 4'te baslar. Self-hosted birincil deployment.
 > Ancak mimari Day 1'den multi-tenant ve SaaS-ready tasarlanir.
 > Dashboard (Next.js) her iki modda da ayni — SaaS'a ozel sadece billing + onboarding eklenir.
 
-### 39.1 Deployment Modelleri
+### 43.1 Deployment Modelleri
 
 | Model | Faz | Aciklama | Hedef Kitle |
 |-------|-----|----------|-------------|
@@ -2098,7 +2368,7 @@ token=<token>&token_type_hint=refresh_token
 | **SaaS (Managed)** | Faz 4+ | Biz host ediyoruz, dashboard'dan proje olustur | Startup, SMB, mid-market |
 | **Private Cloud** | Faz 5+ | Dedicated instance, biz yonetiyoruz | Bankalar, fintech, devlet |
 
-### 39.2 Fiyatlandirma
+### 43.2 Fiyatlandirma
 
 **Free (Starter)**
 - 50,000 MAU
@@ -2159,7 +2429,7 @@ token=<token>&token_type_hint=refresh_token
 - MFA paywall arkasinda degil (guvenlik herkesin hakki)
 - Branding kaldirmak icin ayri ucret yok (Pro'da dahil)
 
-### 39.3 Proje & API Key Yapisi
+### 43.3 Proje & API Key Yapisi
 
 ```
 Account (kullanici veya takim)
@@ -2182,7 +2452,7 @@ Account (kullanici veya takim)
 - Dev'de email yerine console log secenegi
 - Prod'a gecis: tek tikla konfigurasyon kopyalama
 
-### 39.4 Dashboard Rolleri
+### 43.4 Dashboard Rolleri
 
 | Rol | Billing | Takim | Prod Config | Dev Config | Kullanici Verisi | Log |
 |-----|---------|-------|-------------|------------|------------------|-----|
@@ -2193,7 +2463,7 @@ Account (kullanici veya takim)
 
 Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC IdP'si ile.
 
-### 39.5 Dashboard Sayfalari
+### 43.5 Dashboard Sayfalari
 
 **Overview (Ana Sayfa)**
 - MAU trend grafigi + mevcut kullanim
@@ -2261,7 +2531,7 @@ Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC
 - Odeme yontemi
 - Plan degisikligi
 
-### 39.6 Onboarding Akisi
+### 43.6 Onboarding Akisi
 
 **Hedef: Signup -> ilk basarili login = 5 dakika**
 
@@ -2282,7 +2552,7 @@ Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC
 - curl komutlari projeye ozel key'ler ile otomatik dolu
 - SDK ornekleri key'ler ile dolu
 
-### 39.7 Migration Araclari
+### 43.7 Migration Araclari
 
 **Import:**
 - Auth0, Firebase, Supabase, Clerk export format destegi

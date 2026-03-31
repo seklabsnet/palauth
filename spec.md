@@ -1,7 +1,8 @@
-# Auth Server - Technical Specification
+# PalAuth - Technical Specification
 
 > Self-hosted, certification-ready authentication & authorization platform.
-> NestJS backend, Client SDK + Server SDK, financial-grade security.
+> Go backend, multi-language SDK'lar, financial-grade security.
+> Proje adi: **PalAuth**
 
 ---
 
@@ -16,7 +17,7 @@ Firebase Auth, Supabase Auth, Auth0 gibi calisacak ama self-hosted, tum sertifik
 1. **Security-first**: Tum sertifikalari alabilecek seviyede guvenlik (SOC 2, ISO 27001, PCI DSS, FIDO2, OpenID FAPI, FedRAMP, eIDAS)
 2. **Blocking pipeline**: Event-based degil, backend "tamam" demeden islem tamamlanmaz
 3. **Entegrasyon kolayligi**: 3 satirda entegrasyon, developer-friendly SDK
-4. **Multi-tenant**: Farkli platformlara hizmet verebilecek izolasyon
+4. **Project izolasyonu**: Tek instance uzerinde birden fazla izole project destegi (project_id ile scope'lama)
 5. **Financial-grade**: Para transferi, transaction approval, document signing destegi
 
 ### 1.3 Hedef Sertifika Portfolyosu
@@ -208,7 +209,7 @@ Server SDK -> provider token alir -> Auth Server API ile dogrular -> Session tok
 | CDE (Cardholder Data) erisimi | Evet | PCI DSS 8.4.2 |
 | Uzaktan erisim | Evet | PCI DSS 8.4.3 |
 | Finansal islem onayi | Evet | PSD2 SCA |
-| Normal kullanici girisi | Tenant tarafindan yapilandirilabilir | - |
+| Normal kullanici girisi | Project tarafindan yapilandirilabilir | - |
 
 ### 3.2 MFA Faktorleri
 
@@ -249,9 +250,9 @@ Server SDK -> provider token alir -> Auth Server API ile dogrular -> Session tok
 - Format: JWT (RFC 7519)
 - Imzalama (genel mod): RS256, PS256, ES256, veya EdDSA
 - Imzalama (FAPI 2.0 modu): **Sadece PS256, ES256, veya EdDSA (Ed25519 only)** (RS256 YASAK — RSASSA-PKCS1-v1_5 FAPI 2.0 Sec 5.4.1 tarafindan yasaklandi)
-- Omur (genel mod): 15-60dk (tenant yapilandirilabilir)
-- Omur (FAPI 2.0 modu): Kisa omur ONERILIR ama normatif zorunluluk YOK. FAPI 2.0 Sec 6.1 non-normative: "consider using short-lived access tokens." **Varsayilan: 5dk.** Tenant override edebilir
-- Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `kid`, `acr`, `amr`, `auth_time`, `tenant_id`, custom claims
+- Omur (genel mod): 15-60dk (project yapilandirilabilir)
+- Omur (FAPI 2.0 modu): Kisa omur ONERILIR ama normatif zorunluluk YOK. FAPI 2.0 Sec 6.1 non-normative: "consider using short-lived access tokens." **Varsayilan: 5dk.** Project override edebilir
+- Claims: `sub`, `iss`, `aud`, `exp`, `iat`, `jti`, `kid`, `acr`, `amr`, `auth_time`, `project_id`, custom claims
 - `auth_time` claim'i zorunlu (RFC 9068 + RFC 9470 step-up auth icin gerekli)
 - JWKS endpoint: `/.well-known/jwks.json` — public key'ler burada yayinlanir
 
@@ -499,7 +500,7 @@ Pipeline'i durdurur, backend'den cevap bekler.
 |------|-----------|---------------------|
 | `before.user.create` | Signup oncesi | Backend'de kullanici olusturma, ban kontrolu |
 | `before.login` | Her login denemesinde | IP/cihaz kontrolu, ozel business logic |
-| `before.token.issue` | Token uretilmeden once | Custom claims ekleme, tenant kontrolu |
+| `before.token.issue` | Token uretilmeden once | Custom claims ekleme, project kontrolu |
 | `before.mfa.verify` | MFA dogrulama oncesi | Ek guvenlik kontrolleri |
 | `before.password.reset` | Sifre sifirlama oncesi | Identity verification |
 | `before.social.link` | Sosyal hesap baglama oncesi | Duplikat kontrolu |
@@ -546,8 +547,8 @@ Pipeline'i durdurmaz, bilgilendirme amacli.
     "geo": { "country": "TR", "city": "Istanbul" },
     "risk_score": 0.15
   },
-  "tenant": {
-    "id": "tenant_abc",
+  "project": {
+    "id": "project_abc",
     "name": "MyApp"
   }
 }
@@ -595,7 +596,7 @@ veya:
 - 0.0 - 1.0 arasi numerik skor
 - Tum sinyaller agirlikli olarak birlestirilir
 - Skor blocking hook payload'unda `context.risk_score` olarak iletilir
-- Tenant'lar esik degerlerini yapilandirabilir
+- Project'lar esik degerlerini yapilandirabilir
 
 ### 9.3 Risk-Based Aksiyonlar
 
@@ -754,36 +755,63 @@ Organization
 
 - Sadece belirli izne sahip admin'ler impersonate edebilir
 - Max sure: yapilandirilabilir (varsayilan 1 saat)
-- Impersonate edilen kullaniciya bildirim (opsiyonel, tenant yapilandirilabilir)
+- Impersonate edilen kullaniciya bildirim (opsiyonel, project yapilandirilabilir)
 - Impersonation session'inda hassas islemler (sifre degistirme, MFA degisikligi) yapilamaz
 
 ---
 
-## 15. Multi-Tenancy
+## 15. Project Izolasyonu
 
-### 15.1 Izolasyon Modeli
+> Go server single-tenant, multi-project. Bir kullanici (self-hosted) veya SaaS platformu birden fazla project olusturabilir. Her project tamamen izole.
+> project_id tum tablolarda column olarak bulunur. Her sorgu project_id ile scope'lanir.
+> Multi-tenancy Go server'da YOK — SaaS'ta orchestration layer (ayri repo) bunu yonetir.
 
-Her tenant icin tam izolasyon:
-- Ayri user pool
-- Ayri auth yontemi konfigurasyonu
+### 15.1 Project = Izolasyon Birimi
+
+Her project icin:
+- Ayri user pool (project A'nin kullanicilari project B'yi goremez)
+- Ayri auth yontemi konfigurasyonu (project A sadece passkey, project B email+password)
+- Ayri API key'ler (`pk_live_xxx` / `sk_live_xxx` — project'e bagli)
 - Ayri SSO baglantilari
 - Ayri rate limit'ler ve kotalar
 - Ayri audit log'lar
 - Ayri webhook endpoint'leri
 - Ayri branding (logo, renkler, email template'leri)
 
-### 15.2 Custom Domain
+### 15.2 API Key -> Project Mapping
 
-- Tenant basina ozel domain: `auth.myapp.com`
+```
+Client request:
+  POST /auth/login
+  Header: X-API-Key: pk_live_abc123
+
+Go server:
+  1. pk_live_abc123 -> projects tablosundan project_id = 'prj_abc' bulur
+  2. Tum sorgular WHERE project_id = 'prj_abc' ile scope'lanir
+  3. Farkli project'lerin verilerine erisim IMKANSIZ
+```
+
+### 15.3 Self-Hosted vs SaaS Kullanimi
+
+| Senaryo | Nasil |
+|---------|-------|
+| Self-hosted (tek musteri) | 1-N project olusturur (web app, mobile app, admin panel) |
+| SaaS Free tier | Shared PalAuth instance, her musteri = 1 project |
+| SaaS Business tier | Dedicated PalAuth instance, musteri kendi project'lerini yonetir |
+| SaaS Enterprise | Dedicated instance + dedicated DB, tam izolasyon |
+
+### 15.4 Custom Domain
+
+- Project basina ozel domain: `auth.myapp.com`
 - Otomatik TLS sertifikasi (Let's Encrypt / ACME)
 - Wildcard sertifika destegi
 
-### 15.3 White-Label
+### 15.5 White-Label
 
-- Login/register sayfalari tenant branding'i ile
-- Email template'leri tenant'a ozel
-- SMS icerikleri tenant'a ozel
-- Hata mesajlari tenant diline gore
+- Login/register sayfalari project branding'i ile
+- Email template'leri project'a ozel
+- SMS icerikleri project'a ozel
+- Hata mesajlari project diline gore
 
 ---
 
@@ -846,7 +874,7 @@ Her tenant icin tam izolasyon:
   "result": "success",
   "auth_method": "password+totp",
   "risk_score": 0.12,
-  "tenant_id": "tenant_abc",
+  "project_id": "project_abc",
   "metadata": {},
   "prev_hash": "<SHA-256 of previous event>",
   "event_hash": "<SHA-256 of prev_hash + canonical(event_core)>"
@@ -882,7 +910,7 @@ Silme talebi geldiginde:
 - Auth/authz/incident loglari: minimum 12 ay (SOC 2 beklentisi)
 - 90 gun readily searchable
 - Sonrasi cold storage (S3 Glacier, vb.)
-- Tenant bazinda yapilandirilabilir retention suresi
+- Project bazinda yapilandirilabilir retention suresi
 
 ---
 
@@ -949,7 +977,7 @@ final_hash = Argon2id(
 | Per-user | Kullanici basina | Sliding window |
 | Per-device | Device fingerprint basina | Sliding window |
 | Per-endpoint | Endpoint basina | Sliding window |
-| Per-tenant | Tenant basina | Token bucket |
+| Per-project | Project basina | Token bucket |
 
 ### 18.2 Endpoint Bazinda Limitler
 
@@ -971,7 +999,7 @@ final_hash = Argon2id(
 ### 18.4 IP Reputation & Geo-blocking
 
 - VPN/Tor/proxy tespiti (IPinfo, MaxMind)
-- Ulke bazli beyaz/kara liste (tenant yapilandirilabilir)
+- Ulke bazli beyaz/kara liste (project yapilandirilabilir)
 - Impossible travel detection: Haversine formula ile mesafe, hiz hesabi
 
 ---
@@ -980,7 +1008,7 @@ final_hash = Argon2id(
 
 ### 19.1 Webhook Sistemi
 
-- Tenant'lar endpoint URL'leri register eder
+- Project'lar endpoint URL'leri register eder
 - Event bazinda subscribe (ornek: sadece `user.created` ve `auth.login.success`)
 - Fan-out: Ayni event birden fazla endpoint'e gonderilebilir
 
@@ -1112,7 +1140,7 @@ Auth server bir OpenID Connect Provider olarak calisir.
 
 ### 24.2 Data Retention
 
-- Yapilandirilabilir retention suresi (tenant bazinda)
+- Yapilandirilabilir retention suresi (project bazinda)
 - Otomatik purging (sifreleme key'i silme ile)
 - Retention suresi dolan veriler otomatik temizlenir
 
@@ -1145,7 +1173,22 @@ Cloudflare Workers, Vercel Edge, Deno Deploy gibi edge runtime'larda JWT dogrula
 
 ## 26. SDK Tasarimi
 
-### 26.1 Client SDK (`@authserver/client`)
+### 26.0 SDK Genel Bakis
+
+Go auth server REST API sunar. SDK'lar bu API'nin thin wrapper'lari — OpenAPI spec'ten (`api/openapi.yaml`) generate edilir.
+
+| SDK | Dil | Platform | Amac |
+|-----|-----|----------|------|
+| `@palauth/client` | TypeScript | Next.js, React, Vue, browser | Frontend auth (login, signup, MFA, session) |
+| `@palauth/server` | TypeScript | NestJS, Express, Fastify | Backend token verify, admin ops, hooks |
+| `@palauth/edge` | TypeScript | Cloudflare Workers, Vercel Edge | JWT dogrulama (<50KB) |
+| `@palauth/nestjs` | TypeScript | NestJS | Decorator-based wrapper (@RequireAuth, @CurrentUser) |
+| `palauth-go` | Go | Go backends | Native Go SDK |
+| `palauth-mobile` | Kotlin (KMP) | iOS + Android | Kotlin Multiplatform — tek codebase, iki platform |
+| `palauth-python` | Python | Django, FastAPI, Flask | Ileride |
+| `palauth-java` | Java/Kotlin | Spring Boot | Ileride |
+
+### 26.1 Client SDK (`@palauth/client`)
 
 ```typescript
 // Initialization
@@ -1199,7 +1242,7 @@ const codes = await auth.recovery.generateCodes();
 await auth.recovery.useCode(code);
 ```
 
-### 26.2 Server SDK (`@authserver/server`)
+### 26.2 Server SDK (`@palauth/server`)
 
 ```typescript
 // Initialization
@@ -1258,10 +1301,10 @@ await auth.orgs.addMember(orgId, userId, 'admin');
 await auth.orgs.configureSso(orgId, { provider: 'saml', metadata_url: '...' });
 ```
 
-### 26.3 Edge SDK (`@authserver/edge`)
+### 26.3 Edge SDK (`@palauth/edge`)
 
 ```typescript
-import { createVerifier } from '@authserver/edge';
+import { createVerifier } from '@palauth/edge';
 
 const verifier = createVerifier({
   jwksUrl: 'https://auth.myapp.com/.well-known/jwks.json',
@@ -1289,7 +1332,44 @@ export default {
 };
 ```
 
-### 26.4 NestJS SDK (`@authserver/nestjs`)
+### 26.4 KMP Mobile SDK (`palauth-mobile`)
+
+Kotlin Multiplatform — tek codebase'den iOS ve Android SDK'i uretir.
+
+```kotlin
+// Android + iOS ortak kod
+val auth = PalAuth.create(
+    url = "https://auth.myapp.com",
+    apiKey = "pk_live_xxx"
+)
+
+// Login
+auth.signIn(email = "user@example.com", password = "...")
+
+// Passkey
+auth.passkey.register()
+auth.passkey.authenticate()
+
+// Device attestation (platform-specific)
+auth.device.attest()  // Android: Play Integrity, iOS: App Attest
+
+// Transaction approval (PSD2 SCA)
+auth.transaction.approve(
+    amount = 100.0, currency = "EUR", payee = "Alice"
+)
+
+// Auth state observation
+auth.onAuthStateChange { event, session -> ... }
+```
+
+**Platform-specific:**
+- Android: EncryptedSharedPreferences, Android Keystore, Play Integrity API, BiometricPrompt
+- iOS: Keychain, Secure Enclave, App Attest, LAContext (Face ID / Touch ID)
+- Ortak: Token persistence, auto-refresh, PKCE, DPoP proof generation
+
+### 26.5 NestJS SDK (`@palauth/nestjs`)
+
+> NestJS backend'ler icin decorator-based wrapper. `@palauth/server` uzerine kurulu, Go auth server'a istek atar.
 
 ```typescript
 // Module Registration
@@ -1344,8 +1424,8 @@ export class BeforeUserCreateHandler implements AuthHookHandler {
 
 ### Core Tablolar
 
-- `tenants` — Multi-tenant konfigurasyonu
-- `users` — Kullanici profilleri (tenant-scoped)
+- `projects` — Project konfigurasyonu (izolasyon birimi, her project ayri user pool)
+- `users` — Kullanici profilleri (project_id ile scope'lanir)
 - `identities` — Auth yontemleri (email, social, passkey — user has many)
 - `credentials` — Password hash'leri, TOTP secret'lari (sifrelenmis)
 - `sessions` — Aktif session'lar
@@ -1367,7 +1447,7 @@ export class BeforeUserCreateHandler implements AuthHookHandler {
 
 ### Sifreleme
 
-- PII alanlari (email, telefon, isim): AES-256-GCM, per-tenant DEK
+- PII alanlari (email, telefon, isim): AES-256-GCM, per-project DEK
 - Credential alanlari (TOTP secret, recovery codes): AES-256-GCM, per-user DEK
 - Audit log PII alanlari: AES-256-GCM, per-user DEK (cryptographic erasure icin)
 
@@ -1379,24 +1459,91 @@ export class BeforeUserCreateHandler implements AuthHookHandler {
 
 ```
 authserver/
-  packages/
-    server/          → NestJS auth server (core API, headless)
-    dashboard/       → Next.js admin panel (self-hosted + SaaS ortak)
-    client-sdk/      → @authserver/client (Web, React Native, Flutter)
-    server-sdk/      → @authserver/server (Node.js backend SDK)
-    edge-sdk/        → @authserver/edge (<50KB, Cloudflare/Vercel)
-    nestjs-sdk/      → @authserver/nestjs (decorator-based)
-    shared/          → Ortak tipler, validasyon, utils
+  cmd/
+    server/              → Go main binary entry point
+  internal/              → Go core logic (disariya export edilmez)
+    auth/                → Signup, login, password reset, email verify
+    token/               → JWT issuance, refresh rotation, DPoP, JWKS
+    session/             → Session lifecycle, device binding, timeout
+    mfa/                 → TOTP, WebAuthn enrollment/verify, backup codes
+    oauth/               → OIDC Provider, authorization code, PKCE, PAR
+    social/              → Social login providers (Google, Apple, GitHub...)
+    saml/                → SAML SP + IdP
+    hook/                → Blocking pipeline, HMAC signing, timeout handling
+    webhook/             → Delivery, retry, DLQ, replay
+    risk/                → Risk engine, scoring, signals
+    device/              → Attestation (Play Integrity, App Attest), binding
+    transaction/         → PSD2 SCA, dynamic linking, WYSIWYS
+    project/              → Project CRUD, config, API key yonetimi
+    org/                 → Organizations, members, roles, invitations
+    audit/               → Tamper-evident log, hash chain, cryptographic erasure
+    crypto/              → Envelope encryption, key rotation, FIPS mode
+    ratelimit/           → Redis sliding window, per-layer limiting
+    user/                → User CRUD, ban, custom claims
+    apikey/              → API key, M2M, PAT management
+    scim/                → SCIM 2.0 endpoint
+    recovery/            → Recovery codes, trusted contacts, admin-assisted
+    bot/                 → Proof-of-Work challenge
+    email/               → Pluggable provider, templates, bounce handling
+    agent/               → AI agent auth, MCP compat, token exchange
+    eudi/                → OpenID4VP verifier, selective disclosure
+    breach/              → HIBP check, credential monitoring
+    compliance/          → GDPR DSAR, data retention, consent
+  pkg/                   → Disariya export edilebilir Go paketleri
+    sdk/                 → Go Server SDK
+  api/
+    openapi.yaml         → OpenAPI spec (source of truth — tum SDK'lar buradan turetilir)
+  sdk/
+    typescript/
+      client/            → @palauth/client (Next.js, React, Vue, browser)
+      server/            → @palauth/server (NestJS, Express, Fastify backend)
+      edge/              → @palauth/edge (<50KB, Cloudflare Workers, Vercel Edge)
+      nestjs/            → @palauth/nestjs (decorator-based wrapper)
+    go/                  → palauth-go (Go backend SDK)
+    mobile/              → palauth-mobile (Kotlin Multiplatform — iOS + Android)
+    python/              → palauth-python (ileride)
+    java/                → palauth-java (ileride)
+  dashboard/             → Next.js admin panel
   docker/
-    docker-compose.yml    → Dev ortami (server + postgres + redis)
-    Dockerfile.server     → Production server image
-    Dockerfile.dashboard  → Production dashboard image
+    docker-compose.yml   → Dev ortami (server + dashboard + postgres + redis)
+    Dockerfile.server    → Production server image (multi-stage, scratch base, ~15MB)
+    Dockerfile.dashboard → Production dashboard image
   helm/
-    authserver/           → Kubernetes Helm chart
+    authserver/          → Kubernetes Helm chart
+  migrations/            → SQL migration dosyalari (golang-migrate)
   docs/
-    quickstart/           → Framework-bazli quickstart rehberleri
-    api-reference/        → OpenAPI spec'ten otomatik uretim
+    quickstart/          → Framework-bazli quickstart rehberleri
+    api-reference/       → OpenAPI spec'ten otomatik uretim (Redoc/Scalar)
+  tests/
+    e2e/                 → Playwright E2E testleri
+    conformance/         → OpenID/FIDO2/FAPI conformance runner
+    load/                → k6 load test senaryolari
+    chaos/               → Toxiproxy chaos test senaryolari
 ```
+
+**Go Tech Stack:**
+
+| Katman | Arac | Neden |
+|--------|------|-------|
+| HTTP framework | Chi (veya stdlib Go 1.22+) | Minimal, idiomatic, net/http uyumlu |
+| Database | PostgreSQL 16+ (pgx driver) | Direct SQL, no ORM. sqlc ile type-safe query generation |
+| Cache / Rate limit | Redis 7+ (go-redis) | Sliding window, session cache, token blacklist |
+| JWT | go-jose/v4 | Full JOSE (JWE, JWS, JWT, JWK), RFC uyumlu |
+| OIDC | zitadel/oidc (OpenID Certified) | OP + RP, production-tested |
+| WebAuthn | go-webauthn (FIDO Conformant) | Passkey, MFA, attestation |
+| SAML | crewjam/saml | SP + IdP, XXE koruması |
+| Argon2id | golang.org/x/crypto/argon2 | Stdlib kalitesi, pure Go |
+| DPoP | AxisCommunications/go-dpop | Proof generation + validation |
+| SCIM | elimity-com/scim | CRUD + schema validation |
+| Event system | ThreeDotsLabs/watermill | In-memory + Kafka + Redis pub/sub |
+| Config | koanf | Lightweight, YAML/env/JSON |
+| Logging | slog (stdlib) | Go 1.21+, structured, zero-dep |
+| Validation | go-playground/validator v10 | Struct tag-based, cross-field |
+| Migration | golang-migrate | SQL-based, versioned |
+| OpenAPI codegen | oapi-codegen | Spec-first, Chi uyumlu |
+| FIPS 140-3 | Go 1.24 native module | Sertifika A6650, cgo gerektirmez |
+| Metrics | Prometheus client_golang | /metrics endpoint |
+| Rate limiting | NVIDIA/go-ratelimit + go-redis | Distributed sliding window |
 
 ### 28.2 Dashboard (Next.js)
 
@@ -1426,18 +1573,31 @@ Self-hosted'da da SaaS'ta da ayni dashboard kullanilir.
 
 ### 28.3 Runtime
 
-- **Framework**: NestJS (Node.js)
-- **Veritabani**: PostgreSQL (primary), Redis (cache, rate limiting, session store)
-- **Message Queue**: Redis Streams veya NATS (webhook delivery, async events)
+- **Dil**: Go 1.24+ (FIPS 140-3 native module icin minimum)
+- **Framework**: Chi router (veya Go 1.22+ stdlib enhanced routing)
+- **Veritabani**: PostgreSQL 16+ (pgx driver, sqlc ile type-safe queries)
+- **Cache/Rate limit**: Redis 7+ (go-redis)
+- **Event/Message**: Watermill (in-memory dev, Redis Streams prod)
 - **KMS**: AWS KMS / GCP KMS / HashiCorp Vault (key management)
+- **Binary**: Tek statik binary (~15MB), sifir runtime dependency
 
 ### 28.4 Self-Hosted Deployment
+
+**Standalone binary (en basit):**
+```bash
+# Tek binary indir + calistir
+curl -L https://github.com/authserver/releases/latest/authserver-linux-amd64 -o authserver
+chmod +x authserver
+./authserver serve --config config.yaml
+# API:       localhost:3000
+# Dashboard: localhost:3001 (ayri Next.js container veya embedded)
+```
 
 **Docker Compose (gelistirme + kucuk olcek):**
 ```bash
 docker compose up -d
-# authserver-api:    localhost:3000
-# authserver-admin:  localhost:3001
+# authserver:        localhost:3000  (Go binary, ~15MB image)
+# authserver-admin:  localhost:3001  (Next.js dashboard)
 # postgres:          localhost:5432
 # redis:             localhost:6379
 ```
@@ -1451,6 +1611,8 @@ docker run -d \
   -e REDIS_URL=redis://... \
   -e ENCRYPTION_KEY=... \
   authserver/server:latest
+# Image: scratch base, ~15MB (NestJS: ~300MB)
+# Memory: ~20MB idle (NestJS: ~120MB)
 ```
 
 **Kubernetes / Helm:**
@@ -1463,9 +1625,10 @@ helm install authserver authserver/authserver \
 
 **Konfigurasyon:**
 - Environment variables (12-factor app)
-- Config file (YAML) opsiyonel
+- Config file (YAML) via koanf
 - Tum ayarlar dashboard veya API ile de degistirilebilir
 - Ilk acilista setup wizard (admin hesap + temel konfigurasyon)
+- FIPS mode: `--fips` flag veya `AUTHSERVER_FIPS=true` env var
 
 ### 28.5 Guvenlik Altyapisi
 
@@ -1574,7 +1737,7 @@ Kriptografik modullerin guvenligini dogrulayan ABD federal standardi. FIPS 140-2
 
 ### 31.4 FIPS Mode Konfigurasyonu
 
-- FIPS mode tenant bazinda aktiflestirilir
+- FIPS mode project bazinda aktiflestirilir
 - FIPS modunda sadece approved algoritmalar: AES-128/192/256, SHA-2, HMAC, RSA 2048+, ECDSA P-256/P-384, EdDSA
 - Chacha20, MD5, SHA-1 (signing icin), RSA 1024 FIPS modunda YASAK
 - Argon2id FIPS-approved degil — FIPS modunda PBKDF2-HMAC-SHA256 (600K+ iteration) kullanilir
@@ -1677,9 +1840,9 @@ Hedefledigimiz sertifika portfolyosu hicbir mevcut provider'da tam olarak bulunm
 ### 35.2 Email Gonderim
 
 - Pluggable provider: AWS SES, SendGrid, Postmark, SMTP
-- Tenant bazinda email konfigurasyonu (kendi SMTP'sini kullanabilir)
+- Project bazinda email konfigurasyonu (kendi SMTP'sini kullanabilir)
 - Bounce handling: Hard bounce -> email'i unverified yap. Soft bounce -> retry
-- Complaint handling: Spam sikayet -> log + tenant'a bildir
+- Complaint handling: Spam sikayet -> log + project'a bildir
 - Rate limit: Kullanici basina saatte max email sayisi
 - Template rendering'de XSS korumasi (sandboxed, otomatik escape)
 - Plaintext fallback her email icin zorunlu
@@ -1706,7 +1869,7 @@ Auth server kendisi SAML IdP olarak calisir — eski sistemlere SAML ile entegra
 - SAML Response/Assertion uretimi
 - SP metadata import
 - Attribute mapping (SAML attributes -> user claims)
-- Per-tenant IdP konfigurasyonu
+- Per-project IdP konfigurasyonu
 
 ### 36.3 PIV/CAC Authentication (FedRAMP High Zorunlu)
 
@@ -1743,14 +1906,14 @@ Cache-Control: no-store, no-cache, must-revalidate (auth endpoint'lerinde)
 
 ### 37.2 CORS
 
-- Tenant bazinda origin whitelist
+- Project bazinda origin whitelist
 - Wildcard (`*`) origin YASAK
 - Credentials mode'da sadece explicit origin'ler
 - Preflight cache: max 1 saat
 
 ### 37.3 IP Allowlisting
 
-- Admin API'leri icin IP allowlist (tenant yapilandirilabilir)
+- Admin API'leri icin IP allowlist (project yapilandirilabilir)
 - Management API icin ayri allowlist
 - IPv4 ve IPv6 CIDR destegi
 
@@ -1782,7 +1945,7 @@ Response:
   "client_id": "app_abc",
   "scope": "openid profile",
   "exp": 1711900000,
-  "tenant_id": "tenant_abc"
+  "project_id": "project_abc"
 }
 ```
 
@@ -1809,7 +1972,7 @@ token=<token>&token_type_hint=refresh_token
 
 ### 39.1 Region-Based Deployment
 
-- Kullanici verileri tenant'in sectigi region'da saklanir
+- Kullanici verileri project'in sectigi region'da saklanir
 - Desteklenen region'lar: EU (Frankfurt), US (Virginia), APAC (Singapore), TR (Istanbul)
 - Cross-region veri transferi YASAK (GDPR Art. 44-49)
 - Encryption key'ler region-local KMS'te uretilir ve saklanir
@@ -1818,7 +1981,7 @@ token=<token>&token_type_hint=refresh_token
 
 ### 39.2 DPA (Data Processing Agreement)
 
-- Her tenant ile DPA imzalanir (GDPR Art. 28)
+- Her project ile DPA imzalanir (GDPR Art. 28)
 - Sub-processor listesi seffaf
 - Veri isleme amaci ve kapsamini acikca tanimlar
 
@@ -1875,7 +2038,7 @@ token=<token>&token_type_hint=refresh_token
 ### 41.1 Internationalization
 
 - Hata mesajlari: 10+ dil destegi (en, tr, de, fr, es, ar, zh, ja, ko, pt minimum)
-- Email template'leri: Tenant + dil bazinda
+- Email template'leri: Project + dil bazinda
 - SMS icerikleri: Dil bazinda
 - Login/register sayfalari: RTL (sagdan sola) destegi (Arapca, Ibranice)
 - Tarih/saat formati: Locale-aware
@@ -1901,19 +2064,19 @@ token=<token>&token_type_hint=refresh_token
 ### Faz 0: Core Auth (Ay 1-4)
 
 > Hedef: Piyasadaki servislerin %95'inden daha guvenli bir temel. `docker compose up` ile ayaga kalkar.
-> 24 deliverable, 14-16 hafta. Library kullanimi: `argon2`, `jose`, `ioredis`, vb.
-> **Takim varsayimi: Solo developer** (deneyimli NestJS gelistirici). 12 haftada MVP, 16 haftada production-quality. Haftada ~1.5-1.7 deliverable — her biri bagimsiz modül (ornek: "JWT service", "rate limiter middleware"). Bazi deliverable'lar paralelize edilebilir (ornek: SDK + Dashboard).
+> 24 deliverable, 14-16 hafta. Go kutuphaneleri: `golang.org/x/crypto/argon2`, `go-jose`, `go-redis`, `chi`, `sqlc`, `pgx`, `zitadel/oidc`, `go-webauthn` vb.
+> Solo developer icin gercekci timeline. 12 haftada MVP, 16 haftada production-quality.
 
 **Deployment:**
-- Docker Compose: server + dashboard + postgres + redis
+- Docker Compose: server (Go ~15MB image) + dashboard (Next.js) + postgres + redis
 - Setup wizard: Ilk acilista admin hesap + temel konfigurasyon
 - `http://localhost:3000` (API) + `http://localhost:3001` (Dashboard)
 
-**Core:**
-1. NestJS monorepo (server + dashboard + client SDK + server SDK + shared)
+**Core (Go):**
+1. Go monorepo (cmd/server + internal/* + sdk/* + dashboard + migrations)
 2. PostgreSQL + Redis altyapisi + CI/CD pipeline
-3. Database schema + migration sistemi
-4. Tenant yonetimi (temel CRUD, API key uretimi: `pk_test_`, `sk_test_`)
+3. Database schema + migration sistemi (golang-migrate)
+4. Project yonetimi (CRUD, config, API key uretimi: `pk_test_`/`sk_test_`/`pk_live_`/`sk_live_`)
 5. Email + Password (Argon2id + pepper + salt + HIBP + constant-time)
 6. Email verification (OTP veya magic link)
 7. Password reset (256-bit token, 15dk)
@@ -1928,9 +2091,10 @@ token=<token>&token_type_hint=refresh_token
 16. Health check + readiness endpoints
 17. Test suite (unit + integration + E2E temel)
 
-**SDK'lar:**
-18. Client SDK: signUp, signIn, signOut, getSession, getUser, onAuthStateChange, auto-refresh
-19. Server SDK: verifyToken, admin.createUser, updateUser, deleteUser, listUsers
+**SDK'lar (TypeScript — OpenAPI spec'ten generate):**
+18. Client SDK (@palauth/client): signUp, signIn, signOut, getSession, getUser, onAuthStateChange, auto-refresh (Next.js icin)
+19. Server SDK (@palauth/server): verifyToken, admin.createUser, updateUser, deleteUser, listUsers (NestJS backend icin)
+20. Go Server SDK (palauth-go): Ayni fonksiyonlar, Go native
 
 **Dashboard (Next.js):**
 20. Overview: aktif kullanici, login trendi
@@ -1998,8 +2162,9 @@ token=<token>&token_type_hint=refresh_token
 10. SMS OTP (pluggable provider, ulke whitelist)
 
 **SDK'lar:**
-11. NestJS SDK (@RequireAuth, @CurrentUser, hook handler interface)
-12. Edge SDK (<50KB, JWKS cache, JWT verify, Cloudflare Workers + Vercel Edge)
+11. NestJS SDK (@palauth/nestjs — @RequireAuth, @CurrentUser, hook handler interface)
+12. Edge SDK (@palauth/edge — <50KB, JWKS cache, JWT verify, Cloudflare Workers + Vercel Edge)
+13. KMP Mobile SDK (palauth-mobile — iOS + Android, Kotlin Multiplatform)
 
 **Dashboard:**
 13. Organizations: org listesi, member yonetimi, davet
@@ -2044,7 +2209,7 @@ token=<token>&token_type_hint=refresh_token
 
 **Core:**
 1. Multi-region deployment (data residency: EU, US, APAC, TR)
-2. Custom domain per tenant (Let's Encrypt/ACME)
+2. Custom domain per project (Let's Encrypt/ACME). SaaS'ta upgrade yapan musterinin project verisi shared instance'dan dedicated instance'a migrate edilir
 3. White-label (login sayfalari, email template'ler, branding)
 4. Advanced risk engine (3rd party connectors, behavioral signals)
 5. Admin impersonation (RFC 8693 token exchange, audit trail)
@@ -2124,30 +2289,31 @@ token=<token>&token_type_hint=refresh_token
 
 #### Katman 1: Unit Tests (TDD)
 
-- **Arac:** Jest
+- **Arac:** Go `testing` stdlib + `testify` (assertions + mocking)
+- **Mock generation:** `mockery` (interface'lerden otomatik mock uretir)
 - **Yaklasim:** Test-first (Security Test-Driven Development — STDD)
 - **Kapsam:** Core business logic — password policy, token claim uretimi, risk score hesaplama, rate limit counter, hash chain hesaplama, OTP uretimi/dogrulama
-- **Kapsam DISI:** Kripto kutuphaneleri (Argon2id, jose), DB sorgu motoru, framework internals
+- **Kapsam DISI:** Kripto kutuphaneleri (argon2, go-jose), DB driver (pgx)
 - **Hedef:** Guvenlik-kritik modullerde %90+ line coverage
 
-```typescript
+```go
 // Ornek: Timing attack korumasi testi
-it('should use constant-time comparison', async () => {
-  const hash = await passwordService.hash('correct-password');
-  const times = [];
-  for (let i = 0; i < 100; i++) {
-    const start = process.hrtime.bigint();
-    await passwordService.verify('wrong-password-' + i, hash);
-    times.push(Number(process.hrtime.bigint() - start));
-  }
-  const stdDev = standardDeviation(times);
-  expect(stdDev).toBeLessThan(1_000_000); // < 1ms variance
-});
+func TestConstantTimeComparison(t *testing.T) {
+    hash, _ := passwordService.Hash("correct-password")
+    times := make([]int64, 100)
+    for i := 0; i < 100; i++ {
+        start := time.Now()
+        _ = passwordService.Verify(fmt.Sprintf("wrong-%d", i), hash)
+        times[i] = time.Since(start).Nanoseconds()
+    }
+    stdDev := standardDeviation(times)
+    assert.Less(t, stdDev, int64(1_000_000)) // < 1ms variance
+}
 ```
 
 #### Katman 2: Property-Based Tests
 
-- **Arac:** fast-check
+- **Arac:** `flyingmutant/rapid` (Go, Hypothesis-inspired, otomatik shrinking)
 - **Yaklasim:** Invariant tanimlama — "HER input icin bu kural gecerli olmali"
 - 10,000+ rastgele input uretir, insanin dusunemeyecegi edge case'leri bulur
 
@@ -2159,15 +2325,16 @@ it('should use constant-time comparison', async () => {
 - Canonical JSON serialization her zaman deterministic olmali (audit log hash chain)
 - Token family revocation sonrasi tum descendants gecersiz olmali
 
-```typescript
+```go
 // Ornek: Salt uniqueness invariant
-fc.assert(
-  fc.asyncProperty(fc.string(), fc.string(), async (pw1, pw2) => {
-    const hash1 = await passwordService.hash(pw1);
-    const hash2 = await passwordService.hash(pw1); // ayni password
-    expect(hash1).not.toBe(hash2); // farkli salt = farkli hash
-  })
-);
+func TestSaltUniqueness(t *testing.T) {
+    rapid.Check(t, func(t *rapid.T) {
+        pw := rapid.String().Draw(t, "password")
+        hash1, _ := passwordService.Hash(pw)
+        hash2, _ := passwordService.Hash(pw) // ayni password
+        assert.NotEqual(t, hash1, hash2) // farkli salt = farkli hash
+    })
+}
 ```
 
 #### Katman 3: AI Security Review
@@ -2199,7 +2366,7 @@ jobs:
 
 #### Katman 4: Integration Tests
 
-- **Arac:** Testcontainers (PostgreSQL + Redis) + Supertest
+- **Arac:** testcontainers-go (PostgreSQL + Redis) + `net/http/httptest`
 - **Yaklasim:** Mock YOK. Gercek DB container'lari ayaga kaldir, gercek sorgu calistir
 - **Kapsam:**
   - Tam signup -> login -> MFA -> session akisi
@@ -2211,16 +2378,38 @@ jobs:
   - Account lockout (10 basarisiz -> 30dk lockout)
   - GDPR cryptographic erasure (user sil -> log chain bozulmamali)
 
-```typescript
+```go
 // Testcontainers setup
-const postgres = await new PostgreSqlContainer('postgres:16').start();
-const redis = await new GenericContainer('redis:7').withExposedPorts(6379).start();
+func TestAuthFlow(t *testing.T) {
+    ctx := context.Background()
+    pgC, _ := postgres.Run(ctx, "postgres:16")
+    redisC, _ := redis.Run(ctx, "redis:7")
+    defer pgC.Terminate(ctx)
+    defer redisC.Terminate(ctx)
+    // ... test against real DB + Redis
+}
+```
+
+**Go native fuzzing (Katman 4b):**
+```go
+// go test -fuzz=FuzzLoginInput
+func FuzzLoginInput(f *testing.F) {
+    f.Add("user@test.com", "password123")
+    f.Fuzz(func(t *testing.T, email, password string) {
+        req := httptest.NewRequest("POST", "/auth/login",
+            strings.NewReader(fmt.Sprintf(`{"email":"%s","password":"%s"}`, email, password)))
+        rec := httptest.NewRecorder()
+        handler.ServeHTTP(rec, req)
+        // Crash olmamali, 400 veya 401 donmeli
+        assert.Contains(t, []int{400, 401, 429}, rec.Code)
+    })
+}
 ```
 
 #### Katman 5: Contract Tests
 
-- **Arac:** Pact
-- **Amac:** Client SDK <-> Server API uyumu garanti
+- **Arac:** pact-go v2 (Go provider verification) + Pact JS (TypeScript SDK consumer tests)
+- **Amac:** SDK'lar <-> Go Server API uyumu garanti
 - **Ne zaman:** SDK veya API degisikliklerinde otomatik calisir
 - **Kapsam:** Custom API'ler (hooks, admin endpoints, custom claims). OAuth2/OIDC standart flow'lari Pact ile test edilmez (Pact'in kendi tavsiyesi — standartlar zaten iyi tanimli)
 - Consumer-driven: Client SDK beklenen API seklini tanimlar, server dogrular
@@ -2248,14 +2437,14 @@ const redis = await new GenericContainer('redis:7').withExposedPorts(6379).start
 
 #### Katman 8: Mutation Testing
 
-- **Arac:** Stryker JS
+- **Arac:** go-gremlins / go-mutesting
 - **Amac:** Testlerin GERCEKTEN guvenlik buglarini yakalayip yakalamadigini olcer
 - **Nasil calisir:** Kodu otomatik degistirir (if tersine cevir, validation sil, return degerini degistir), testlerin bunu yakalayip yakalamadigini kontrol eder
 - **Hedef:** Guvenlik-kritik modullerde (token validation, password hashing, authorization checks) **%80+ mutation score**
 - **Code coverage yalan soyler, mutation score soylemez**
 
 ```bash
-npx stryker run --mutate "src/auth/**/*.ts,src/token/**/*.ts,src/session/**/*.ts"
+gremlins unleash --tags "security" ./internal/auth/... ./internal/token/... ./internal/session/...
 ```
 
 #### Katman 9: API Fuzzing
@@ -2327,7 +2516,7 @@ Testlerimiz asagidaki sertifika kanitlarini otomatik uretir:
 | Kanit | Kaynak | Sertifika |
 |-------|--------|-----------|
 | CI/CD pipeline loglari (test gecti/kaldi) | GitHub Actions | SOC 2, ISO 27001 |
-| Coverage raporlari (line + branch + mutation score) | Jest + Stryker | SOC 2 |
+| Coverage raporlari (line + branch + mutation score) | `go test -cover` + go-gremlins | SOC 2 |
 | DAST tarama raporlari | OWASP ZAP (HTML/JSON) | SOC 2, PCI DSS, ISO 27001 |
 | AI security review raporlari | Claude Code Security Review | SOC 2, ISO 27001 |
 | Remediation tracker (bug -> fix -> retest) | GitHub Issues + PR linkage | SOC 2, PCI DSS |
@@ -2354,217 +2543,166 @@ Testlerimiz asagidaki sertifika kanitlarini otomatik uretir:
 
 ---
 
-## 44. SaaS Platform & Business Model
 
-> **Not:** SaaS katmani Faz 4'te baslar. Self-hosted birincil deployment.
-> Ancak mimari Day 1'den multi-tenant ve SaaS-ready tasarlanir.
-> Dashboard (Next.js) her iki modda da ayni — SaaS'a ozel sadece billing + onboarding eklenir.
+## 44. Dashboard (Next.js)
 
-### 43.1 Deployment Modelleri
+> Dashboard, Go server'in Admin API'sini tuketir. Self-hosted'da `localhost:3001`'de calisir.
+> Go server + Dashboard birlikte `docker compose up` ile ayaga kalkar.
+> Ayni dashboard ileride SaaS'ta da kullanilir.
 
-| Model | Faz | Aciklama | Hedef Kitle |
-|-------|-----|----------|-------------|
-| **Self-Hosted** | Faz 0+ | Docker/Helm ile kendi sunucusunda | Herkes, regulated industries |
-| **SaaS (Managed)** | Faz 4+ | Biz host ediyoruz, dashboard'dan proje olustur | Startup, SMB, mid-market |
-| **Private Cloud** | Faz 5+ | Dedicated instance, biz yonetiyoruz | Bankalar, fintech, devlet |
-
-### 43.2 Fiyatlandirma
-
-**Free (Starter)**
-- 50,000 MAU
-- 1 proje, 1 environment (dev)
-- Email+password, social login (Google, GitHub), magic link
-- TOTP MFA
-- Audit log (7 gun retention)
-- Community destek
-- `*.authserver.dev` subdomain
-- "Powered by AuthServer" branding
-
-**Pro — $49/ay**
-- 100,000 MAU dahil, asim: $0.005/MAU
-- 5 proje, dev + prod environment
-- Tum auth yontemleri (passkeys, SMS OTP dahil)
-- Blocking hooks (5 endpoint)
-- Webhook (5 endpoint)
-- Custom domain (1)
-- Branding kaldirma
-- Audit log (30 gun retention)
-- Email destek (48 saat SLA)
-
-**Business — $249/ay**
-- 250,000 MAU dahil, asim: $0.004/MAU
-- 20 proje
-- Organizations + RBAC
-- Enterprise SSO (SAML/OIDC, 3 connection dahil, ek: $50/ay/connection)
-- SCIM provisioning
-- Blocking hooks (sinirsiz)
-- Webhook (sinirsiz) + DLQ + replay
-- Custom domain (5)
-- Risk engine + step-up auth
-- Admin impersonation
-- Audit log (90 gun retention) + export
-- SOC 2 raporu erisimi
-- Priority destek (24 saat SLA)
-
-**Enterprise — Custom**
-- Sinirsiz MAU (volume discount)
-- Sinirsiz proje
-- DPoP / FAPI 2.0
-- Device attestation + transaction authorization (PSD2 SCA)
-- Multi-region data residency
-- 99.99% SLA
-- HIPAA BAA, PCI DSS uyumu
-- FedRAMP (opsiyonel, +%25)
-- Dedicated Slack + customer success engineer
-- Onboarding + migration destegi
-- Custom contract
-
-**Self-Hosted Lisans**
-- Community Edition: Ucretsiz, acik kaynak cekirdek
-- Enterprise License: $999/ay flat fee (sinirsiz kullanici)
-
-**Anti-patterns (YAPMAYACAGIMIZ):**
-- Otomatik tier upgrade yok (Auth0'un 1 numarali sikayeti)
-- MAU asiminda hizmet kesintisi yok, uyari gonderilir
-- MFA paywall arkasinda degil (guvenlik herkesin hakki)
-- Branding kaldirmak icin ayri ucret yok (Pro'da dahil)
-
-### 43.3 Proje & API Key Yapisi
+### 44.1 Ilk Acilis (Setup Wizard)
 
 ```
-Account (kullanici veya takim)
-  |-- Proje: "My SaaS App"
-  |     |-- Development
-  |     |     |-- pk_test_xxxxx (public key, client SDK icin)
-  |     |     |-- sk_test_xxxxx (secret key, server SDK icin)
-  |     |     |-- Ayri user pool, gevsetilmis rate limit
-  |     |
-  |     |-- Production
-  |           |-- pk_live_xxxxx
-  |           |-- sk_live_xxxxx
-  |           |-- Ayri user pool, tam guvenlik
-  |
-  |-- Proje: "Mobile App"
-        |-- Development / Production
+1. docker compose up
+2. Browser: http://localhost:3001
+3. "PalAuth'a hosgeldiniz — admin hesabinizi olusturun"
+   - Email + sifre
+4. "Ilk projenizi olusturun"
+   - Proje adi: "My App"
+   - API key'ler otomatik uretilir ve gosterilir
+5. "Quickstart"
+   - Framework sec (Next.js, React, NestJS, Go, Flutter...)
+   - Kopyala-yapistir ornek kod (API key'ler dolu)
+   - "Test edin" butonu — dashboard'da canli login izle
 ```
 
-- Key'ler revoke + rotate edilebilir (zero-downtime)
-- Dev'de email yerine console log secenegi
-- Prod'a gecis: tek tikla konfigurasyon kopyalama
+### 44.2 Erisim & Yetkilendirme
 
-### 43.4 Dashboard Rolleri
+Dashboard'a giris: Email + sifre (Go server'in kendi auth'u — dogfooding).
 
-| Rol | Billing | Takim | Prod Config | Dev Config | Kullanici Verisi | Log |
-|-----|---------|-------|-------------|------------|------------------|-----|
-| Owner | Tam | Tam | Tam | Tam | Tam | Tam |
-| Admin | Goruntule | Ekle/Cikar | Tam | Tam | Tam | Tam |
-| Developer | - | - | Salt okunur | Tam | Goruntule | Goruntule |
-| Viewer | - | - | - | - | Goruntule | Goruntule |
+| Rol | Projeler | Kullanicilar | Config | API Key | Audit Log |
+|-----|----------|-------------|--------|---------|-----------|
+| Owner | CRUD | Tam | Tam | Olustur/Rotate/Sil | Tam |
+| Admin | Goruntule | Tam | Tam | Goruntule | Tam |
+| Developer | Goruntule | Goruntule | Salt okunur | Goruntule | Goruntule |
 
-Dashboard'a giris: Google/GitHub SSO veya email+MFA. Enterprise: Kendi SAML/OIDC IdP'si ile.
+### 44.3 Sayfa Yapisi
 
-### 43.5 Dashboard Sayfalari
+**Projects (Ana Sayfa)**
+- Proje listesi (kart gorunumu)
+- Her kartta: proje adi, aktif kullanici sayisi, son 24 saat login trendi
+- "Yeni Proje Olustur" butonu
+- Proje secince proje detay sayfasina gider
 
-**Overview (Ana Sayfa)**
-- MAU trend grafigi + mevcut kullanim
-- Son 24 saat: login basari/basarisizlik orani
+**Project Detail -> Overview**
+- Aktif kullanici (MAU), login basari/basarisizlik (24 saat)
 - Aktif session sayisi
-- Alert'ler (brute force, anomali, MAU uyari)
-- Quick links: API key'ler, docs, quickstart
+- Alert'ler (brute force, anomali)
+- API key'ler (pk_test/sk_test/pk_live/sk_live — tikla kopyala, default gizli)
 
-**Users**
-- Liste: arama, filtreleme (auth yontemi, MFA durumu, son giris)
-- Detay: profil, session'lar, login gecmisi, MFA, custom claims
-- Aksiyonlar: ban, password reset, MFA reset, impersonate (Business+)
+**Project Detail -> Users**
+- Liste: arama, filtreleme (auth yontemi, MFA durumu, son giris, banned)
+- Detay: profil, session'lar, login gecmisi, MFA enrollments, custom claims
+- Aksiyonlar: ban/unban, password reset, MFA reset, delete
 - Import (CSV/JSON) + Export (GDPR)
 
-**Authentication**
-- Toggle switch'ler: Email+Pass, Google, Apple, GitHub, Microsoft, Magic Link, Passkeys, SMS OTP, TOTP
-- Her provider icin konfigurasyon (Client ID, Secret, scope)
-- Password policy ayarlari
-- Session policy ayarlari (idle timeout, absolute timeout, concurrent limit)
+**Project Detail -> Authentication**
+- Toggle switch'ler: Email+Password, Google, Apple, GitHub, Microsoft, Magic Link, Passkeys, SMS OTP, TOTP
+- Her provider icin konfigurasyon (Client ID, Secret, redirect URI)
+- Password policy: min uzunluk, HIBP check, history
+- Session policy: idle timeout, absolute timeout, concurrent limit
 
-**Hooks & Webhooks**
-- Blocking hooks: endpoint URL, secret, test, loglar, failure mode
-- Webhooks: endpoint, event secimi, delivery loglar, DLQ, replay
+**Project Detail -> API Keys**
+- Key listesi (pk_test, sk_test, pk_live, sk_live)
+- Rotate butonu (yeni key uretir, eskisi grace period sonra gecersiz)
+- Ek API key olusturma (scoped, read-only)
+- Son kullanim + request sayisi
 
-**Organizations (Business+)**
-- Org listesi + olusturma
-- Member yonetimi, davet, roller
-- Per-org SSO (SAML metadata upload, OIDC discovery)
-- SCIM endpoint durumu
+**Project Detail -> Hooks & Webhooks**
+- Blocking hooks: endpoint URL, HMAC secret, failure mode, timeout
+- "Test Hook" butonu (ornek payload gonder, response gor)
+- Hook cagri loglari (son 100: request/response, latency, status)
+- Webhooks: endpoint, event secimi, delivery log, DLQ, replay
 
-**Audit Logs**
-- Real-time stream
+**Project Detail -> Audit Logs**
+- Real-time log stream
 - Filtre: event tipi, kullanici, IP, tarih, sonuc
+- Log detay (tam payload)
 - Export (JSON/CSV)
 - "Verify Integrity" butonu (hash chain dogrulama)
 
-**Security**
-- Risk engine: esik degerleri, aksiyonlar
+**Project Detail -> Security**
+- Risk engine: esik degerleri (allow/step-up/block)
 - IP whitelist/blacklist
 - Geo-blocking (ulke bazli)
-- Bot detection ayarlari
-- Device attestation sonuclari (Enterprise)
+- Bot detection (PoW zorlugu)
+- Rate limit ayarlari (endpoint bazinda override)
 
-**Analytics**
+**Project Detail -> Analytics**
 - Auth yontemi dagilimi (pie chart)
 - MFA adoption orani (trend)
-- Login basari/basarisizlik trendi
+- Login basari/basarisizlik trendi (line chart)
 - Session dagilimi: cihaz, ulke, tarayici
-- Risk score dagilimi
+- Risk score dagilimi (histogram)
 
-**Settings**
-- Proje bilgileri
+**Project Detail -> Settings**
+- Proje adi, aciklama
 - Custom domain + TLS durumu
 - Email template editoru (visual + HTML)
-- Email/SMS provider konfigurasyonu
-- Branding: logo, renkler, login sayfasi onizleme
+- Email provider (SMTP, SES, SendGrid)
+- SMS provider (Twilio)
+- Branding: logo, renkler
 - CORS allowed origins
 - Redirect URL whitelist
 - Dil ayarlari
 
-**Billing (Owner)**
-- Plan + kullanim
-- MAU trend + tahmin
-- Fatura gecmisi
-- Odeme yontemi
-- Plan degisikligi
+**Global -> Admin Users**
+- Dashboard erisim olan admin kullanicilari
+- Davet gonder, rol degistir
 
-### 43.6 Onboarding Akisi
+### 44.4 Teknoloji
 
-**Hedef: Signup -> ilk basarili login = 5 dakika**
+- Next.js 15 (App Router)
+- shadcn/ui + Tailwind CSS
+- React Query (Go Admin API'yi tuketir)
+- Recharts (analytics grafikleri)
+
+### 44.5 Admin API Endpoint'leri (Go Server)
+
+Dashboard bu endpoint'leri tuketir:
 
 ```
-1. Signup (Google/GitHub veya email)
-2. "Projenizi olusturun" — isim + platform (Web/Mobile/Backend)
-3. Framework sec (Next.js, React, Vue, Express, NestJS, React Native, Flutter, vb.)
-4. Quickstart sayfasi:
-   a. npm install @authserver/client
-   b. API key goster (pk_test_xxx) — kopyala
-   c. 10-15 satirlik ornek kod — kopyala
-   d. "Test edin" butonu — dashboard'da canli login izle
-5. "Ilk kullanicimiz olusturuldu!" + sonraki adimlar
+POST   /admin/setup                    → Ilk kurulum (admin hesap + default project)
+GET    /admin/projects                 → Proje listesi
+POST   /admin/projects                 → Yeni proje olustur
+GET    /admin/projects/:id             → Proje detay
+PUT    /admin/projects/:id/config      → Konfigurasyon guncelle
+DELETE /admin/projects/:id             → Proje sil
+POST   /admin/projects/:id/keys/rotate → API key rotate
+GET    /admin/projects/:id/users       → Kullanici listesi
+POST   /admin/projects/:id/users       → Kullanici olustur
+GET    /admin/projects/:id/users/:uid  → Kullanici detay
+PUT    /admin/projects/:id/users/:uid  → Kullanici guncelle
+DELETE /admin/projects/:id/users/:uid  → Kullanici sil (GDPR erasure)
+GET    /admin/projects/:id/sessions    → Session listesi
+DELETE /admin/projects/:id/sessions/:sid → Session sonlandir
+GET    /admin/projects/:id/audit-logs  → Audit log sorgula
+POST   /admin/projects/:id/audit-logs/verify → Hash chain dogrula
+GET    /admin/projects/:id/analytics   → Analytics verileri
+PUT    /admin/projects/:id/hooks       → Hook konfigurasyonu
+PUT    /admin/projects/:id/webhooks    → Webhook konfigurasyonu
+GET    /admin/projects/:id/webhooks/dlq → Dead letter queue
+POST   /admin/projects/:id/webhooks/replay → Event replay
+GET    /admin/users                    → Dashboard admin kullanicilari
+POST   /admin/users/invite             → Admin davet
 ```
 
-**Interactive playground:**
-- Dashboard icinde canli API tester
-- curl komutlari projeye ozel key'ler ile otomatik dolu
-- SDK ornekleri key'ler ile dolu
+Tum admin endpoint'leri `sk_live_*` veya `sk_test_*` key ile authenticate edilir.
 
-### 43.7 Migration Araclari
+---
 
-**Import:**
-- Auth0, Firebase, Supabase, Clerk export format destegi
-- Generic CSV (email, password_hash, hash_algorithm)
+## 45. SaaS Platform (Ileride — Ayri Spec)
 
-**Password hash migration:**
-- bcrypt, PBKDF2, Argon2 hash'leri direkt import
-- SHA-256/MD5: Kullaniciya "sifrenizi yenileyin" maili
-- Login'de otomatik Argon2id upgrade
+> SaaS detaylari bu spec'in kapsaminda DEGIL. Faz 4+'te ayri bir spec dosyasinda detaylandirilacak.
+> Temel mimari: SaaS platform (Next.js, ayri repo) -> PalAuth Go server'in Admin API'sini kullanir.
+> Self-hosted musteri icin hicbir sey degismiyor.
 
-**Zero-downtime strategy:**
-1. Toplu import (hash'ler ile)
-2. Yeni login'leri AuthServer'a yonlendir
-3. Login'de hash upgrade
-4. Eski sistemi kapat
+**Ileride detaylanacak:**
+- Fiyatlandirma tier'lari
+- Stripe billing
+- Shared vs dedicated instance yonetimi
+- Onboarding akisi
+- MAU metering
+- Project migration (shared -> dedicated)
+- Landing page
+- Open core vs full open source karari

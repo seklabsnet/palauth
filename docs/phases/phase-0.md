@@ -412,12 +412,12 @@ GET  /metrics
   - `GenerateOTP(digits int) string` — 6 haneli numeric
 
 **Kabul kriterleri:**
-- [ ] Password hash ~300ms surer (benchmark test)
-- [ ] Ayni password iki kez hash'lenince farkli sonuc (salt uniqueness)
-- [ ] Constant-time verify: timing variance < 1ms (test ile dogrulanir)
-- [ ] HIBP API calisiyor (breached password tespit ediliyor)
-- [ ] Encryption/decryption roundtrip basarili
-- [ ] Son 4 password hash'i saklanir, tekrar kullanim reddedilir
+- [x] Password hash ~300ms surer (benchmark test)
+- [x] Ayni password iki kez hash'lenince farkli sonuc (salt uniqueness)
+- [x] Constant-time verify: timing variance < 1ms (test ile dogrulanir)
+- [x] HIBP API calisiyor (breached password tespit ediliyor)
+- [x] Encryption/decryption roundtrip basarili
+- [x] Son 4 password hash'i saklanir, tekrar kullanim reddedilir
 
 **Bagimlilk:** T0.1
 

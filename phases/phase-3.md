@@ -626,6 +626,13 @@ POST   /admin/projects/:id/breach-check        → manuel breach check tetikle
   - Transaction signature manipulation → reject
 - Coverage: %85+ (guvenlik modulleri %90+)
 
+**Ek test katmanlari:**
+- DAST: ZAP — DPoP, PAR, SAML, SCIM, transaction endpoint'leri
+- Mutation: `internal/dpop/*`, `internal/transaction/*`, `internal/saml/*` icin gremlins
+- Load: k6 DPoP-bound token flow p99 < 500ms, transaction approve p99 < 1s
+- Chaos: QTSP API down → transaction flow graceful failure
+- Conformance: FAPI 2.0 Security Profile suite
+
 **Kabul kriterleri:**
 - [ ] Dashboard SSO konfig calisiyor
 - [ ] Dashboard device attestation gorunuyor
@@ -633,6 +640,9 @@ POST   /admin/projects/:id/breach-check        → manuel breach check tetikle
 - [ ] Tum integration testler geciyor
 - [ ] FAPI 2.0 conformance hedefine yaklasiliyor
 - [ ] Coverage %85+
+- [ ] DAST: SAML XXE testi PASS
+- [ ] Mutation score: DPoP + transaction modulleri %80+
+- [ ] k6 load: DPoP flow p99 < 500ms
 
 **Bagimlilk:** T3.1-T3.7
 

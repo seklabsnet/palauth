@@ -926,40 +926,94 @@ POST   /admin/users/invite                → { email, role } → admin kullanic
 
 **Ne:** Tum Faz 0 ozelliklerini kapsayan test suite.
 
-**Yapilacaklar:**
-- Unit tests (Go `testing` + testify):
-  - Password hashing (timing, salt uniqueness, HIBP, history)
-  - Token issuance + verification
-  - Refresh token rotation + family revocation
-  - Rate limit counter logic
-  - Audit log hash chain calculation
-  - Canonical JSON serialization
-- Property-based tests (rapid):
-  - Salt uniqueness invariant (ayni password → farkli hash)
-  - JWT exp > iat invariant
-  - Token family revocation invariant (reuse → tum family revoked)
-- Integration tests (testcontainers-go):
-  - Full signup → login → refresh → logout flow
-  - Lockout (10 failed → 30dk)
-  - Token rotation + family revocation in DB
-  - Session timeout enforcement
-  - GDPR erasure (delete user → audit log chain intact)
-- Security tests:
-  - User enumeration (same response time + same error for existing/non-existing)
-  - Rate limiting under load
-  - Security headers present
-  - CORS enforcement
-- Go native fuzzing:
-  - Login endpoint input fuzzing
-  - Signup password validation fuzzing
+**Yapilacaklar (spec Section 43 — 12 katman test stratejisi):**
+
+**Katman 1 — Unit tests (Go `testing` + testify):**
+- Password hashing (timing, salt uniqueness, HIBP, history)
+- Token issuance + verification
+- Refresh token rotation + family revocation
+- Rate limit counter logic
+- Audit log hash chain calculation
+- Canonical JSON serialization
+- Custom token create + exchange
+
+**Katman 2 — Property-based tests (rapid):**
+- Salt uniqueness invariant (ayni password → farkli hash)
+- JWT exp > iat invariant
+- Token family revocation invariant (reuse → tum family revoked)
+- Audit log canonical JSON deterministic invariant
+
+**Katman 3 — AI Security Review:**
+- Claude Code Security Review GitHub Action her PR'da calisir (T0.1'de kuruldu)
+- `claude /security-review` development sirasinda
+
+**Katman 4 — Integration tests (testcontainers-go):**
+- Full signup → login → refresh → logout flow
+- Lockout (10 failed → 30dk)
+- Token rotation + family revocation in DB
+- Session timeout enforcement (AAL1/AAL2/AAL3 farkli timeout'lar)
+- GDPR erasure (delete user → audit log chain intact)
+- Custom token exchange flow
+- Admin setup → login → CRUD
+
+**Katman 5 — Contract tests:**
+- Faz 0'da SDK yok → Pact testi yok. Faz 5'te (SDK fazinda) eklenir
+
+**Katman 6 — DAST (OWASP ZAP):**
+- ZAP Docker image baseline scan: Tum auth endpoint'lerine karsi
+- CI/CD: Her PR'da baseline (pasif), aylik active scan
+- Auth endpoint'ler: `/auth/signup`, `/auth/login`, `/auth/password/*`, `/admin/*`
+
+**Katman 7 — E2E tests (Playwright):**
+- Dashboard setup wizard: Admin olustur → project olustur → API key goster
+- Dashboard user management: Liste → detay → ban → unban
+- Dashboard audit log: Stream → filtre → verify integrity
+
+**Katman 8 — Mutation testing (gremlins):**
+- Guvenlik-kritik modullerde: `internal/crypto/*`, `internal/token/*`, `internal/auth/*`, `internal/audit/*`
+- Hedef: %80+ mutation score (guvenlik modulleri)
+- Surviving mutant'lar = eksik test = potential security bug
+
+**Katman 9 — API Fuzzing:**
+- Go native fuzzing: Login, signup, password reset endpoint input fuzzing
+- RESTler (haftalik CI cron): OpenAPI spec'ten stateful API fuzzing
+
+**Katman 10 — Chaos testing (Toxiproxy):**
+- Redis coktu → rate limiter ne yapiyor? (fail-open olmali)
+- DB connection pool doldu → login calisiyor mu?
+- Hook endpoint timeout → deny_on_failure calisiyor mu? (Faz 1'de hook eklenince)
+- Network latency 500ms → session performance
+
+**Katman 11 — Load tests (k6):**
+- Login endpoint: 1000 concurrent user, p99 < 500ms
+- Token refresh: p99 < 100ms
+- Rate limiter baskisi altinda dogru calisiyor mu
+- Signup: 100 concurrent registration
+
+**Katman 12 — Conformance tests:**
+- Faz 0'da OIDC/FIDO2 yok → conformance testi yok. Faz 2+'de eklenir
+
+**CI/CD tetikleme (spec Section 43.3):**
+| Tetikleme | Calisanlar |
+|-----------|------------|
+| Her `git push` | Unit + property-based + lint |
+| Her PR | + AI Security Review + integration + DAST baseline |
+| PR merge to main | + E2E + mutation (security modulleri) |
+| Haftalik (CI cron) | + Full mutation + RESTler fuzzing + k6 load |
+| Aylik | + Chaos testing (Toxiproxy) + full DAST active scan |
 
 **Kabul kriterleri:**
 - [ ] `make test` tum testler gecer
 - [ ] Coverage: %85+ (guvenlik modulleri %90+)
 - [ ] Property-based testler 10,000 input ile gecerli
-- [ ] Integration testler gercek DB + Redis ile calisir
-- [ ] Fuzz testler crash uretmiyor
-- [ ] CI/CD'de otomatik calisir
+- [ ] Integration testler gercek DB + Redis ile calisir (testcontainers)
+- [ ] Go native fuzz testler crash uretmiyor
+- [ ] DAST baseline scan: critical/high finding yok
+- [ ] Mutation score: guvenlik modulleri %80+
+- [ ] k6 load test: login p99 < 500ms (1000 concurrent)
+- [ ] Chaos test: Redis down → rate limit fail-open, login calisiyor
+- [ ] E2E: Dashboard setup + user management Playwright ile calisiyor
+- [ ] CI/CD pipeline tum tetiklemelerde otomatik calisir
 
 **Bagimlilk:** T0.1-T0.16 (tum Faz 0 tamamlanmis olmali)
 

@@ -681,6 +681,13 @@ GET  /admin/keys        → { keys: [...], active_kid, next_rotation }
   - FIDO2 conformance testi (attestation formats)
 - Coverage: %85+ (guvenlik modulleri %90+)
 
+**Ek test katmanlari (Faz 0'da kurulan CI/CD pipeline otomatik calisir):**
+- DAST: ZAP active scan — WebAuthn, OIDC, organization endpoint'leri
+- Mutation: `internal/webauthn/*`, `internal/risk/*`, `internal/stepup/*` icin gremlins
+- Load: k6 passkey authentication p99 < 500ms, OIDC authorize flow p99 < 1s
+- Chaos: Risk engine — GeoIP service down iken fallback davranisi
+- Conformance: OpenID Connect Basic OP + Config OP suite, FIDO2 conformance suite
+
 **Kabul kriterleri:**
 - [ ] Dashboard org yonetimi calisiyor
 - [ ] Dashboard risk engine config calisiyor
@@ -689,6 +696,9 @@ GET  /admin/keys        → { keys: [...], active_kid, next_rotation }
 - [ ] OpenID Connect conformance suite geciyor
 - [ ] FIDO2 conformance testleri geciyor
 - [ ] Coverage %85+
+- [ ] DAST active scan: critical/high yok
+- [ ] Mutation score: WebAuthn + risk engine %80+
+- [ ] k6 load: passkey auth p99 < 500ms
 
 **Bagimlilk:** T2.1-T2.9
 

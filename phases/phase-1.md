@@ -591,11 +591,19 @@ POST /auth/magic-link/verify  → { token } → { access_token, refresh_token, u
   - State CSRF koruması (gecersiz state → reject)
   - Social login: Unverified email ile auto-link yapilmiyor
 
+**Ek test katmanlari (Faz 0'da kurulan CI/CD pipeline otomatik calisir):**
+- DAST: ZAP baseline scan Faz 1 endpoint'lerine karsi (MFA, social, hooks, webhooks)
+- Mutation: `internal/mfa/*`, `internal/hook/*` icin gremlins
+- Load: k6 MFA challenge endpoint p99 < 500ms
+- Chaos: Webhook delivery — Redis down iken queue davranisi
+
 **Kabul kriterleri:**
 - [ ] SDK'lar Faz 1 endpoint'lerini destekliyor
 - [ ] Tum integration testler geciyor
 - [ ] Security testler geciyor
 - [ ] Coverage %85+ (guvenlik modulleri %90+)
+- [ ] DAST baseline: Faz 1 endpoint'lerinde critical/high yok
+- [ ] Mutation score: MFA + hook modulleri %80+
 
 **Bagimlilk:** T1.1-T1.7
 

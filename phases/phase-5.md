@@ -1,450 +1,326 @@
-# PalAuth — Faz 5: Global Compliance + Next-Gen (Ay 23-36)
+# PalAuth — Faz 5: SDK'lar (KMP Mobile, TypeScript, NestJS, Edge)
 
-> Hedef: Tam sertifika portfolyosu. AI agent auth + EUDI Wallet. Piyasada esdegeri olmayan platform.
-> Faz 0+1+2+3+4 uzerine insa.
+> Hedef: Tum Go server API'si kararli. SDK'lar tek seferde duzgun yazilir.
+> Faz 0-4 (core Go server) tamamlanmis. API degismeyecek, SDK'lar bu API uzerine.
+> Oncelik: KMP Mobile > TypeScript Client > TypeScript Server/NestJS > Edge
 
 ---
 
-## Yeni DB Migration'lar
+## SDK Mimarisi
 
-```sql
--- 041_create_agents.up.sql (AI Agent / MCP)
-CREATE TABLE agents (
-  id              TEXT PRIMARY KEY NOT NULL,
-  project_id      TEXT NOT NULL REFERENCES projects(id),
-  owner_id        TEXT NOT NULL REFERENCES users(id),
-  name            TEXT NOT NULL,
-  client_id       TEXT NOT NULL UNIQUE,
-  client_secret_hash BYTEA NOT NULL,
-  scopes          JSONB NOT NULL DEFAULT '[]',
-  max_delegation_level INTEGER NOT NULL DEFAULT 1,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  revoked_at      TIMESTAMPTZ
-);
+```
+Go Auth Server (localhost:3000) — Faz 0-4'te tamamlandi
+    |
+    |-- REST API (OpenAPI spec: api/openapi.yaml — source of truth)
+    |
+    +-- SDK'lar (thin wrapper + platform-specific logic)
+        |
+        |-- palauth-mobile (KMP — iOS + Android)
+        |-- @palauth/client (TypeScript — Next.js, React, Vue)
+        |-- @palauth/server (TypeScript — NestJS, Express backend)
+        |-- @palauth/nestjs (TypeScript — NestJS decorator wrapper)
+        |-- @palauth/edge (TypeScript — Cloudflare Workers, Vercel Edge)
+```
 
--- 042_create_agent_delegations.up.sql
-CREATE TABLE agent_delegations (
-  id              TEXT PRIMARY KEY NOT NULL,
-  agent_id        TEXT NOT NULL REFERENCES agents(id),
-  user_id         TEXT NOT NULL REFERENCES users(id),
-  granted_scopes  JSONB NOT NULL DEFAULT '[]',
-  granted_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  revoked_at      TIMESTAMPTZ
-);
-CREATE INDEX idx_ad_agent ON agent_delegations(agent_id) WHERE revoked_at IS NULL;
-CREATE INDEX idx_ad_user ON agent_delegations(user_id) WHERE revoked_at IS NULL;
+Client'tan gonderilen extra metadata → hook payload'da backend'e ulasir:
 
--- 043_create_verifiable_presentations.up.sql (EUDI Wallet)
-CREATE TABLE verifiable_presentations (
-  id              TEXT PRIMARY KEY NOT NULL,
-  project_id      TEXT NOT NULL REFERENCES projects(id),
-  user_id         TEXT REFERENCES users(id),
-  presentation    JSONB NOT NULL,         -- VP payload
-  issuer          TEXT NOT NULL,
-  verified        BOOLEAN NOT NULL DEFAULT false,
-  claims_extracted JSONB,                 -- selective disclosure sonucu
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- 044_create_kyc_verifications.up.sql
-CREATE TABLE kyc_verifications (
-  id              TEXT PRIMARY KEY NOT NULL,
-  project_id      TEXT NOT NULL REFERENCES projects(id),
-  user_id         TEXT NOT NULL REFERENCES users(id),
-  provider        TEXT NOT NULL,          -- 'onfido', 'jumio', 'veriff', 'sumsub', 'idnow'
-  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'verified', 'failed', 'expired')),
-  level           TEXT NOT NULL CHECK (level IN ('baseline', 'extended')),  -- ETSI TS 119 461
-  verification_data_encrypted BYTEA,     -- provider sonucu (AES-GCM)
-  completed_at    TIMESTAMPTZ,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_kyc_user ON kyc_verifications(user_id, created_at DESC);
+```
+Client SDK                     Go Server                    NestJS Backend (Server SDK)
+    |                              |                              |
+    | auth.signIn({                |                              |
+    |   email, password,           |                              |
+    |   metadata: {                |                              |
+    |     plan: "pro",             |                              |
+    |     referral: "abc"          |                              |
+    |   }                          |                              |
+    | })                           |                              |
+    |----------------------------->|                              |
+    |                              | before.login hook            |
+    |                              |----------------------------->|
+    |                              | payload: {                   |
+    |                              |   user, context,             |
+    |                              |   client_metadata: {         |
+    |                              |     plan: "pro",             |
+    |                              |     referral: "abc"          |
+    |                              |   }                          |
+    |                              | }                            |
+    |                              |                              |
+    |                              |<--- { verdict: "allow",      |
+    |                              |       custom_claims: {       |
+    |                              |         role: "premium"      |
+    |                              |       }                      |
+    |                              |     }                        |
+    |                              |                              |
+    |<--- { access_token (role:premium), refresh_token }          |
 ```
 
 ---
 
-## T5.1 — AI Agent / MCP Authentication
+## T5.1 — OpenAPI Spec Finalize + SDK Generation Pipeline
 
-**Ne:** Agent entity tipi. OAuth 2.1 client credentials. RFC 8693 token exchange (delegation). MCP server uyumu.
+**Ne:** Tum Faz 0-4 endpoint'lerini kapsayan final OpenAPI spec. SDK generation altyapisi.
 
 **Yapilacaklar:**
-- `internal/agent/service.go`:
-  - Agent CRUD (project bazinda)
-  - Agent = OAuth 2.1 confidential client (`client_credentials` flow)
-  - Scoped permissions: Agent ne yapabilir
-- `internal/agent/delegation.go`:
-  - RFC 8693 Token Exchange:
-    ```
-    POST /oauth/token
-    grant_type=urn:ietf:params:oauth:grant-type:token-exchange
-    subject_token=<user_access_token>
-    actor_token=<agent_client_credentials_token>
-    scope=read:profile write:tasks
-    ```
-  - Delegated token claims:
-    ```json
-    { "sub": "usr_xxx", "act": { "sub": "agent_xxx" }, "scope": "read:profile write:tasks", "may_act": { "sub": "agent_xxx", "max_scope": "read:profile write:tasks" } }
-    ```
-  - Kullanici delegation onayi: "Bu agent benim adima su islemleri yapabilir"
-  - Delegation revoke: Kullanici istediginde delegation iptal edebilir
-- `internal/agent/mcp.go`:
-  - OAuth 2.1 + PKCE zorunlu (MCP spec)
-  - Protected Resource Metadata (RFC 9728): `GET /.well-known/oauth-protected-resource`
-  - Client ID Metadata Documents (CIMD) destegi
-
-**Endpoint'ler:**
-```
-POST   /admin/projects/:id/agents         → { name, scopes } → agent + client_id + client_secret
-GET    /admin/projects/:id/agents
-DELETE /admin/projects/:id/agents/:aid    → agent revoke
-POST   /oauth/token (grant_type=client_credentials, client_id=agent) → agent JWT
-POST   /oauth/token (grant_type=token-exchange) → delegated token
-GET    /auth/delegations                  → kullanicinin aktif delegasyonlari
-POST   /auth/delegations/:id/revoke      → delegation iptal
-GET    /.well-known/oauth-protected-resource → Protected Resource Metadata (RFC 9728)
-```
-
-**Audit event'ler:** `agent.create`, `agent.revoke`, `agent.delegation.grant`, `agent.delegation.revoke`, `agent.token.issue`, `agent.token.exchange`
+- `api/openapi.yaml` — Tum endpoint'ler (auth, admin, oauth, scim, webauthn, hooks, webhooks)
+- `oapi-codegen` config: Go server types (zaten var) + Chi router
+- SDK generation script (`make generate-sdk`):
+  - TypeScript types generate (openapi-typescript)
+  - Go client generate (oapi-codegen client mode)
+- Spec validation: `swagger-cli validate api/openapi.yaml`
+- Tum endpoint'lerin request/response schema'lari tanimli
+- Error response format standardize (`ErrorResponse` struct)
 
 **Kabul kriterleri:**
-- [ ] Agent olusturma calisiyor (client_id + client_secret)
-- [ ] Agent client_credentials flow → JWT donuyor
-- [ ] RFC 8693 token exchange → delegated token (act + sub claims)
-- [ ] Delegated token scope'u agent scope'u ile sinirli
-- [ ] Kullanici delegation revoke edebiliyor
-- [ ] Protected Resource Metadata endpoint calisiyor (RFC 9728)
-- [ ] MCP PKCE zorunlulugu calisiyor
+- [ ] OpenAPI spec valid
+- [ ] Tum Faz 0-4 endpoint'leri spec'te
+- [ ] Request/response schema'lari tanimli
+- [ ] `make generate-sdk` calisiyor
 
-**Bagimlilk:** Faz 2 (OIDC Provider), Faz 3 (client_credentials, token exchange)
+**Bagimlilk:** Faz 0-4 tamamlanmis
 
 ---
 
-## T5.2 — EUDI Wallet / OpenID4VP
+## T5.2 — KMP Mobile SDK (palauth-mobile)
 
-**Ne:** EUDI Wallet'lardan Verifiable Credential kabul etme. Selective disclosure. Auth server Verifier rolu.
+**Ne:** Kotlin Multiplatform — tek codebase'den iOS ve Android SDK. Birincil SDK.
 
 **Yapilacaklar:**
-- `internal/eudi/verifier.go`:
-  - OpenID4VP (Verifiable Presentations) ile credential dogrulama:
-    1. Authorization Request olustur (hangi credential'lar isteniyor)
-    2. Wallet VP (Verifiable Presentation) gonderir
-    3. VP signature dogrula (issuer public key ile)
-    4. Credential claims extract et
-    5. Selective disclosure: Sadece gereken bilgiyi al (orn: "18 yasindan buyuk" → true, dogum tarihi paylasilmaz)
-  - SD-JWT VC format destegi
-  - Credential issuer dogrulama (trusted issuer listesi)
-- `internal/eudi/registration.go`:
-  - RP (Relying Party) kayit altyapisi
-  - Hangi attributes isteniyor deklarasyonu
-  - Data minimization (GDPR) enforcement
+- Shared code (commonMain):
+  - `PalAuth.create(url, apiKey)` → client
+  - Auth methods: `signIn(email, password, metadata?)`, `signUp(email, password, metadata?)`, `signOut()`
+  - `signInWithOAuth(provider)` → platform browser'da OAuth redirect
+  - `signInWithCredential(provider, idToken)` → native Google/Apple Sign-In token exchange
+  - `signInWithPasskey()`, `registerPasskey()` → WebAuthn
+  - `mfa.enroll(type)`, `mfa.challenge(mfaToken, code)`, `mfa.verify(code)`
+  - `stepUp(method)` → step-up auth
+  - `transaction.approve(amount, currency, payee)` → PSD2 SCA
+  - `device.register()`, `device.attest()` → platform attestation
+  - `recovery.generateCodes()`, `recovery.useCode(code)`
+  - `getSession()`, `getUser()`, `signOut()`
+  - `onAuthStateChange(callback)` → auth state observation
+  - Token persistence (expect/actual pattern)
+  - Token auto-refresh (background, before expiry)
+  - PKCE code_verifier/challenge generation
+  - DPoP proof generation (FAPI mode)
+  - Client metadata gonderme (extra JSON → hook payload'a ulasir)
 
-**Endpoint'ler:**
-```
-POST /auth/eudi/verify/begin   → { requested_credentials } → { authorization_request }
-POST /auth/eudi/verify/finish  → { vp_token } → { access_token, user, verified_claims }
-GET  /admin/projects/:id/eudi  → EUDI config (trusted issuers, requested attributes)
-PUT  /admin/projects/:id/eudi  → EUDI config guncelle
-```
+- Android (androidMain):
+  - `EncryptedSharedPreferences` → token persistence
+  - `Android Keystore` → DPoP key storage
+  - `Play Integrity API` → device attestation
+  - `BiometricPrompt` → biometric auth (passkey, step-up)
+  - `CredentialManager` → passkey registration/authentication
+
+- iOS (iosMain):
+  - `Keychain` → token persistence
+  - `Secure Enclave` → DPoP key storage
+  - `App Attest` → device attestation
+  - `LAContext` (Face ID / Touch ID) → biometric auth
+  - `ASAuthorization` → passkey registration/authentication
 
 **Kabul kriterleri:**
-- [ ] OpenID4VP authorization request olusturuluyor
-- [ ] VP dogrulama calisiyor (imza + issuer)
-- [ ] Selective disclosure: Gereksiz attribute paylasilmiyor
-- [ ] SD-JWT VC format destekleniyor
-- [ ] Dogrulanmis credential ile login/signup calisiyor
+- [ ] Android: signIn/signUp calisiyor
+- [ ] iOS: signIn/signUp calisiyor
+- [ ] Android: Google Sign-In → signInWithCredential calisiyor
+- [ ] iOS: Apple Sign-In → signInWithCredential calisiyor
+- [ ] Android: Passkey registration/authentication calisiyor
+- [ ] iOS: Passkey registration/authentication calisiyor
+- [ ] Android: Play Integrity attestation calisiyor
+- [ ] iOS: App Attest attestation calisiyor
+- [ ] Android: BiometricPrompt calisiyor
+- [ ] iOS: Face ID/Touch ID calisiyor
+- [ ] Token auto-refresh calisiyor (background)
+- [ ] onAuthStateChange calisiyor
+- [ ] Client metadata → hook payload'a ulasir
+- [ ] DPoP proof generation calisiyor (FAPI mode)
+- [ ] Transaction approve calisiyor (PSD2 SCA)
+- [ ] MFA flow calisiyor (TOTP + SMS + Email OTP)
 
-**Bagimlilk:** Faz 2 (OIDC Provider — OpenID4VP ayni stack)
+**Bagimlilk:** T5.1 (OpenAPI spec)
 
 ---
 
-## T5.3 — KYC Entegrasyon Hook'lari
+## T5.3 — TypeScript Client SDK (@palauth/client)
 
-**Ne:** Identity verification provider entegrasyonu. ETSI TS 119 461 uyumlu.
+**Ne:** Next.js, React, Vue frontend'ler icin TypeScript client SDK.
 
 **Yapilacaklar:**
-- `internal/kyc/service.go`:
-  - KYC provider interface:
-    ```go
-    type KYCProvider interface {
-      InitiateVerification(ctx context.Context, userID string, level string) (*KYCSession, error)
-      CheckStatus(ctx context.Context, sessionID string) (*KYCResult, error)
+- `sdk/typescript/client/`:
+  - `createAuthClient({ url, apiKey })` → client instance
+  - Auth: `signUp()`, `signIn()`, `signOut()`, `signInWithOAuth()`, `signInWithCredential()`, `signInWithMagicLink()`, `signInWithPasskey()`, `registerPasskey()`
+  - MFA: `mfa.enroll()`, `mfa.verify()`, `mfa.challenge()`
+  - Step-up: `stepUp({ method })`
+  - Transaction: `transaction.approve({ amount, currency, payee })`
+  - Device: `device.register()`, `device.attest()`
+  - Recovery: `recovery.generateCodes()`, `recovery.useCode()`
+  - Session: `getSession()`, `getUser()`, `getAccessToken()`
+  - State: `onAuthStateChange(callback)` — reactive
+  - Token lifecycle: auto-persistence (localStorage/sessionStorage/cookie/memory), auto-refresh
+  - PKCE generation
+  - DPoP proof generation (FAPI mode)
+  - **Client metadata**: `signIn({ email, password, metadata: { plan: "pro" } })` → metadata hook payload'da
+  - Tree-shakeable ESM
+  - Zero runtime dependency
+  - npm: `@palauth/client`
+
+**Kabul kriterleri:**
+- [ ] `createAuthClient()` calisiyor
+- [ ] signIn/signUp/signOut calisiyor
+- [ ] Social login (OAuth redirect + callback) calisiyor
+- [ ] Passkey registration/authentication calisiyor
+- [ ] MFA flow calisiyor
+- [ ] Token auto-refresh calisiyor
+- [ ] onAuthStateChange calisiyor
+- [ ] Client metadata hook'a ulasir
+- [ ] Tree-shakeable (<20KB core bundle)
+- [ ] Next.js + React + Vue ile calisiyor
+
+**Bagimlilk:** T5.1 (OpenAPI spec)
+
+---
+
+## T5.4 — TypeScript Server SDK (@palauth/server)
+
+**Ne:** NestJS, Express, Fastify backend'ler icin TypeScript server SDK. Hook handler.
+
+**Yapilacaklar:**
+- `sdk/typescript/server/`:
+  - `createAuthServer({ url, serviceKey })` → server instance
+  - Token: `verifyToken(jwt)` → decoded claims
+  - Admin: `admin.createUser()`, `updateUser()`, `deleteUser()`, `listUsers()`, `banUser()`, `setCustomClaims()`, `revokeAllSessions()`, `createCustomToken()`, `impersonate()`
+  - Orgs: `orgs.create()`, `orgs.addMember()`, `orgs.configureSso()`
+  - **Blocking hooks**:
+    ```typescript
+    auth.hooks.before('user.create', async (event) => {
+      // event.user, event.context, event.client_metadata
+      const user = await db.users.create({ authId: event.user.id, plan: event.client_metadata.plan });
+      return { allow: true, metadata: { dbUserId: user.id }, custom_claims: { role: "premium" } };
+    });
+    ```
+  - Hook HMAC dogrulama (incoming webhook'larin gercek PalAuth'tan geldigini dogrula)
+  - **Non-blocking events**:
+    ```typescript
+    auth.on('user.created', async (event) => {
+      await crm.createContact(event.user);
+    });
+    ```
+  - npm: `@palauth/server`
+
+**Kabul kriterleri:**
+- [ ] `createAuthServer()` calisiyor
+- [ ] `verifyToken()` calisiyor (JWT dogrulama)
+- [ ] Admin CRUD calisiyor
+- [ ] Blocking hook handler calisiyor (before.user.create, before.login, vb.)
+- [ ] Hook HMAC dogrulama calisiyor (sahte webhook reject)
+- [ ] Event listener calisiyor (user.created, login.failed, vb.)
+- [ ] Client metadata hook event'te erisilebiliyor (`event.client_metadata`)
+
+**Bagimlilk:** T5.1 (OpenAPI spec)
+
+---
+
+## T5.5 — NestJS SDK (@palauth/nestjs)
+
+**Ne:** NestJS backend'ler icin decorator-based wrapper. `@palauth/server` uzerine.
+
+**Yapilacaklar:**
+- `sdk/typescript/nestjs/`:
+  - `AuthServerModule.register({ url, serviceKey, hooks })` — NestJS module
+  - `@RequireAuth()` — guard decorator (AAL1 yeterli)
+  - `@RequireAuth({ acr: 'aal2', mfa: true })` — step-up zorunlu
+  - `@RequireAuth({ acr: 'aal3', dpop: true })` — hardware key + DPoP zorunlu
+  - `@CurrentUser()` — param decorator → AuthUser object
+  - Hook handler interface:
+    ```typescript
+    @Injectable()
+    export class BeforeUserCreateHandler implements AuthHookHandler {
+      async handle(event: AuthHookEvent): Promise<AuthHookResponse> {
+        // event.user, event.context, event.client_metadata
+        return { allow: true, metadata: { dbUserId: user.id } };
+      }
     }
     ```
-  - Provider implementations: Onfido, Sumsub (Faz 5'te en az 1)
-  - `before.identity.verify` blocking hook: Backend KYC sonucunu onaylayabilir
-  - Verification levels (ETSI TS 119 461):
-    - Baseline: Document verification + liveness check
-    - Extended: Yuz yuze veya esdeger remote verification
-  - Verification status tracking per user
-
-**Endpoint'ler:**
-```
-POST /auth/kyc/initiate        → { level: "baseline"|"extended" } → { session_url, session_id }
-GET  /auth/kyc/status          → { status, level, verified_at }
-POST /admin/projects/:id/kyc/config → { provider, api_key_encrypted, level }
-```
-
-**Audit event'ler:** `kyc.initiate`, `kyc.complete`, `kyc.failed`
+  - npm: `@palauth/nestjs`
 
 **Kabul kriterleri:**
-- [ ] KYC initiate calisiyor (provider'a redirect)
-- [ ] KYC status check calisiyor
-- [ ] Verification level (baseline/extended) secimi calisiyor
-- [ ] `before.identity.verify` hook calisiyor
-- [ ] KYC sonucu user profilinde gorunuyor
+- [ ] `AuthServerModule.register()` calisiyor
+- [ ] `@RequireAuth()` guard calisiyor (valid token → pass, invalid → 401)
+- [ ] `@RequireAuth({ acr: 'aal2' })` step-up kontrol calisiyor
+- [ ] `@CurrentUser()` dogru user donuyor
+- [ ] Hook handler interface calisiyor (NestJS DI ile)
+- [ ] Client metadata hook event'te erisilebiliyor
 
-**Bagimlilk:** Faz 1 (hooks), spec-compliance ETSI TS 119 461
+**Bagimlilk:** T5.4 (Server SDK)
 
 ---
 
-## T5.4 — Continuous Auth + Session Transfer
+## T5.6 — Edge SDK (@palauth/edge)
 
-**Session Transfer (spec Section 5.2):**
-- Cihazlar arasi session aktarimi (QR code ile)
-- Oturumdaki cihaz QR code gosterir, yeni cihaz tarar
-- Yeni cihazda session olusur, eski devam eder veya sonlanir (configurable)
-- Session transfer sirasinda MFA re-verify gerekli
-
-**Ne:** Session suresince davranissal sinyaller ile risk engine'e surekli girdi.
+**Ne:** Cloudflare Workers, Vercel Edge'de JWT dogrulama. <50KB. Network round-trip yok.
 
 **Yapilacaklar:**
-- `internal/risk/signals/behavioral.go`:
-  - Login pattern analizi: Kullanicinin normal login saatleri, gunleri
-  - Session icinde request velocity pattern
-  - Bu sinyaller risk engine'e ek input olarak gider
-  - Anomali tespit edilirse → step-up auth tetikle
+- `sdk/typescript/edge/`:
+  - `createVerifier({ jwksUrl, issuer, audience })` → verifier
+  - `verifier.verify(token)` → `{ valid, claims, error }`
+  - `verifier.verifyDPoP(proof, token, request)` → DPoP dogrulama
+  - `verifier.checkAcr(claims, requiredAcr)` → ACR kontrol
+  - JWKS caching (configurable TTL)
+  - Web Crypto API (Node.js crypto degil)
+  - <50KB bundle, zero dependency
+  - npm: `@palauth/edge`
 
 **Kabul kriterleri:**
-- [ ] Login pattern analizi calisiyor (normal saat disinda → risk artisi)
-- [ ] Anomali → step-up auth tetikleniyor
-- [ ] Behavioral signals risk engine'de gorunuyor
+- [ ] JWT dogrulama calisiyor (Cloudflare Workers'da)
+- [ ] JWT dogrulama calisiyor (Vercel Edge'de)
+- [ ] JWKS caching calisiyor
+- [ ] DPoP dogrulama calisiyor
+- [ ] ACR kontrol calisiyor
+- [ ] <50KB bundle size
+- [ ] Zero external dependency
 
-**Bagimlilk:** Faz 2 (risk engine)
+**Bagimlilk:** T5.1 (OpenAPI spec, JWKS endpoint)
 
 ---
 
-## T5.5 — Full i18n + WCAG 2.1 AA
+## T5.7 — SDK Test Sweep
 
-**Ne:** 10+ dil, RTL destegi. Dashboard + auth sayfalari WCAG 2.1 AA uyumlu.
+**Ne:** Tum SDK'lar icin integration + contract testleri.
 
 **Yapilacaklar:**
-- `internal/i18n/` genisletme:
-  - 10+ dil: en, tr, de, fr, es, ar, zh, ja, ko, pt
-  - RTL destegi: Arapca, Ibranice
-  - Email template'leri tum dillerde
-  - SMS icerikleri tum dillerde
-  - Error mesajlari tum dillerde
-- Dashboard accessibility:
-  - ARIA labels
-  - Keyboard navigation (tab order, focus management)
-  - Renk kontrast (min 4.5:1)
-  - Screen reader destegi
-  - Form validation hatalari acik ve anlasilir
+- Contract tests (Pact):
+  - Client SDK ↔ Go Server API uyumu
+  - Server SDK ↔ Go Server Admin API uyumu
+  - NestJS SDK ↔ Go Server hook/webhook uyumu
+- Integration tests:
+  - KMP: Android emulator + iOS simulator ile full flow
+  - Client SDK: Playwright ile browser-based OAuth flow
+  - Server SDK: Hook handler end-to-end (Go server → hook → NestJS → response)
+  - Edge SDK: Miniflare (Cloudflare Workers test env) ile JWT verify
+  - Client metadata flow: Client SDK gonder → Go server → hook → Server SDK al → response → Client SDK al
+- Cross-SDK consistency:
+  - Tum SDK'lar ayni API'yi ayni sekilde cagiriyor mu
+  - Error handling tutarli mi
+  - Token refresh logic tutarli mi
 
 **Kabul kriterleri:**
-- [ ] 10+ dil destegi calisiyor
-- [ ] RTL (Arapca) dogru render ediliyor
-- [ ] WCAG 2.1 AA audit geciyory
-- [ ] Screen reader ile dashboard kullanilabiliyor
-- [ ] Keyboard navigation calisiyor
+- [ ] Pact contract testler geciyor (tum SDK'lar)
+- [ ] KMP Android + iOS integration geciyor
+- [ ] Client metadata end-to-end flow calisiyor
+- [ ] Edge SDK Miniflare'da calisiyor
+- [ ] Hook handler end-to-end calisiyor
+- [ ] Tum SDK'lar ayni error format'i handle ediyor
 
-**Bagimlilk:** Faz 4 (i18n temel)
-
----
-
-## T5.6 — Sertifika Basvurulari
-
-**Ne:** SOC 2 (Faz 4'te alindi), ISO 27001, PCI DSS v4.0.1, HIPAA, CSA STAR, FedRAMP hazirlik, eIDAS.
-
-**Yapilacaklar:**
-- ISO 27001:
-  - Stage 1 (dokumantasyon review) + Stage 2 (implementation audit)
-  - ISMS dokumantasyonu (Faz 4'te hazirlandi)
-- PCI DSS v4.0.1:
-  - QSA audit
-  - ASV quarterly scan programi baslat
-  - WAF deployment verify
-- HIPAA BAA:
-  - SOC 2 altyapisi uzerine ek kontroller
-- CSA STAR Level 2:
-  - ISO 27001 uzerine cloud security ek kontroller
-- FedRAMP High hazirlik:
-  - 3PAO ile calisma baslat (eger hosted versiyon sunuluyorsa)
-  - PIV/CAC auth (Faz 3'te hazirlandi) verify
-- eIDAS LoA High:
-  - QTSP partnership verify (Faz 3'te entegrasyon yapildi)
-- FIDO2 Server L1:
-  - Conformance test suite son kez calistir + basvuru yap
-- OpenID FAPI 2.0:
-  - Conformance test suite son kez calistir + basvuru yap
-
-**Kabul kriterleri:**
-- [ ] ISO 27001 Stage 1 gecti
-- [ ] ISO 27001 Stage 2 gecti → SERTIFIKA
-- [ ] PCI DSS QSA audit basarili → SERTIFIKA
-- [ ] HIPAA BAA imzalanabilir durumda
-- [ ] CSA STAR Level 2 → SERTIFIKA
-- [ ] FIDO2 conformance suite GECIYOR → SERTIFIKA
-- [ ] FAPI 2.0 conformance suite GECIYOR → SERTIFIKA
-- [ ] FedRAMP 3PAO engagement basladi (eger applicable)
-
-**Bagimlilk:** Tum onceki fazlar + Faz 4 operasyonel prosedurler
+**Bagimlilk:** T5.2-T5.6
 
 ---
 
-## T5.7 — SaaS Olgunlastirma
-
-**Ne:** SaaS platform tam islevsel hale getirme.
-
-> Detaylar spec-saas.md'de detaylandirilacak. Burada sadece ozetlenmistir.
-
-**Yapilacaklar:**
-- Stripe billing tam entegrasyon (Free/Pro/Business/Enterprise tier'lar)
-- Self-service SSO provisioning
-- Usage dashboard + billing alertleri
-- Developer documentation portal (docs site)
-- Interactive API playground
-- Landing page / marketing site
-
-**Kabul kriterleri:**
-- [ ] Stripe billing calisiyor (subscription + MAU usage)
-- [ ] Documentation portal yayinda
-- [ ] API playground calisiyor
-
-**Bagimlilk:** Faz 4 (SaaS hazirlik)
-
----
-
-## T5.8 — SDK Genisletme + Final Test Sweep
-
-**Ne:** SDK'lara Faz 4-5 ozelliklerini ekle. Tum conformance testleri. Final coverage.
-
-**Yapilacaklar:**
-- OpenAPI spec guncelle (tum Faz 4-5 endpoint'leri)
-- SDK'lara eklemeler:
-  - Client SDK: `auth.eudi.verify()`, `auth.recovery.contacts.*`, `auth.device.attest()`
-  - Server SDK: `auth.admin.impersonate()`, `auth.agents.*`, `auth.kyc.*`
-  - KMP SDK: EUDI Wallet entegrasyonu
-- Conformance test suite'leri:
-  - OpenID Connect (Basic OP, Config OP, Dynamic OP) → PASS
-  - FIDO2 Server L1 → PASS
-  - FAPI 2.0 Security Profile → PASS
-  - OpenID4VP conformance → PASS
-  - SCIM Okta/Azure AD test suite → PASS
-- Full security audit:
-  - Tum endpoint'ler OWASP ASVS v5.0 Level 2 kontrol
-  - 3rd party pentest sonuclari remediate
-  - Mutation testing: Guvenlik modulleri %80+ mutation score
-- Coverage: %85+ (guvenlik modulleri %90+)
-
-**Kabul kriterleri:**
-- [ ] Tum conformance testler geciyor
-- [ ] OWASP ASVS Level 2 kontrol tamamlandi
-- [ ] 3rd party pentest sonuclari remediate edildi
-- [ ] Mutation testing %80+ (guvenlik modulleri)
-- [ ] Coverage %85+
-
-**Bagimlilk:** T5.1-T5.7
-
----
-
-## Yeni Audit Event'ler (Faz 5 Eklenen)
-
-| Event | Tetikleme |
-|-------|-----------|
-| `agent.create` | Agent olusturuldu |
-| `agent.revoke` | Agent revoke edildi |
-| `agent.delegation.grant` | Delegation verildi |
-| `agent.delegation.revoke` | Delegation iptal edildi |
-| `agent.token.issue` | Agent JWT verildi |
-| `agent.token.exchange` | Delegated token uretildi |
-| `eudi.verify.begin` | EUDI dogrulama baslatildi |
-| `eudi.verify.complete` | EUDI dogrulama tamamlandi |
-| `kyc.initiate` | KYC baslatildi |
-| `kyc.complete` | KYC tamamlandi |
-| `kyc.failed` | KYC basarisiz |
-
----
-
-## Haftalik Plan (52+ hafta — Ay 23-36)
+## Haftalik Plan (16 hafta)
 
 | Hafta | Task'lar | Not |
 |-------|----------|-----|
-| 1-6 | T5.1 (AI Agent / MCP — agent entity, delegation, RFC 8693, MCP compat) | |
-| 7-10 | T5.2 (EUDI Wallet — OpenID4VP, SD-JWT VC, selective disclosure) | |
-| 11-14 | T5.3 (KYC — provider entegrasyon, ETSI TS 119 461) + T5.4 (Continuous auth) | |
-| 15-18 | T5.5 (Full i18n 10+ dil + WCAG 2.1 AA) | |
-| 19-40 | T5.6 (Sertifika basvurulari — ISO, PCI DSS, HIPAA, CSA, FIDO2, FAPI, eIDAS) | Audit + basvuru surecleri uzun |
-| 41-48 | T5.7 (SaaS olgunlastirma) | |
-| 49-52 | T5.8 (SDK + conformance + final test sweep + pentest) | Final |
-
-**Sertifika hedefleri:**
-- ISO 27001 ✅ ALINIR
-- PCI DSS v4.0.1 ✅ ALINIR
-- HIPAA BAA ✅ HAZIR
-- CSA STAR Level 2 ✅ ALINIR
-- FIDO2 Server L1 ✅ ALINIR
-- OpenID FAPI 2.0 ✅ ALINIR
-- eIDAS LoA High ✅ HAZIR
-- FedRAMP High → SURUYOR (eger applicable)
-
----
-
-## Tum Fazlar — Migration Ozeti
-
-| Faz | Migration Aralik | Tablo Sayisi |
-|-----|------------------|-------------|
-| Faz 0 | 001-011 | 11 tablo |
-| Faz 1 | 012-020 | 7 tablo + 1 ALTER + trusted_devices |
-| Faz 2 | 021-027 | 6 tablo + 1 ALTER |
-| Faz 3 | 028-035 | 8 tablo (user_consents Faz 0'da) |
-| Faz 4 | 036-040 | 5 tablo |
-| Faz 5 | 041-044 | 4 tablo |
-| **TOPLAM** | **001-044** | **~44 tablo/ALTER** |
-
----
-
-## Tum Fazlar — Spec Coverage Ozeti
-
-| Spec Section | Faz | Task |
-|-------------|-----|------|
-| 2.1 Email+Password | 0 | T0.7, T0.9, T0.10 |
-| 2.2 OTP (TOTP) | 1 | T1.1 |
-| 2.2 SMS OTP | 2 | T2.7 |
-| 2.3 WebAuthn/Passkeys | 2 | T2.1 |
-| 2.4 Social Login | 1 | T1.2 |
-| 2.5 Magic Link | 1 | T1.5 |
-| 2.6 Phone Auth | 2 | T2.7 |
-| 3 MFA | 1 | T1.1 |
-| 3.4 Step-Up | 2 | T2.2 |
-| 4.1-4.2 JWT + Refresh | 0 | T0.8 |
-| 4.3 DPoP | 3 | T3.1 |
-| 4.4 Key Rotation | 2 | T2.8 |
-| 4.5 Custom Token | 0 | T0.8 |
-| 5 Session | 0+1 | T0.13 + T1.5 |
-| 6 Device Attestation | 3 | T3.2 |
-| 7 Transaction Auth | 3 | T3.3 |
-| 8 Hooks | 1 | T1.3 |
-| 9 Risk Engine | 2 | T2.3 |
-| 10 Bot Detection | 2 | T2.4 |
-| 11 Account Recovery | 1+2+4 | T1.1 + T2.1 + T4.2 |
-| 12 Organizations | 2 | T2.5 |
-| 13 API Key/M2M/PAT | 3 | T3.6 |
-| 14 Admin Impersonation | 4 | T4.1 |
-| 15 Project Isolation | 0 | T0.6 |
-| 16 Audit Log | 0 | T0.11 |
-| 17 Encryption | 0 | T0.5 |
-| 18 Rate Limiting | 0 | T0.4 |
-| 19 Webhooks | 1 | T1.4 |
-| 20 OIDC Provider | 2 | T2.6 |
-| 21 AI Agent/MCP | 5 | T5.1 |
-| 22 EUDI/DID | 5 | T5.2 |
-| 23 Breach Detection | 3 | T3.7 |
-| 24 Compliance Automation | 3 | T3.7 |
-| 35 Email | 0 | T0.12 |
-| 36 SAML | 3 | T3.4 |
-| 37 HTTP Security | 0 | T0.2 |
-| 38 Token Introspection | 0 | T0.8 |
-| 41 i18n + Accessibility | 4+5 | T4.7 + T5.5 |
-| 43 Test Strategy | Her faz | Final sweep per faz |
-| 44 Dashboard | 0+1+2+3+4 | Her fazda genisler |
+| 1-2 | T5.1 (OpenAPI spec finalize + generation pipeline) | Altyapi |
+| 3-6 | T5.2 (KMP Mobile SDK — Android + iOS) | En buyuk SDK |
+| 7-9 | T5.3 (TypeScript Client SDK) | Frontend |
+| 10-12 | T5.4 (TypeScript Server SDK) + T5.5 (NestJS SDK) | Backend |
+| 13-14 | T5.6 (Edge SDK) | Edge runtime |
+| 15-16 | T5.7 (SDK test sweep — Pact, integration, cross-SDK) | Final |

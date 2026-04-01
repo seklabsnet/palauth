@@ -1798,14 +1798,21 @@ token=<token>&token_type_hint=refresh_token
 
 ### Faz Ozet
 
-| Faz | Sure | Deployment | Piyasa Esdegeri | Sertifika |
-|-----|------|------------|-----------------|-----------|
-| **0** | Ay 1-4 | Docker Compose | %95'inden guvenli | NIST AAL1, GDPR |
-| **1** | Ay 5-7 | + Helm chart | Supabase/Firebase + hooks | NIST AAL2, OpenID basvuru |
-| **2** | Ay 8-10 | Self-hosted production-ready | Clerk/WorkOS + FIDO2 | FIDO2 + OpenID, SOC 2 gozlem |
-| **3** | Ay 11-16 | Financial-grade self-hosted | Auth0 + PSD2 SCA | FIDO2, FAPI basvuru |
-| **4** | Ay 17-22 | + SaaS katmani baslar | Descope seviyesi | SOC 2 alinir, ISO + PCI baslar |
-| **5** | Ay 23-36 | Full SaaS + self-hosted | Piyasada esdegeri YOK | Tam portfolyo |
+| Faz | Ne | Sure | Cikti |
+|-----|-----|------|-------|
+| **0** | Core Auth (Go server) | Ay 1-4 | Email+pass, JWT, session, audit, rate limit, dashboard |
+| **1** | MFA + Social + Hooks | Ay 5-7 | TOTP, social login, blocking hooks, webhooks |
+| **2** | Passkeys + Enterprise | Ay 8-10 | WebAuthn, step-up, risk engine, organizations, OIDC |
+| **3** | Financial-Grade | Ay 11-16 | DPoP, FAPI 2.0, device attestation, PSD2 SCA, SAML, SCIM, M2M |
+| **4** | Scale + Operations | Ay 17-22 | Multi-region, domain, impersonation, migration, compliance prosedurler |
+| **5** | SDK'lar | Ay 23-26 | KMP Mobile, TypeScript Client/Server/NestJS, Edge |
+| **6** | Next-Gen | Ay 27-32 | AI Agent, EUDI Wallet, KYC, continuous auth, sertifika basvurulari |
+| **7** | SaaS Platform | Ay 33+ | Stripe billing, onboarding, hosting, landing page, i18n, WCAG |
+
+> Faz 0-4: Go server core — tum compliance'a uygun kod yazilir
+> Faz 5: SDK'lar — API kararli, tek seferde yazilir
+> Faz 6: Next-gen + sertifika basvurulari
+> Faz 7: SaaS — tum core + SDK hazir, urunu sat
 
 ---
 

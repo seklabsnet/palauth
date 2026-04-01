@@ -1,6 +1,6 @@
-# PalAuth — Faz 4: Scale + Compliance + SaaS Baslangic (Ay 17-22)
+# PalAuth — Faz 4: Scale + Compliance (Ay 17-22)
 
-> Hedef: SOC 2 Type II raporu alma. Multi-region. Admin impersonation. SaaS katmani baslar.
+> Hedef: SOC 2 Type II raporu alma. Multi-region. Admin impersonation. Tum core functionality tamamlanir.
 > Faz 0+1+2+3 uzerine insa.
 > Paketler: `caddyserver/certmagic`, `go.opentelemetry.io/otel`
 
@@ -313,29 +313,9 @@ GET  /admin/projects/:id/migrations/:mid → job detay (progress, errors)
 
 ---
 
-## T4.7 — i18n (Temel)
-
-**Ne:** Hata mesajlari ve email template'leri icin en + tr dil destegi.
-
-**Yapilacaklar:**
-- `internal/i18n/service.go`:
-  - Go embed ile dil dosyalari (`locales/en.json`, `locales/tr.json`)
-  - Error mesajlari: `invalid_credentials` → EN: "Invalid email or password", TR: "Gecersiz email veya sifre"
-  - Email template'leri: dil bazinda
-  - Project config'den varsayilan dil secimi
-  - Accept-Language header'dan dil tespiti
-
-**Kabul kriterleri:**
-- [ ] Hata mesajlari EN ve TR destekliyor
-- [ ] Email template'leri EN ve TR
-- [ ] Accept-Language header calisiyor
-- [ ] Project default dil ayarlanabiliyor
-
-**Bagimlilk:** Faz 0 (email templates, error responses)
-
 ---
 
-## T4.8 — Operasyonel Prosedurler (SOC 2 / ISO 27001 Hazirlik)
+## T4.7 — Operasyonel Prosedurler (SOC 2 / ISO 27001 Hazirlik)
 
 **Ne:** SOC 2 Type II ve ISO 27001 sertifikasi icin gerekli operasyonel altyapi.
 
@@ -415,9 +395,9 @@ GET  /admin/projects/:id/migrations/:mid → job detay (progress, errors)
 
 ---
 
-## T4.9 — Dashboard Genisletme + SaaS Hazirlik + Test Sweep
+## T4.8 — Dashboard Genisletme + Test Sweep
 
-**Ne:** Dashboard'a impersonation, migration, domain, branding, i18n ekle. SaaS altyapisi hazirla.
+**Ne:** Dashboard'a impersonation, migration, domain, branding ekle. Core functionality tamamlanir.
 
 **Yapilacaklar:**
 - Dashboard genisletme:
@@ -426,10 +406,6 @@ GET  /admin/projects/:id/migrations/:mid → job detay (progress, errors)
   - Custom domain yonetimi (ekle, DNS dogrulama durumu, TLS durumu)
   - Branding editor (logo upload, renk secici, preview)
   - Recovery contacts yonetimi (kullanici detay sayfasinda)
-  - i18n: Dashboard UI en + tr
-- SaaS hazirlik (spec-saas.md icin altyapi):
-  - Stripe billing entegrasyon altyapisi (endpoint'ler henuz yok, SDK + webhook handler)
-  - Landing page temel yapisi (Next.js static site)
 
 **Test sweep:**
 - Integration testler:
@@ -437,7 +413,6 @@ GET  /admin/projects/:id/migrations/:mid → job detay (progress, errors)
   - Trusted contacts: Add → verify → initiate recovery → N-of-M approval → access
   - Migration: Auth0 JSON → import → login with old hash → auto-upgrade to Argon2id
   - Custom domain: Add → DNS verify → TLS provision
-  - i18n: TR error messages, TR email templates
 - SOC 2 evidence:
   - CI/CD logs evidence export calisiyor
   - Audit log compliance export calisiyor
@@ -451,8 +426,13 @@ GET  /admin/projects/:id/migrations/:mid → job detay (progress, errors)
 - [ ] Tum integration testler geciyor
 - [ ] SOC 2 evidence collection calisiyor
 - [ ] Coverage %85+
+- [ ] DAST full active scan: tum endpoint'ler, critical/high yok
+- [ ] Mutation score: tum guvenlik modulleri %80+
+- [ ] k6 load: multi-region routing p99 < 100ms overhead
+- [ ] Chaos: Full DR test — DB failover + Redis failover + recovery
+- [ ] 3rd party pentest scope hazir (yillik)
 
-**Bagimlilk:** T4.1-T4.8
+**Bagimlilk:** T4.1-T4.7
 
 ---
 
@@ -483,8 +463,8 @@ GET  /admin/projects/:id/migrations/:mid → job detay (progress, errors)
 | 4-6 | T4.2 (Trusted contacts recovery — N-of-M, email flow, 72h expiry) | |
 | 7-9 | T4.3 (Multi-region data residency) + T4.4 (Custom domain + white-label) | Infra |
 | 10-12 | T4.5 (Advanced risk + webhooks) + T4.6 (Migration araclari) | |
-| 13-14 | T4.7 (i18n en+tr) | |
-| 15-20 | T4.8 (Operasyonel prosedurler — SOC 2 + ISO 27001 hazirlik) | Dokumantasyon agirlikli |
-| 21-24 | T4.9 (Dashboard + SaaS hazirlik + test sweep) | Final |
+| 13-18 | T4.7 (Operasyonel prosedurler — SOC 2 + ISO 27001 hazirlik) | Dokumantasyon agirlikli |
+| 19-22 | T4.8 (Dashboard + test sweep) | Final |
 
 **Sertifika:** SOC 2 Type II ALINIR, ISO 27001 baslar, PCI DSS gap analysis
+**Not:** Faz 4 sonunda tum core Go server functionality tamamlanmis. Faz 5: SDK'lar, Faz 6: Next-Gen, Faz 7: SaaS.

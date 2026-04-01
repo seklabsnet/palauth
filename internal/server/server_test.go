@@ -21,7 +21,7 @@ func newTestServer(t *testing.T) *Server {
 		Log:    config.LogConfig{Level: "info", Format: "json"},
 	}
 	logger := slog.Default()
-	return New(cfg, logger, nil)
+	return New(cfg, logger, nil, nil)
 }
 
 func TestHealthz(t *testing.T) {

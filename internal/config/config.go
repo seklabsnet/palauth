@@ -35,7 +35,9 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	URL string `koanf:"url"`
+	URL          string `koanf:"url"`
+	PoolSize     int    `koanf:"pool_size"`
+	MinIdleConns int    `koanf:"min_idle_conns"`
 }
 
 type AuthConfig struct {
@@ -78,6 +80,8 @@ func Load(configPath string) (*Config, error) {
 		"auth.lockout_duration":    1800,
 		"auth.mfa_lockout_threshold": 5,
 		"auth.inactive_days":       90,
+		"redis.pool_size":          10,
+		"redis.min_idle_conns":     2,
 		"email.provider":           "console",
 		"log.level":                "info",
 		"log.format":               "json",

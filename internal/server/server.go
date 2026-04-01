@@ -16,6 +16,7 @@ import (
 	"github.com/rs/cors"
 
 	"github.com/palauth/palauth/internal/config"
+	palredis "github.com/palauth/palauth/internal/redis"
 )
 
 type Server struct {
@@ -24,9 +25,10 @@ type Server struct {
 	logger *slog.Logger
 	http   *http.Server
 	db     *pgxpool.Pool
+	redis  *palredis.Client
 }
 
-func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool) *Server {
+func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredis.Client) *Server {
 	r := chi.NewRouter()
 
 	s := &Server{
@@ -34,6 +36,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool) *Server {
 		router: r,
 		logger: logger,
 		db:     db,
+		redis:  rdb,
 	}
 
 	s.setupMiddleware()
@@ -86,7 +89,12 @@ func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// TODO(T0.4): Check Redis connection
+	if s.redis != nil {
+		if err := s.redis.Ping(r.Context()); err != nil {
+			s.WriteError(w, r, http.StatusServiceUnavailable, "redis_unavailable", "Redis is not reachable")
+			return
+		}
+	}
 	s.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

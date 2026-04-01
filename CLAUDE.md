@@ -281,69 +281,79 @@ Detay: `spec-compliance.md`
 
 ## Agent Team Workflow
 
-Kod gelistirme agent team ile yapilir. `.claude/agents/` altinda 3 subagent tanimi var:
+When the user asks to implement ANY task, ALWAYS create an agent team and spawn teammates. Never use subagents for development work. This is not optional.
 
-| Agent | Rol |
-|-------|-----|
-| `coder` | Kodu yazar, testleri yazar, derler, calistirir |
+Three teammate definitions live in `.claude/agents/`:
+
+| Teammate | Role |
+|----------|------|
+| `coder` | Implements code and tests |
 | `code-reviewer` | Code quality + architecture review |
 | `security-reviewer` | Security + compliance review |
 
-### Nasil Kullanilir
+### Automatic Workflow
 
-Terminal'de: `claude` ile basla, sonra:
+On ANY implementation request (e.g. "implement T0.4", "kodla", "write the signup handler"):
+
+1. Create an agent team
+2. Spawn ALL three teammates at once: `coder`, `code-reviewer`, `security-reviewer`
+3. Coder implements the task. Code-reviewer and security-reviewer wait.
+4. Coder must verify ALL acceptance criteria from the phase spec before signaling done. Every criterion must be implemented AND have a passing test. Coder messages lead with: files changed, acceptance criteria checklist, test results.
+5. Lead verifies coder's acceptance criteria report — if anything is missing, message coder to complete it before proceeding to review
+6. Lead messages code-reviewer to start reviewing
+7. Code review NEEDS_CHANGES → code-reviewer messages coder directly → coder fixes → coder messages code-reviewer directly → **LOOP until code-reviewer PASS**
+8. Code-reviewer PASS → code-reviewer messages security-reviewer to start
+9. Security review NEEDS_CHANGES → security-reviewer messages coder directly → coder fixes → coder messages code-reviewer to re-check → **if code-reviewer NEEDS_CHANGES, coder fixes, LOOP** → code-reviewer PASS → coder messages security-reviewer → **LOOP until security-reviewer PASS**
+10. Security-reviewer PASS → security-reviewer messages code-reviewer for final quality check
+11. Final quality NEEDS_CHANGES → code-reviewer messages coder → fix loop restarts
+12. Final quality PASS → code-reviewer messages security-reviewer for final sign-off
+13. Final sign-off PASS → security-reviewer messages lead → **lead does final verification and cleanup**:
+    - Verify all acceptance criteria from the phase spec are met
+    - Update the phase file: check off completed acceptance criteria (`- [x]`)
+    - Synthesize results, close task
+
+Teammates talk to each other directly. Lead does NOT relay messages between them. Lead only: spawns the team, verifies acceptance criteria, triggers the first review, and does final cleanup.
+
+### Review Loop Diagram
+
 ```
-T0.7'yi kodla — agent team olustur: coder, code-reviewer, security-reviewer
+                    ┌─────────────────────────────────┐
+                    │                                  │
+                    ▼                                  │
+coder writes ──► code-reviewer ──NEEDS_CHANGES──► coder fixes
+                    │                                  ▲
+                    PASS                               │
+                    ▼                                  │
+              security-reviewer ──NEEDS_CHANGES──► coder fixes ──► code-reviewer re-check
+                    │                                  ▲               │
+                    PASS                               │          NEEDS_CHANGES
+                    ▼                                  │               │
+              code-reviewer final ──NEEDS_CHANGES──────┘               │
+                    │                                                  │
+                    PASS                                               │
+                    ▼                                                  │
+              security-reviewer final sign-off ◄───────────────────────┘
+                    │
+                    PASS
+                    ▼
+                   DONE
 ```
 
-### Review Cycle (Iteratif)
+The loop continues until security-reviewer gives final sign-off. Every fix by the coder must be re-validated by the relevant reviewer before moving forward. No shortcutting — if a security fix breaks architecture, it goes back through code review.
 
-Agent'lar kendi aralarinda konusarak iteratif review yapar:
+### Rules
 
-```
-Phase 1: Code Quality Loop
-  coder yazar → code-reviewer review eder → coder duzeltir → code-reviewer PASS
-
-Phase 2: Security Loop
-  security-reviewer review eder → coder duzeltir → security-reviewer PASS
-
-Phase 3: Final Quality Check
-  code-reviewer son kontrol (security fix'leri quality'yi bozmus olabilir mi?)
-  → Sorun varsa coder duzeltir → code-reviewer PASS
-
-Phase 4: Final Security Sign-off
-  security-reviewer final onay → IS BITTI
-```
-
-Bu sira ONEMLI:
-- Security fix'leri bazen architecture'i bozar → Phase 3 bunu yakalar
-- Code quality fix'leri nadiren security'yi bozar ama Phase 4 garanti eder
-- **security-reviewer'in final PASS'i olmadan task "done" sayilmaz**
-
-### Lead Sorumlulugu
-
-Lead (ana session) su kurallari takip eder:
-1. **coder** teammate'i spawn et → task'i implement etsin
-2. Coder bitince **code-reviewer** spawn et → Phase 1 baslat
-3. Code review PASS alinca **security-reviewer** spawn et → Phase 2 baslat
-4. Security review PASS alinca code-reviewer'a "final check" mesaji at → Phase 3
-5. Final quality PASS alinca security-reviewer'a "final sign-off" mesaji at → Phase 4
-6. Her iki reviewer PASS verince → sonuclari sentezle, task'i kapat
-
-### Onemli Kurallar
-
-- Review phase'leri SIRAYLA ilerler (paralel degil — cunku her phase oncekine bagimli)
-- CRITICAL/HIGH issue varsa coder duzeltmeli, reviewer TEKRAR kontrol etmeli
-- Reviewer'lar birbirine mesaj atabilir (ornegin security-reviewer code-reviewer'a "su pattern'i sen de kontrol et" diyebilir)
-- Bir review cycle'da 3'ten fazla iterasyon olursa lead durumu degerlendirip mudahale eder
-
-### Agent Team olmadan (tek session)
-
-Eger agent team kullanmiyorsan, `dev-pipeline` skill'i ayni is akisini tek session icinde yapar:
-1. Kodu yaz
-2. code-review skill'ini oku ve self-review yap
-3. security-review skill'ini oku ve self-review yap
-4. Sorunlari duzelt, sonucu sun
+- ALWAYS spawn teammates, NEVER use subagents for implementation/review
+- Spawn ALL three teammates upfront — they communicate directly with each other, lead is not a middleman
+- Coder must verify ALL acceptance criteria (Kabul kriterleri) from the phase spec before signaling done — every criterion must be implemented AND have a passing test
+- The loop is the law: every fix gets re-reviewed, no exceptions
+- ALL issues must be fixed — reviewers do NOT give PASS with any open issues, regardless of severity
+- Security fixes that touch architecture → code-reviewer must re-check
+- Code-reviewer fixes that touch security logic → security-reviewer must re-check
+- Reviewers can message each other directly when concerns overlap
+- If a single review stage exceeds 3 iterations, lead intervenes
+- Task is NOT done until security-reviewer gives final sign-off
+- After final sign-off, lead verifies acceptance criteria and updates the phase file (checks off completed criteria with `- [x]`)
 
 ## Do NOT
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/palauth/palauth/internal/config"
 	"github.com/palauth/palauth/internal/database"
+	palredis "github.com/palauth/palauth/internal/redis"
 	"github.com/palauth/palauth/internal/server"
 )
 
@@ -56,7 +57,20 @@ func run() error {
 	defer db.Close()
 	logger.Info("database connected")
 
-	srv := server.New(cfg, logger, db)
+	// Connect to Redis (optional — if URL is empty, rate limiting uses in-memory)
+	var rdb *palredis.Client
+	if cfg.Redis.URL != "" {
+		rdb, err = palredis.New(ctx, &cfg.Redis, logger)
+		if err != nil {
+			return fmt.Errorf("connecting to redis: %w", err)
+		}
+		defer rdb.Close()
+		logger.Info("redis connected")
+	} else {
+		logger.Warn("redis URL not configured — rate limiting will use in-memory counters")
+	}
+
+	srv := server.New(cfg, logger, db, rdb)
 	return srv.Start()
 }
 

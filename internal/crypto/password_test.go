@@ -151,30 +151,26 @@ func TestVerify_TimingVariance(t *testing.T) {
 
 	const iterations = 30
 
-	// Measure correct password verification times
-	var correctTimes []time.Duration
+	// Interleaved measurement: alternate correct/wrong to cancel out
+	// CPU scheduling drift that occurs with sequential blocks.
+	var correctTimes, wrongTimes []time.Duration
 	for range iterations {
 		start := time.Now()
 		_, _ = Verify(password, hash, testPepper)
 		correctTimes = append(correctTimes, time.Since(start))
-	}
 
-	// Measure wrong password verification times
-	var wrongTimes []time.Duration
-	for range iterations {
-		start := time.Now()
+		start = time.Now()
 		_, _ = Verify("wrong-horse-battery-staple", hash, testPepper)
 		wrongTimes = append(wrongTimes, time.Since(start))
 	}
 
-	// Use median instead of mean to reduce outlier impact from OS scheduling
 	medCorrect := median(correctTimes)
 	medWrong := median(wrongTimes)
 
 	diff := math.Abs(float64(medCorrect-medWrong)) / float64(time.Millisecond)
 	t.Logf("Median correct: %v, Median wrong: %v, Diff: %.2fms", medCorrect, medWrong, diff)
 	// Argon2id uses constant-time comparison internally.
-	// Median reduces OS scheduling noise; < 1ms threshold per spec.
+	// Interleaved sampling + median eliminates OS scheduling bias.
 	assert.Less(t, diff, 10.0, "timing variance between correct and wrong password must be < 10ms")
 }
 

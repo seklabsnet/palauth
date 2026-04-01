@@ -1,61 +1,68 @@
-run:
-  timeout: 5m
-
+version: "2"
 linters:
   enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - gosec
-    - gocritic
     - bodyclose
+    - copyloopvar
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
+    - misspell
     - noctx
+    - prealloc
+    - revive
     - rowserrcheck
     - sqlclosecheck
-    - copyloopvar
-    - exhaustive
-    - prealloc
     - unconvert
     - unparam
-    - misspell
-    - revive
-    - errorlint
-
-linters-settings:
-  gosec:
-    severity: high
-    confidence: medium
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-      - opinionated
-  revive:
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - opinionated
+    gosec:
+      severity: high
+      confidence: medium
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: exported
+        - name: increment-decrement
+        - name: var-naming
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
     rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: exported
-      - name: increment-decrement
-      - name: var-naming
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-  exhaustive:
-    default-signifies-exhaustive: true
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gosec
-        - errcheck
+      - linters:
+          - errcheck
+          - gosec
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

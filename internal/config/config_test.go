@@ -9,6 +9,7 @@ import (
 )
 
 func TestLoad_MissingPepper(t *testing.T) {
+	t.Setenv("PALAUTH_AUTH_PEPPER", "")
 	_, err := Load("")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "PALAUTH_PEPPER")

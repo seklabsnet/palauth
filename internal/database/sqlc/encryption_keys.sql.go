@@ -93,3 +93,33 @@ func (q *Queries) RevokeUserDEK(ctx context.Context, userID *string) error {
 	_, err := q.db.Exec(ctx, revokeUserDEK, userID)
 	return err
 }
+
+const getUserDEKByProject = `-- name: GetUserDEKByProject :one
+SELECT id, project_id, user_id, encrypted_key, key_type, created_at, revoked_at FROM encryption_keys
+WHERE user_id = $1 AND project_id = $2 AND key_type = 'user_dek' AND revoked_at IS NULL
+`
+
+func (q *Queries) GetUserDEKByProject(ctx context.Context, userID *string, projectID *string) (EncryptionKey, error) {
+	row := q.db.QueryRow(ctx, getUserDEKByProject, userID, projectID)
+	var i EncryptionKey
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.EncryptedKey,
+		&i.KeyType,
+		&i.CreatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const revokeUserDEKByProject = `-- name: RevokeUserDEKByProject :exec
+UPDATE encryption_keys SET revoked_at = now()
+WHERE user_id = $1 AND project_id = $2 AND key_type = 'user_dek' AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeUserDEKByProject(ctx context.Context, userID *string, projectID *string) error {
+	_, err := q.db.Exec(ctx, revokeUserDEKByProject, userID, projectID)
+	return err
+}

@@ -711,15 +711,15 @@ GET  /admin/projects/:id/audit-logs/export  → JSON/CSV download
 ```
 
 **Kabul kriterleri:**
-- [ ] Her auth event loglanir
-- [ ] Hash chain tutarli — verify basarili
-- [ ] DB'de bir log degistirilirse verify basarisiz olur + kirik noktayi raporlar
-- [ ] PII alanlari sifreli saklanir
-- [ ] Canonical JSON deterministic (ayni data → ayni hash, her zaman)
-- [ ] `gdpr.erasure` event tipi loglanir (user delete'te)
-- [ ] Erasure sonrasi: PII okunamaz ama hash chain hala gecerli
-- [ ] Pagination calisiyor (cursor-based)
-- [ ] Export calisiyor (JSON + CSV)
+- [x] Her auth event loglanir
+- [x] Hash chain tutarli — verify basarili
+- [x] DB'de bir log degistirilirse verify basarisiz olur + kirik noktayi raporlar
+- [x] PII alanlari sifreli saklanir
+- [x] Canonical JSON deterministic (ayni data → ayni hash, her zaman)
+- [x] `gdpr.erasure` event tipi loglanir (user delete'te)
+- [x] Erasure sonrasi: PII okunamaz ama hash chain hala gecerli
+- [x] Pagination calisiyor (cursor-based)
+- [x] Export calisiyor (JSON + CSV)
 
 **Bagimlilk:** T0.3 (DB), T0.5 (crypto)
 

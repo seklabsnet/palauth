@@ -19,6 +19,7 @@ import (
 
 	"github.com/palauth/palauth/internal/admin"
 	"github.com/palauth/palauth/internal/apikey"
+	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/config"
 	"github.com/palauth/palauth/internal/project"
 	palredis "github.com/palauth/palauth/internal/redis"
@@ -34,6 +35,7 @@ type Server struct {
 	adminSvc   *admin.Service
 	projectSvc *project.Service
 	apikeySvc  *apikey.Service
+	auditSvc   *audit.Service
 }
 
 func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredis.Client) *Server {
@@ -49,6 +51,12 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	signingKey := mac.Sum(nil)
 	adminSvc := admin.NewService(db, cfg.Auth.Pepper, signingKey, logger)
 
+	// Derive audit KEK from pepper via HMAC-SHA256 for key separation.
+	auditMac := hmac.New(sha256.New, []byte(cfg.Auth.Pepper))
+	auditMac.Write([]byte("audit-log-kek"))
+	auditKEK := auditMac.Sum(nil)
+	auditSvc := audit.NewService(db, auditKEK, logger)
+
 	s := &Server{
 		cfg:        cfg,
 		router:     r,
@@ -58,6 +66,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		adminSvc:   adminSvc,
 		projectSvc: projectSvc,
 		apikeySvc:  apikeySvc,
+		auditSvc:   auditSvc,
 	}
 
 	s.setupMiddleware()
@@ -117,6 +126,9 @@ func (s *Server) setupRoutes() {
 			r.Delete("/", s.handleDeleteProject)
 			r.Post("/keys/rotate", s.handleRotateKeys)
 			r.Get("/keys", s.handleListKeys)
+			r.Get("/audit-logs", s.handleListAuditLogs)
+			r.Post("/audit-logs/verify", s.handleVerifyAuditLogs)
+			r.Get("/audit-logs/export", s.handleExportAuditLogs)
 		})
 	})
 }

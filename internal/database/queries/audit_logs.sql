@@ -4,10 +4,39 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: GetLastAuditLog :one
-SELECT * FROM audit_logs WHERE project_id = $1 ORDER BY created_at DESC LIMIT 1;
+SELECT * FROM audit_logs WHERE project_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1;
 
--- name: ListAuditLogs :many
-SELECT * FROM audit_logs WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3;
+-- name: ListAuditLogsAsc :many
+-- NOTE: No LIMIT — used by Verify() and Export() which need full chain.
+-- Acceptable for Phase 0 (bounded project sizes). Add streaming/batching for production scale.
+SELECT * FROM audit_logs WHERE project_id = $1 ORDER BY created_at ASC, id ASC;
 
--- name: ListAuditLogsByType :many
-SELECT * FROM audit_logs WHERE project_id = $1 AND event_type = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4;
+-- name: ListAuditLogsCursor :many
+SELECT * FROM audit_logs
+WHERE project_id = $1 AND (created_at, id) < ($2, $3)
+ORDER BY created_at DESC, id DESC
+LIMIT $4;
+
+-- name: ListAuditLogsCursorByType :many
+SELECT * FROM audit_logs
+WHERE project_id = $1 AND event_type = $2 AND (created_at, id) < ($3, $4)
+ORDER BY created_at DESC, id DESC
+LIMIT $5;
+
+-- name: ListAuditLogsFirst :many
+SELECT * FROM audit_logs
+WHERE project_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT $2;
+
+-- name: ListAuditLogsFirstByType :many
+SELECT * FROM audit_logs
+WHERE project_id = $1 AND event_type = $2
+ORDER BY created_at DESC, id DESC
+LIMIT $3;
+
+-- name: CountAuditLogs :one
+SELECT count(*) FROM audit_logs WHERE project_id = $1;
+
+-- name: CountAuditLogsByType :one
+SELECT count(*) FROM audit_logs WHERE project_id = $1 AND event_type = $2;

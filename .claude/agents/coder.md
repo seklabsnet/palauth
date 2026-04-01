@@ -58,8 +58,9 @@ Before moving to review, you must verify ALL acceptance criteria from the phase 
 2. Go through each criterion one by one
 3. For each criterion: verify it is implemented AND has a passing test
 4. If ANY criterion is not met — implement it before proceeding
-5. Run the full test suite: `go test ./... -v -count=1`
-6. Run build: `go build ./...`
+5. Run lint: `golangci-lint run ./...` — fix ALL lint issues before proceeding
+6. Run the full test suite: `go test ./... -v -count=1`
+7. Run build: `go build ./...`
 
 Only after ALL acceptance criteria are satisfied and all tests pass, message the lead with:
 - Files changed
@@ -90,7 +91,7 @@ All communication is direct between you and reviewers. Every fix goes back throu
 ## Responding to Review Feedback
 
 - Fix ALL issues — every finding from reviewers must be resolved, no exceptions
-- After fixes, always: `go build ./...` then `go test ./... -v -count=1`
+- After fixes, always: `golangci-lint run ./...` then `go build ./...` then `go test ./... -v -count=1`
 - Re-verify acceptance criteria still pass after fixes
 - Message the reviewer directly: "Fixed [issues]. Tests pass. Ready for re-review."
 - If you disagree with a finding, explain why to the reviewer — don't silently ignore it

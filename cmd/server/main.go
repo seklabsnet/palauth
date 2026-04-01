@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/palauth/palauth/internal/config"
+	"github.com/palauth/palauth/internal/server"
 )
 
 func main() {
@@ -19,19 +20,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Setup structured logger
-	var handler slog.Handler
-	switch cfg.Log.Format {
-	case "text":
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level: parseLogLevel(cfg.Log.Level),
-		})
-	default:
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level: parseLogLevel(cfg.Log.Level),
-		})
-	}
-	logger := slog.New(handler)
+	logger := setupLogger(cfg)
 	slog.SetDefault(logger)
 
 	logger.Info("palauth server starting",
@@ -40,8 +29,23 @@ func main() {
 		"fips", cfg.FIPS,
 	)
 
-	// TODO(T0.2): HTTP server + router + middleware
-	logger.Info("server ready", "addr", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port))
+	srv := server.New(cfg, logger)
+	if err := srv.Start(); err != nil {
+		logger.Error("server failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+func setupLogger(cfg *config.Config) *slog.Logger {
+	level := parseLogLevel(cfg.Log.Level)
+	var handler slog.Handler
+	switch cfg.Log.Format {
+	case "text":
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	default:
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	}
+	return slog.New(handler)
 }
 
 func parseLogLevel(level string) slog.Level {

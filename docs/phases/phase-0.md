@@ -106,13 +106,13 @@ Her task kendi unit/integration testini birlikte yazar. T0.17 final sweep — co
 - `.env.example` — tum zorunlu env var'lar dokumante
 
 **Kabul kriterleri:**
-- [ ] `make build` basarili — tek binary uretir
-- [ ] `make test` basarili — bos test suite calisir
-- [ ] `make lint` basarili — golangci-lint gecer
+- [x] `make build` basarili — tek binary uretir
+- [x] `make test` basarili — bos test suite calisir
+- [x] `make lint` basarili — golangci-lint gecer
 - [ ] `make dev` → postgres+redis ayaga kalkar, Go server hot reload ile calisir
 - [ ] GitHub Actions PR'da calisir (lint + test + build + security review)
-- [ ] Config koanf ile yuklenebiliyor (env var + yaml + defaults)
-- [ ] `PALAUTH_PEPPER` set edilmemisse server baslamayi reddeder
+- [x] Config koanf ile yuklenebiliyor (env var + yaml + defaults)
+- [x] `PALAUTH_PEPPER` set edilmemisse server baslamayi reddeder
 
 **Bagimlilk:** Yok (ilk task)
 
@@ -165,12 +165,12 @@ GET  /metrics
 ```
 
 **Kabul kriterleri:**
-- [ ] `curl localhost:3000/healthz` → 200
-- [ ] Security headers tum response'larda var (HSTS, CSP, X-Content-Type-Options, X-Frame-Options, X-XSS-Protection:0, Referrer-Policy, Permissions-Policy, Cache-Control on auth endpoints)
-- [ ] CORS dogru calisiyor (whitelist disindaki origin reddediliyor)
-- [ ] Graceful shutdown calisiyor (SIGTERM → drain → exit)
-- [ ] Request ID her response header'inda var
-- [ ] slog ile structured JSON log ciktisi
+- [x] `curl localhost:3000/healthz` → 200
+- [x] Security headers tum response'larda var (HSTS, CSP, X-Content-Type-Options, X-Frame-Options, X-XSS-Protection:0, Referrer-Policy, Permissions-Policy, Cache-Control on auth endpoints)
+- [x] CORS dogru calisiyor (whitelist disindaki origin reddediliyor)
+- [x] Graceful shutdown calisiyor (SIGTERM → drain → exit)
+- [x] Request ID her response header'inda var
+- [x] slog ile structured JSON log ciktisi
 
 **Bagimlilk:** T0.1
 
@@ -351,10 +351,10 @@ GET  /metrics
   ```
 
 **Kabul kriterleri:**
-- [ ] `make migrate` basarili — tum tablolar olusur
-- [ ] `make migrate-down` basarili — rollback calisir
-- [ ] sqlc ile type-safe query'ler generate edilir
-- [ ] Connection pool dogru calisiyor (health check DB'yi kontrol eder)
+- [x] `make migrate` basarili — tum tablolar olusur
+- [x] `make migrate-down` basarili — rollback calisir
+- [x] sqlc ile type-safe query'ler generate edilir
+- [x] Connection pool dogru calisiyor (health check DB'yi kontrol eder)
 
 **Bagimlilk:** T0.1
 

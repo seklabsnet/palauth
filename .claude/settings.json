@@ -11,5 +11,8 @@
       "Bash(go mod:*)",
       "Bash(go test:*)"
     ]
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   }
 }

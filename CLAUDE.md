@@ -279,6 +279,72 @@ Detay: `spec-compliance.md`
 - YASAK: Chacha20, MD5, SHA-1 (signing), RSA 1024
 - Argon2id FIPS-approved DEGIL → PBKDF2-HMAC-SHA256 (600K+ iteration)
 
+## Agent Team Workflow
+
+Kod gelistirme agent team ile yapilir. `.claude/agents/` altinda 3 subagent tanimi var:
+
+| Agent | Rol |
+|-------|-----|
+| `coder` | Kodu yazar, testleri yazar, derler, calistirir |
+| `code-reviewer` | Code quality + architecture review |
+| `security-reviewer` | Security + compliance review |
+
+### Nasil Kullanilir
+
+Terminal'de: `claude` ile basla, sonra:
+```
+T0.7'yi kodla — agent team olustur: coder, code-reviewer, security-reviewer
+```
+
+### Review Cycle (Iteratif)
+
+Agent'lar kendi aralarinda konusarak iteratif review yapar:
+
+```
+Phase 1: Code Quality Loop
+  coder yazar → code-reviewer review eder → coder duzeltir → code-reviewer PASS
+
+Phase 2: Security Loop
+  security-reviewer review eder → coder duzeltir → security-reviewer PASS
+
+Phase 3: Final Quality Check
+  code-reviewer son kontrol (security fix'leri quality'yi bozmus olabilir mi?)
+  → Sorun varsa coder duzeltir → code-reviewer PASS
+
+Phase 4: Final Security Sign-off
+  security-reviewer final onay → IS BITTI
+```
+
+Bu sira ONEMLI:
+- Security fix'leri bazen architecture'i bozar → Phase 3 bunu yakalar
+- Code quality fix'leri nadiren security'yi bozar ama Phase 4 garanti eder
+- **security-reviewer'in final PASS'i olmadan task "done" sayilmaz**
+
+### Lead Sorumlulugu
+
+Lead (ana session) su kurallari takip eder:
+1. **coder** teammate'i spawn et → task'i implement etsin
+2. Coder bitince **code-reviewer** spawn et → Phase 1 baslat
+3. Code review PASS alinca **security-reviewer** spawn et → Phase 2 baslat
+4. Security review PASS alinca code-reviewer'a "final check" mesaji at → Phase 3
+5. Final quality PASS alinca security-reviewer'a "final sign-off" mesaji at → Phase 4
+6. Her iki reviewer PASS verince → sonuclari sentezle, task'i kapat
+
+### Onemli Kurallar
+
+- Review phase'leri SIRAYLA ilerler (paralel degil — cunku her phase oncekine bagimli)
+- CRITICAL/HIGH issue varsa coder duzeltmeli, reviewer TEKRAR kontrol etmeli
+- Reviewer'lar birbirine mesaj atabilir (ornegin security-reviewer code-reviewer'a "su pattern'i sen de kontrol et" diyebilir)
+- Bir review cycle'da 3'ten fazla iterasyon olursa lead durumu degerlendirip mudahale eder
+
+### Agent Team olmadan (tek session)
+
+Eger agent team kullanmiyorsan, `dev-pipeline` skill'i ayni is akisini tek session icinde yapar:
+1. Kodu yaz
+2. code-review skill'ini oku ve self-review yap
+3. security-review skill'ini oku ve self-review yap
+4. Sorunlari duzelt, sonucu sun
+
 ## Do NOT
 
 - Hardcode secrets (PCI DSS 8.6.2 — YASAK)

@@ -83,7 +83,7 @@ func Recovery(logger *slog.Logger) func(http.Handler) http.Handler {
 						"stack", string(debug.Stack()),
 						"request_id", GetRequestID(r.Context()),
 					)
-					WriteError(w, r, http.StatusInternalServerError, "internal_error", "An unexpected error occurred")
+					writeErrorWithLogger(logger, w, r, http.StatusInternalServerError, "internal_error", "An unexpected error occurred")
 				}
 			}()
 			next.ServeHTTP(w, r)

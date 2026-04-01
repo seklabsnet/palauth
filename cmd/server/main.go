@@ -30,7 +30,6 @@ func run() error {
 	}
 
 	logger := setupLogger(cfg)
-	slog.SetDefault(logger)
 
 	// Run migrations if flag is set
 	if *migrate {

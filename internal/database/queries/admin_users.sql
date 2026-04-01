@@ -10,7 +10,7 @@ SELECT * FROM admin_users WHERE email = $1;
 SELECT * FROM admin_users WHERE id = $1;
 
 -- name: ListAdmins :many
-SELECT * FROM admin_users ORDER BY created_at DESC;
+SELECT id, email, role, created_at FROM admin_users ORDER BY created_at DESC;
 
 -- name: DeleteAdmin :exec
 DELETE FROM admin_users WHERE id = $1;

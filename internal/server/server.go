@@ -59,7 +59,7 @@ func (s *Server) setupMiddleware() {
 	s.router.Use(MaxBodySize)
 
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3001"},
+		AllowedOrigins:   s.cfg.Server.CORSAllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Request-ID"},
 		ExposedHeaders:   []string{"X-Request-ID"},
@@ -76,18 +76,18 @@ func (s *Server) setupRoutes() {
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
-	WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	s.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
 	if s.db != nil {
 		if err := s.db.Ping(r.Context()); err != nil {
-			WriteError(w, r, http.StatusServiceUnavailable, "database_unavailable", "Database is not reachable")
+			s.WriteError(w, r, http.StatusServiceUnavailable, "database_unavailable", "Database is not reachable")
 			return
 		}
 	}
 	// TODO(T0.4): Check Redis connection
-	WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	s.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // Router returns the chi router for testing.

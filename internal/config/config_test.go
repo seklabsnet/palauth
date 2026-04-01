@@ -15,7 +15,7 @@ func TestLoad_MissingPepper(t *testing.T) {
 }
 
 func TestLoad_Defaults(t *testing.T) {
-	t.Setenv("PALAUTH_AUTH_PEPPER", "test-pepper-at-least-32-bytes!!")
+	t.Setenv("PALAUTH_AUTH_PEPPER", "test-pepper-at-least-32-bytes!!!")
 
 	cfg, err := Load("")
 	require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestLoad_Defaults(t *testing.T) {
 }
 
 func TestLoad_EnvOverride(t *testing.T) {
-	t.Setenv("PALAUTH_AUTH_PEPPER", "test-pepper-at-least-32-bytes!!")
+	t.Setenv("PALAUTH_AUTH_PEPPER", "test-pepper-at-least-32-bytes!!!")
 	t.Setenv("PALAUTH_SERVER_PORT", "8080")
 	t.Setenv("PALAUTH_LOG_LEVEL", "debug")
 
@@ -94,10 +94,40 @@ auth:
 
 func TestValidate_InvalidPort(t *testing.T) {
 	cfg := &Config{
-		Auth: AuthConfig{Pepper: "test-pepper"},
+		Auth:   AuthConfig{Pepper: "test-pepper-at-least-32-bytes!!!"},
 		Server: ServerConfig{Port: 99999},
 	}
 	err := cfg.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid server port")
+}
+
+func TestValidate_PepperTooShort(t *testing.T) {
+	cfg := &Config{
+		Auth:   AuthConfig{Pepper: "short"},
+		Server: ServerConfig{Port: 3000},
+	}
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PALAUTH_PEPPER must be at least 32 bytes")
+}
+
+func TestValidate_CORSWildcardRejected(t *testing.T) {
+	cfg := &Config{
+		Auth:   AuthConfig{Pepper: "test-pepper-at-least-32-bytes!!!"},
+		Server: ServerConfig{Port: 3000, CORSAllowedOrigins: []string{"*"}},
+	}
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "wildcard CORS origin")
+}
+
+func TestValidate_CORSWildcardAmongOthers(t *testing.T) {
+	cfg := &Config{
+		Auth:   AuthConfig{Pepper: "test-pepper-at-least-32-bytes!!!"},
+		Server: ServerConfig{Port: 3000, CORSAllowedOrigins: []string{"http://localhost:3001", "*"}},
+	}
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "wildcard CORS origin")
 }

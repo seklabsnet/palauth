@@ -22,8 +22,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port int    `koanf:"port"`
-	Host string `koanf:"host"`
+	Port               int      `koanf:"port"`
+	Host               string   `koanf:"host"`
+	CORSAllowedOrigins []string `koanf:"cors_allowed_origins"`
 }
 
 type DatabaseConfig struct {
@@ -63,8 +64,9 @@ func Load(configPath string) (*Config, error) {
 
 	// Defaults
 	defaults := map[string]any{
-		"server.port":              3000,
-		"server.host":              "0.0.0.0",
+		"server.port":                 3000,
+		"server.host":                 "0.0.0.0",
+		"server.cors_allowed_origins": []string{"http://localhost:3001"},
 		"database.max_open_conns":  25,
 		"database.max_idle_conns":  5,
 		"database.conn_max_lifetime": 300,
@@ -124,8 +126,16 @@ func (c *Config) Validate() error {
 	if c.Auth.Pepper == "" {
 		return errors.New("PALAUTH_PEPPER is required — server cannot start without it")
 	}
+	if len(c.Auth.Pepper) < 32 {
+		return fmt.Errorf("PALAUTH_PEPPER must be at least 32 bytes, got %d", len(c.Auth.Pepper))
+	}
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d", c.Server.Port)
+	}
+	for _, origin := range c.Server.CORSAllowedOrigins {
+		if origin == "*" {
+			return errors.New("wildcard CORS origin '*' is not allowed")
+		}
 	}
 	return nil
 }

@@ -16,8 +16,8 @@ import (
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
 	cfg := &config.Config{
-		Server: config.ServerConfig{Port: 0, Host: "127.0.0.1"},
-		Auth:   config.AuthConfig{Pepper: "test-pepper-at-least-32-bytes!!"},
+		Server: config.ServerConfig{Port: 0, Host: "127.0.0.1", CORSAllowedOrigins: []string{"http://localhost:3001"}},
+		Auth:   config.AuthConfig{Pepper: "test-pepper-at-least-32-bytes!!!"},
 		Log:    config.LogConfig{Level: "info", Format: "json"},
 	}
 	logger := slog.Default()

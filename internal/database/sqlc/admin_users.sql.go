@@ -7,6 +7,8 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createAdminUser = `-- name: CreateAdminUser :one
@@ -84,22 +86,28 @@ func (q *Queries) GetAdminByID(ctx context.Context, id string) (AdminUser, error
 }
 
 const listAdmins = `-- name: ListAdmins :many
-SELECT id, email, password_hash, role, created_at FROM admin_users ORDER BY created_at DESC
+SELECT id, email, role, created_at FROM admin_users ORDER BY created_at DESC
 `
 
-func (q *Queries) ListAdmins(ctx context.Context) ([]AdminUser, error) {
+type ListAdminsRow struct {
+	ID        string             `json:"id"`
+	Email     string             `json:"email"`
+	Role      string             `json:"role"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) ListAdmins(ctx context.Context) ([]ListAdminsRow, error) {
 	rows, err := q.db.Query(ctx, listAdmins)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AdminUser{}
+	items := []ListAdminsRow{}
 	for rows.Next() {
-		var i AdminUser
+		var i ListAdminsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
-			&i.PasswordHash,
 			&i.Role,
 			&i.CreatedAt,
 		); err != nil {

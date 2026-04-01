@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
@@ -22,15 +23,17 @@ type Server struct {
 	router *chi.Mux
 	logger *slog.Logger
 	http   *http.Server
+	db     *pgxpool.Pool
 }
 
-func New(cfg *config.Config, logger *slog.Logger) *Server {
+func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool) *Server {
 	r := chi.NewRouter()
 
 	s := &Server{
 		cfg:    cfg,
 		router: r,
 		logger: logger,
+		db:     db,
 	}
 
 	s.setupMiddleware()
@@ -77,7 +80,12 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
-	// TODO(T0.3): Check DB connection
+	if s.db != nil {
+		if err := s.db.Ping(r.Context()); err != nil {
+			WriteError(w, r, http.StatusServiceUnavailable, "database_unavailable", "Database is not reachable")
+			return
+		}
+	}
 	// TODO(T0.4): Check Redis connection
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

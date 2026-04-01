@@ -1,27 +1,46 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/palauth/palauth/internal/config"
+	"github.com/palauth/palauth/internal/database"
 	"github.com/palauth/palauth/internal/server"
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	configPath := flag.String("config", "", "path to YAML config file")
+	migrate := flag.Bool("migrate", false, "run database migrations and exit")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("loading config: %w", err)
 	}
 
 	logger := setupLogger(cfg)
 	slog.SetDefault(logger)
+
+	// Run migrations if flag is set
+	if *migrate {
+		logger.Info("running database migrations")
+		if err := database.RunMigrations(cfg.Database.URL, "migrations"); err != nil {
+			return fmt.Errorf("migration failed: %w", err)
+		}
+		logger.Info("migrations completed successfully")
+		return nil
+	}
 
 	logger.Info("palauth server starting",
 		"port", cfg.Server.Port,
@@ -29,11 +48,17 @@ func main() {
 		"fips", cfg.FIPS,
 	)
 
-	srv := server.New(cfg, logger)
-	if err := srv.Start(); err != nil {
-		logger.Error("server failed", "error", err)
-		os.Exit(1)
+	// Connect to database
+	ctx := context.Background()
+	db, err := database.NewPool(ctx, &cfg.Database)
+	if err != nil {
+		return fmt.Errorf("connecting to database: %w", err)
 	}
+	defer db.Close()
+	logger.Info("database connected")
+
+	srv := server.New(cfg, logger, db)
+	return srv.Start()
 }
 
 func setupLogger(cfg *config.Config) *slog.Logger {

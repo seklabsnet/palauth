@@ -1,4 +1,4 @@
-.PHONY: build test lint migrate dev dev-down clean
+.PHONY: build test lint migrate migrate-down sqlc dev dev-down clean
 
 BINARY := palauth
 BUILD_DIR := bin
@@ -14,6 +14,12 @@ lint:
 
 migrate:
 	goose -dir migrations postgres "$$PALAUTH_DATABASE_URL" up
+
+migrate-down:
+	goose -dir migrations postgres "$$PALAUTH_DATABASE_URL" down
+
+sqlc:
+	sqlc generate
 
 dev:
 	docker compose -f docker/docker-compose.yml up -d

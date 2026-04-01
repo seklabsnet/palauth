@@ -86,7 +86,7 @@ FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deplo
 - Two different authentication factors
 - Password + TOTP, or password + WebAuthn, or multi-factor crypto device
 - SMS OTP allowed but restricted (user must be warned, alternative offered)
-- **SHALL offer at least one phishing-resistant option** (NIST 800-63B-4 Sec 2.2.2)
+- **SHALL offer at least one phishing-resistant option** (NIST 800-63B-4 Sec 4.2.1)
 - Idle timeout: SHOULD 1 hour
 - Absolute timeout: SHOULD 24 hours
 - MitM resistance required
@@ -111,7 +111,7 @@ FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deplo
 | Konu | NIST 800-63B-4 | PCI DSS v4.0.1 | Cozum |
 |------|----------------|-----------------|-------|
 | Min uzunluk (single-factor) | **15 karakter (SHALL)** | 12 karakter (Req 8.3.6) | **15 karakter** (daha siki olan kazanir) |
-| Composition rules | **SHALL NOT** impose | Numerik + alfa zorunlu (Req 8.3.6) | Composition uygulanmaz — compensating control: 15+ char + HIBP + full NIST control set. QSA validation gerekir |
+| Composition rules | **SHALL NOT** impose | Buyuk harf + kucuk harf + sayi + ozel karakter zorunlu (Req 8.3.6) | Composition uygulanmaz — Customized Approach: 15+ char + HIBP + full NIST control set. QSA validation gerekir (SAQ organizasyonlari ROC'a gecerek kullanabilir) |
 | Periyodik rotation | **SHALL NOT** require | 90 gun (Req 8.3.9) | MFA aktifse Req 8.3.9 gecerli degil (scope condition). MFA olmadan 90 gun rotation |
 | Compromised check | **SHALL** check | Belirtilmemis | HaveIBeenPwned k-Anonymity API zorunlu |
 
@@ -217,14 +217,14 @@ FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deplo
 - Factors must be independent
 - Dynamic linking for payment transactions (amount + payee bound to auth code)
 - WYSIWYS (What You See Is What You Sign)
-- Max 5-minute auth code lifetime
+- OTP/auth code tek kullanimlik (replay korumasi), max 5dk gecerlilik (RTS Art. 4(3)(c))
 - Max 5 failed attempts
-- Max 5-minute session inactivity timeout
+- Max 5-minute session inactivity timeout (RTS Art. 4(3)(d))
 
 ### PSD3/PSR (Politik anlasma: 27 Kasim 2025, PSR yururluk: H2 2027 - basi 2028)
 
 **SCA kurallari artik PSR Articles 85-89'da** (dogrudan uygulanabilir regulation):
-- Iki inherence faktoru izinli (orn: parmak izi + yuz tanima) — SADECE inherence kategorisinde
+- Iki inherence faktoru AYNI ANDA kullanilamaz — SCA her zaman farkli kategorilerden iki bagimsiz faktor gerektirir (orn: inherence + possession). Ancak PSD3, inherence faktorlerini daha genis tanimliyor (davranissal biyometri dahil)
 - Genisletilmis SCA kapsami: login, mandate setup, cihaz recovery
 - SCA erisilebirligi yasal hak: akilli telefon disinda yontemler zorunlu
 - SCA delegasyonu = outsourcing
@@ -265,8 +265,8 @@ FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deplo
 - SLA'lar (uptime, response time, RTO/RPO)
 - Cikis stratejisi (exit plan)
 - Denetim haklari (musteri/regulator)
-- Olay bildirimi (24 saat)
-- Is surekliligi testi
+- Olay bildirimi (siniflandirmadan itibaren 4 saat ilk bildirim, tespitten itibaren max 24 saat, 72 saat ara rapor, 1 ay nihai rapor)
+- Is surekliligi testi (yillik, onemli ICT degisikliklerinden sonra da zorunlu)
 
 ### Teknik Gereksinimler
 1. ICT risk management framework
@@ -282,10 +282,10 @@ FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deplo
 ### Implementasyon (€30K-€100K)
 - DORA-compliant sozlesme template'leri
 - SLA/SLO dokumantasyonu
-- Incident response + reporting (24 saat)
+- Incident response + reporting (4 saat ilk bildirim, max 24 saat, 72 saat ara rapor, 1 ay nihai rapor)
 - Exit/transition plani
 - Denetim erisim mekanizmasi
-- Is surekliligi test raporu (6 aylik)
+- Is surekliligi test raporu (yillik + onemli ICT degisiklikleri sonrasi. TLPT: 3 yilda bir)
 
 ---
 
@@ -295,10 +295,10 @@ FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deplo
 Kriptografik modullerin guvenligini dogrulayan ABD federal standardi. FIPS 140-2 **21 Eylul 2026'da** sunset.
 
 ### Self-Hosted icin Ideal
-Urun-seviye sertifika — deployment modeline bagli degil. Go 1.24 native FIPS 140-3 module (sertifika A6650, cgo gerektirmez).
+Urun-seviye sertifika — deployment modeline bagli degil. Go 1.26 native FIPS 140-3 module (sertifika A6650, cgo gerektirmez).
 
 ### Uygulama
-- **Yol 1:** Go 1.24 native FIPS module (oneri)
+- **Yol 1:** Go 1.26 native FIPS module (oneri)
 - **Yol 2:** VaaS (SafeLogic) — €50K-€150K, ~2 ay
 
 ### FIPS Mode
@@ -360,7 +360,7 @@ Urun-seviye sertifika — deployment modeline bagli degil. Go 1.24 native FIPS 1
 - RPO: Max 1 saat, RTO: Max 4 saat
 - PostgreSQL PITR, Redis AOF + snapshot
 - Encrypted backup'lar, ayri region'da kopya
-- DR testi: 6 ayda bir (SOC 2 kaniti)
+- DR testi: Yillik (SOC 2 minimum gereksinim). 6 ayda bir yapilmasi onerilen best practice
 
 ### Network Segmentation
 - Auth server kendi VPC'sinde (PCI DSS zorunlu)
@@ -386,23 +386,24 @@ Urun-seviye sertifika — deployment modeline bagli degil. Go 1.24 native FIPS 1
 
 ---
 
-## 14. Rakip Sertifika Karsilastirmasi
+## 14. Rakip Sertifika Karsilastirmasi (Son guncelleme: Nisan 2026)
 
 | Ozellik | PalAuth | Auth0 | Firebase | Supabase | Descope | Hanko | WorkOS | Zitadel | Ory | SuperTokens |
 |---------|---------|-------|----------|----------|---------|-------|--------|---------|-----|-------------|
-| OpenID FAPI 2.0 | Hedef | FAPI 1 | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
+| OpenID FAPI 2.0 | Hedef | FAPI 1+2 | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
 | FIDO2 Certified | Hedef | Hayir | Hayir | Hayir | Evet | Evet | Hayir | Hayir | Hayir | Hayir |
 | OpenID Certified | Hedef | Evet | Evet* | Hayir | Hayir | Hayir | Hayir | Evet | Evet (Hydra) | Hayir |
 | SOC 2 Type II | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Evet | Evet | Evet |
 | ISO 27001 | Hedef | Evet | Evet | Beklemede | Evet | Hayir | Hayir | Evet | Evet | Hayir |
 | PCI DSS v4.0.1 | Hedef | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
 | FedRAMP High | Hedef | Hayir | Evet* | Hayir | Evet | Hayir | Hayir | Hayir | Hayir | Hayir |
-| HIPAA | Hedef | Evet | Evet | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir |
+| HIPAA | Hedef | Evet | Hayir** | Evet | Evet | Hayir | Evet | Hayir | Hayir | Hayir |
 | PSD2/PSD3 SCA | Hedef | Evet | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
 | eIDAS / EUDI | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
 | Self-hosted | Evet | Hayir | Hayir | Evet | Hayir | Evet | Hayir | Evet | Evet | Evet |
 | PIV/CAC Auth | Hedef | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir | Hayir |
 
 *\* = inherited from Google Cloud*
+*\*\* = Firebase Auth, Google Cloud HIPAA BAA kapsaminda degil. Cloud Identity Platform ile karistirilmamali.*
 
 **Hicbir provider tam portfolyoye sahip degil. Descope en yakini (SOC 2 + ISO + FIDO + FedRAMP High).**

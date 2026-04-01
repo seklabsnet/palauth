@@ -20,7 +20,7 @@
 | Password hash | `alexedwards/argon2id` | latest | ~1K | Argon2id wrapper, PHC format, secure defaults |
 | Validation | `go-playground/validator` | v10 | 19.8K | Struct tag-based, cok aktif |
 | Config | `knadh/koanf` | v2.3.4 | 3.9K | Viper'dan %313 kucuk, modular |
-| Logging | `log/slog` (stdlib) | Go 1.24 | — | Standart, pluggable handler |
+| Logging | `log/slog` (stdlib) | Go 1.26 | — | Standart, pluggable handler |
 | Logging (ek) | `samber/slog-multi` | latest | — | Fan-out, filtering, routing |
 | Rate limiting | `go-chi/httprate` | latest | 438 | Chi-native sliding window |
 | Rate limit (dist) | `go-chi/httprate-redis` | latest | — | Redis backend, multi-instance |
@@ -28,10 +28,10 @@
 | ID generation | `google/uuid` (UUIDv7) | latest | 6K | RFC 9562, PG native uuid, time-ordered |
 | Metrics | `prometheus/client_golang` | v1.23.2 | 5.9K | Standart |
 | OpenAPI codegen | `oapi-codegen/oapi-codegen` | v2.6.0 | 8.1K | Spec-first, Chi first-class |
-| HTTP client | stdlib `net/http` | Go 1.24 | — | Tam kontrol, guvenlik icin onemli |
-| Error handling | stdlib `errors` + domain types | Go 1.24 | — | Basit, custom error codes |
-| Context | stdlib `context` | Go 1.24 | — | Request-scoped metadata |
-| Graceful shutdown | stdlib `signal` + `sync` | Go 1.24 | — | 20-30 satir, kutuphane gereksiz |
+| HTTP client | stdlib `net/http` | Go 1.26 | — | Tam kontrol, guvenlik icin onemli |
+| Error handling | stdlib `errors` + domain types | Go 1.26 | — | Basit, custom error codes |
+| Context | stdlib `context` | Go 1.26 | — | Request-scoped metadata |
+| Graceful shutdown | stdlib `signal` + `sync` | Go 1.26 | — | 20-30 satir, kutuphane gereksiz |
 
 ---
 
@@ -79,7 +79,7 @@
 | ACME/TLS | `caddyserver/certmagic` | v0.25.2 | 5.5K | Auto HTTPS, renewal, distributed locking, wildcard |
 | Tracing | `go.opentelemetry.io/otel` | latest | — | OpenTelemetry standart |
 | Error tracking | `getsentry/sentry-go` | latest | — | Sentry entegrasyonu (opsiyonel) |
-| FIPS 140-3 | Go 1.24 native module | A6650 | — | cgo gereksiz, pure Go |
+| FIPS 140-3 | Go 1.26 native module | A6650 | — | cgo gereksiz, pure Go |
 
 ---
 
@@ -91,7 +91,7 @@
 | Mock generation | `vektra/mockery` | v3.7.0 | 7K | Interface'den mock, v3: 5-10x hizli |
 | Integration test | `testcontainers/testcontainers-go` | v0.41.0 | 4.7K | Gercek PG + Redis container |
 | Property-based | `flyingmutant/rapid` | latest | ~700 | Otomatik shrinking, Hypothesis-inspired |
-| Fuzzing | Go native (`go test -fuzz`) | Go 1.24 | — | Coverage-guided, built-in |
+| Fuzzing | Go native (`go test -fuzz`) | Go 1.26 | — | Coverage-guided, built-in |
 | DAST | OWASP ZAP (external) | latest | — | Docker image ile CI/CD |
 | API fuzzing | Microsoft RESTler (external) | latest | — | Stateful REST API fuzzer |
 | Mutation | go-gremlins (external) | latest | — | Mutation testing |

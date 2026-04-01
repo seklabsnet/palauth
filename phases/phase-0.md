@@ -1,7 +1,7 @@
 # PalAuth — Faz 0: Core Auth (Ay 1-4)
 
 > Hedef: Piyasadaki servislerin %95'inden daha guvenli bir temel. `docker compose up` ile ayaga kalkar.
-> 18 task, 16 hafta. Go 1.24+, PostgreSQL 16+, Redis 7+.
+> 18 task, 16 hafta. Go 1.26+, PostgreSQL 16+, Redis 7+.
 > Her task kendi testini birlikte yazar (TDD). T0.17 final test sweep (coverage, fuzz, security).
 
 ---
@@ -25,7 +25,7 @@
 | Password hash | `alexedwards/argon2id` | latest |
 | Validation | `go-playground/validator` | v10 |
 | Config | `knadh/koanf` | v2.3.4 |
-| Logging | `log/slog` + `samber/slog-multi` | Go 1.24 |
+| Logging | `log/slog` + `samber/slog-multi` | Go 1.26 |
 | Rate limiting | `go-chi/httprate` + `httprate-redis` | latest |
 | CORS | `rs/cors` | v1.11.1 |
 | ID generation | `google/uuid` (UUIDv7) | latest |
@@ -95,7 +95,7 @@ Her task kendi unit/integration testini birlikte yazar. T0.17 final sweep — co
 - `internal/config/config.go` — koanf v2 ile:
   - Environment variables (`PALAUTH_*` prefix)
   - YAML config file (opsiyonel)
-  - Defaults: port=3000, idle_timeout=3600, abs_timeout=86400, pepper (zorunlu)
+  - Defaults: port=3000, pepper (zorunlu). Session timeout'lari AAL-based dinamik (T0.13'te uygulanir: AAL1=idle yok/abs 30gun, AAL2=idle 1sa/abs 24sa, AAL3=idle 15dk/abs 12sa)
   - Struct-based: `Config.Server.Port`, `Config.Database.URL`, `Config.Redis.URL`, `Config.Auth.PasswordMinLength`
 - Makefile: `make build`, `make test`, `make lint`, `make migrate`, `make dev` (air hot reload)
 - `make dev` → docker-compose ile postgres+redis ayaga kaldir + `air` ile Go server hot reload
@@ -372,9 +372,9 @@ GET  /metrics
   ```
   POST /auth/signup    → 5 per 15min per IP
   POST /auth/login     → 10 per 5min per IP, 5 per 5min per account
-  POST /auth/otp/*     → 5 per 5min per account
   POST /auth/password/* → 3 per 15min per account
   GET  /auth/token/refresh → 30 per 1min per session
+  # /auth/otp/* → Faz 1'de eklenecek (5 per 5min per account)
   ```
 - Response headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`
 - 429 response format: `{ "error": "rate_limit_exceeded", "retry_after": 300 }`
@@ -487,7 +487,7 @@ GET    /admin/projects/:id/keys     → API key listesi (hash'siz, prefix + meta
 
 **Yapilacaklar:**
 - `internal/auth/signup.go`:
-  - Password policy kontrolu (15 char min single-factor, max 64 char — truncate YASAK, composition yok, HIBP check)
+  - Password policy kontrolu (15 char min single-factor, 8 char min MFA aktifken [Faz 1+], max 64 char — truncate YASAK, composition yok, HIBP check)
   - Password hash (Argon2id + pepper)
   - Email encryption (AES-256-GCM, per-project DEK)
   - Email hash (deterministic, lookup icin)
@@ -1026,7 +1026,7 @@ POST   /admin/users/invite                → { email, role } → admin kullanic
 **Yapilacaklar:**
 - `docker/Dockerfile.server`:
   ```dockerfile
-  FROM golang:1.24-alpine AS builder
+  FROM golang:1.26-alpine AS builder
   WORKDIR /app
   COPY go.* ./
   RUN go mod download

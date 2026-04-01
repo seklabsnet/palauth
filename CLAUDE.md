@@ -27,7 +27,7 @@ Kod yazmadan once ilgili spec'i oku:
 
 ## Language & Framework
 
-- **Server**: Go 1.24+
+- **Server**: Go 1.26+
 - **Dashboard**: Next.js 15, shadcn/ui, Tailwind, React Query
 - **Mobile SDK**: Kotlin Multiplatform (KMP)
 - **SDK'lar**: TypeScript (client, server, nestjs, edge)
@@ -269,12 +269,12 @@ Detay: `spec-compliance.md`
 
 ### DORA (AB finans sektoru)
 - Sozlesme: SLA, exit plan, denetim haklari
-- Incident reporting: 24 saat
-- Is surekliligi testi: 6 aylik
-- TLPT plani
+- Incident reporting: 4 saat ilk bildirim, max 24 saat, 72 saat ara rapor, 1 ay nihai rapor
+- Is surekliligi testi: yillik (+ onemli ICT degisiklikleri sonrasi). TLPT: 3 yilda bir
+- Cikis stratejisi ve denetim haklari zorunlu
 
 ### FIPS 140-3 (FIPS modu aktifken)
-- Go 1.24 native FIPS module
+- Go 1.26 native FIPS module
 - Approved algoritmalar: AES, SHA-2, HMAC, RSA 2048+, ECDSA, EdDSA
 - YASAK: Chacha20, MD5, SHA-1 (signing), RSA 1024
 - Argon2id FIPS-approved DEGIL → PBKDF2-HMAC-SHA256 (600K+ iteration)

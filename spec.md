@@ -474,7 +474,7 @@ Pipeline'i durdurmaz, bilgilendirme amacli.
 
 - **Bidirectional signing**: Auth server hook'u HMAC-SHA256 ile imzalar, backend response'u imzalar
 - **Replay korumasi**: `webhook-id` + `webhook-timestamp` ile (Standard Webhooks spec)
-- **Timeout**: 10-20sn, asarsa yapilandirilabilir davranis
+- **Timeout**: 15sn default (configurable per hook), asarsa failure_mode'a gore davranis
 - **Failure mode**: Configurable — "deny on failure" (guvenli varsayilan) veya "allow on failure" (uptime oncelikli)
 - **Retry**: Blocking hook'larda retry yok (timeout = failure mode davranisi). Non-blocking hook'larda exponential backoff ile retry
 
@@ -1292,11 +1292,11 @@ authserver/
 | SCIM | elimity-com/scim | CRUD + schema validation (pin commit) |
 | Event system | Go channels (Faz 0), watermill v1.5.1 (Faz 2+) | In-memory → Kafka/Redis/NATS |
 | Config | knadh/koanf v2.3.4 | Viper'dan %313 kucuk, modular |
-| Logging | slog (stdlib) + samber/slog-multi | Go 1.24, structured, fan-out |
+| Logging | slog (stdlib) + samber/slog-multi | Go 1.26, structured, fan-out |
 | Validation | go-playground/validator v10 | Struct tag-based, 19.8K stars |
 | Migration | pressly/goose v3.27.0 | SQL + Go migrations |
 | OpenAPI codegen | oapi-codegen v2.6.0 | Spec-first, Chi first-class |
-| FIPS 140-3 | Go 1.24 native module | Sertifika A6650, cgo gerektirmez |
+| FIPS 140-3 | Go 1.26 native module | Sertifika A6650, cgo gerektirmez |
 | Metrics | prometheus/client_golang v1.23.2 | /metrics endpoint |
 | Rate limiting | go-chi/httprate + httprate-redis | Chi-native sliding window |
 | CORS | rs/cors v1.11.1 | Router-agnostic, 2.8K stars |
@@ -1338,7 +1338,7 @@ Self-hosted'da da SaaS'ta da ayni dashboard kullanilir.
 
 ### 28.3 Runtime
 
-- **Dil**: Go 1.24+ (FIPS 140-3 native module icin minimum)
+- **Dil**: Go 1.26+ (FIPS 140-3 native module icin minimum)
 - **Framework**: Chi router (veya Go 1.22+ stdlib enhanced routing)
 - **Veritabani**: PostgreSQL 16+ (pgx driver, sqlc ile type-safe queries)
 - **Cache/Rate limit**: Redis 7+ (go-redis)
@@ -1393,7 +1393,7 @@ helm install authserver authserver/authserver \
 - Config file (YAML) via koanf
 - Tum ayarlar dashboard veya API ile de degistirilebilir
 - Ilk acilista setup wizard (admin hesap + temel konfigurasyon)
-- FIPS mode: `--fips` flag veya `AUTHSERVER_FIPS=true` env var
+- FIPS mode: `--fips` flag veya `PALAUTH_FIPS=true` env var
 
 ### 28.5 Guvenlik Altyapisi
 
@@ -1608,7 +1608,7 @@ token=<token>&token_type_hint=refresh_token
 3. Database schema + migration sistemi (golang-migrate)
 4. Project yonetimi (CRUD, config, API key uretimi: `pk_test_`/`sk_test_`/`pk_live_`/`sk_live_`)
 5. Email + Password (Argon2id + pepper + salt + HIBP + constant-time)
-6. Email verification (OTP veya magic link)
+6. Email verification (OTP: 6 haneli, 5dk expiry VEYA verification link: 256-bit token, 24 saat expiry)
 7. Password reset (256-bit token, 15dk)
 8. JWT access token (PS256/ES256, 30dk) + JWKS endpoint
 9. Opaque refresh token (rotation + family-based revocation, 30sn grace period)
@@ -1995,7 +1995,7 @@ gremlins unleash --tags "security" ./internal/auth/... ./internal/token/... ./in
 
 - **Arac:** Toxiproxy + Testcontainers
 - **Senaryolar:**
-  - Redis coktu -> rate limiter ne yapiyor? (fail-closed olmali)
+  - Redis coktu -> rate limiter ne yapiyor? (fail-open olmali — rate limit gecici devre disi, auth devam eder. fail-closed total outage yaratir)
   - DB baglanti havuzu doldu -> login calisiyor mu?
   - Hook endpoint 15sn cevap vermedi -> deny_on_failure calisiyor mu?
   - Network partition -> token validation calisiyor mu? (JWT self-contained, calismali)

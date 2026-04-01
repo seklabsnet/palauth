@@ -134,7 +134,7 @@ CREATE INDEX idx_td_user ON trusted_devices(user_id) WHERE expires_at > now();
     4. QR code PNG + secret string (manual entry icin) don
   - `Verify(userID, code string) (bool, error)`:
     1. DB'den enrollment al, secret'i decrypt et
-    2. `pquerna/otp` ile TOTP dogrula (1-step drift tolerance: ±30sn)
+    2. `pquerna/otp` ile TOTP dogrula (1-2 step drift tolerance: ±30-60sn, spec Section 2.2)
     3. Basarili ise: `verified = true`, `user.has_mfa = true`
     4. Constant-time comparison
   - `Validate(userID, code string) (bool, error)` — login sirasinda MFA challenge dogrulama
@@ -203,7 +203,7 @@ POST /auth/mfa/email/verify     → { mfa_token, code } → Email OTP dogrula
 - [ ] Dogru TOTP kodu → MFA verified, session acr=aal2
 - [ ] Yanlis kod → 401, 5 basarisiz → MFA lockout
 - [ ] Replay koruması: Ayni kod 30sn icinde tekrar kullanilamaz
-- [ ] Clock drift ±30sn calisiyor (onceki/sonraki kod kabul)
+- [ ] Clock drift ±60sn calisiyor (1-2 onceki/sonraki kod kabul, spec Section 2.2)
 - [ ] Recovery codes: 10 adet uretiliyor, kullanilinca tekrar kullanilamaz
 - [ ] Recovery code ile MFA bypass calisiyor (acil durum)
 - [ ] Recovery code kullanildiginda tum diger session'lar sonlandirilir (spec Section 11.2)

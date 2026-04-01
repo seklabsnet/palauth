@@ -253,7 +253,8 @@ GET  /auth/step-up/status  → { current_acr, required_acr, methods_available }
 **Kabul kriterleri:**
 - [ ] AAL1 session ile AAL2 endpoint'e erisim → 401 + `insufficient_user_authentication`
 - [ ] Step-up TOTP ile → session acr=aal2, yeni JWT
-- [ ] Step-up WebAuthn (device-bound) ile → session acr=aal3, yeni JWT
+- [ ] Step-up WebAuthn (device-bound, BE=0) ile → session acr=aal3, yeni JWT
+- [ ] Step-up WebAuthn (synced, BE=1) ile → session acr=aal2 (max), aal3'e yukseltilemez
 - [ ] Step-up token 5-15dk sonra expire
 - [ ] `acr_values_supported` OIDC discovery'de gorunuyor
 - [ ] `auth_time` claim step-up sonrasi guncelleniyor
@@ -481,7 +482,7 @@ GET    /admin/projects/:id/organizations/:oid/domain/status → { verified, dns_
   - Grant type validation
 
 - OpenID Connect conformance test suite'ini gecirecek sekilde implement et
-  - Hedeflenen profiller: Basic OP, Config OP
+  - Hedeflenen profiller: Basic OP, Config OP, Form Post OP (Dynamic OP ve Logout profilleri Faz 3+)
 
 **Endpoint'ler:**
 ```

@@ -771,37 +771,99 @@ Go server:
 
 ### 16.1 Loglanan Olaylar
 
-**Authentication:**
-- `auth.login.success`, `auth.login.failure`
+> Bu liste tum fazlardaki event'leri kapsar. Her faz kendi event'lerini ekler.
+
+**Authentication (Faz 0):**
+- `auth.signup`, `auth.login.success`, `auth.login.failure`
 - `auth.logout`
-- `auth.signup`
 - `auth.password.change`, `auth.password.reset.request`, `auth.password.reset.complete`
+- `auth.email.verify`
 
-**MFA:**
+**MFA (Faz 1):**
 - `mfa.enroll`, `mfa.challenge`, `mfa.verify.success`, `mfa.verify.failure`
-- `mfa.remove`
+- `mfa.remove`, `mfa.recovery.used`
 
-**Session:**
+**Social (Faz 1):**
+- `auth.social.login`, `social.link`, `social.unlink`
+
+**Magic Link (Faz 1):**
+- `auth.magic_link.request`, `auth.magic_link.verify`
+
+**Hooks & Webhooks (Faz 1):**
+- `hook.call.success`, `hook.call.failure`
+- `webhook.delivery.success`, `webhook.delivery.failure`
+
+**Session (Faz 0+):**
 - `session.create`, `session.refresh`, `session.revoke`
-- `session.anomaly`
+- `session.anomaly` (Faz 2 — risk engine tetikler)
 
-**Token:**
+**Token (Faz 0):**
 - `token.issue`, `token.refresh`, `token.revoke`
 
-**Account:**
-- `user.create`, `user.update`, `user.delete`
-- `user.email.verify`, `user.phone.verify`
-- `social.link`, `social.unlink`
-- `recovery.initiate`, `recovery.complete`
+**WebAuthn (Faz 2):**
+- `webauthn.register`, `webauthn.login`, `webauthn.remove`, `webauthn.clone_detected`
 
-**Admin:**
+**Step-Up (Faz 2):**
+- `auth.step_up.success`, `auth.step_up.failure`
+
+**Risk (Faz 2):**
+- `risk.evaluate`, `risk.block`
+- `bot.pow.challenge`, `bot.stuffing.detected`, `bot.ip.blocked`
+
+**Organizations (Faz 2):**
+- `org.create`, `org.update`, `org.delete`
+- `org.member.add`, `org.member.remove`, `org.member.role_change`
+- `org.invitation.send`, `org.invitation.accept`, `org.domain.verify`
+
+**OIDC (Faz 2):**
+- `oidc.authorize`, `oidc.token.issue`
+
+**SMS OTP (Faz 2):**
+- `sms.otp.send`
+
+**Admin (Faz 0+):**
 - `admin.user.create`, `admin.user.update`, `admin.user.delete`
-- `admin.impersonate.start`, `admin.impersonate.end`
+- `admin.user.deactivate_inactive`
+- `admin.impersonate.start`, `admin.impersonate.end` (Faz 4)
 - `admin.config.change`
 - `admin.key.rotate`
 
-**Transaction:**
-- `transaction.approve.request`, `transaction.approve.success`, `transaction.approve.failure`
+**Device (Faz 3):**
+- `device.attest.android`, `device.attest.ios`, `device.bind`, `device.revoke`, `device.clone_detected`
+
+**Transaction (Faz 3):**
+- `transaction.create`, `transaction.approve`, `transaction.deny`, `transaction.expire`
+
+**SAML/SSO/SCIM (Faz 3):**
+- `saml.login`, `saml.logout`, `sso.connect`
+- `scim.user.create`, `scim.user.update`, `scim.user.delete`
+
+**Credentials (Faz 3):**
+- `apikey.create`, `apikey.revoke`
+- `serviceaccount.create`, `serviceaccount.rotate`, `serviceaccount.revoke`
+- `pat.create`, `pat.revoke`
+- `m2m.token.issue`
+- `dpop.bind`, `dpop.verify.failure`
+- `par.request`
+
+**Compliance (Faz 3):**
+- `gdpr.export`, `gdpr.erasure`, `gdpr.consent.grant`, `gdpr.consent.revoke`
+- `breach.detected`, `breach.forced_reset`
+- `retention.purge`
+
+**Recovery (Faz 4):**
+- `recovery.contact.add`, `recovery.contact.remove`
+- `recovery.initiate`, `recovery.approve`, `recovery.complete`
+
+**Domain/Migration (Faz 4):**
+- `domain.add`, `domain.verify`, `domain.tls.provision`
+- `migration.start`, `migration.complete`
+
+**Agent/EUDI/KYC (Faz 5):**
+- `agent.create`, `agent.revoke`, `agent.delegation.grant`, `agent.delegation.revoke`
+- `agent.token.issue`, `agent.token.exchange`
+- `eudi.verify.begin`, `eudi.verify.complete`
+- `kyc.initiate`, `kyc.complete`, `kyc.failed`
 
 ### 16.2 Log Formati
 
@@ -2127,32 +2189,116 @@ Dashboard'a giris: Email + sifre (Go server'in kendi auth'u — dogfooding).
 
 ### 44.5 Admin API Endpoint'leri (Go Server)
 
-Dashboard bu endpoint'leri tuketir:
+Dashboard bu endpoint'leri tuketir. Tum fazlardaki endpoint'lerin tam listesi:
 
 ```
-POST   /admin/setup                    → Ilk kurulum (admin hesap + default project)
-GET    /admin/projects                 → Proje listesi
-POST   /admin/projects                 → Yeni proje olustur
-GET    /admin/projects/:id             → Proje detay
-PUT    /admin/projects/:id/config      → Konfigurasyon guncelle
-DELETE /admin/projects/:id             → Proje sil
-POST   /admin/projects/:id/keys/rotate → API key rotate
-GET    /admin/projects/:id/users       → Kullanici listesi
-POST   /admin/projects/:id/users       → Kullanici olustur
-GET    /admin/projects/:id/users/:uid  → Kullanici detay
-PUT    /admin/projects/:id/users/:uid  → Kullanici guncelle
-DELETE /admin/projects/:id/users/:uid  → Kullanici sil (GDPR erasure)
-GET    /admin/projects/:id/sessions    → Session listesi
-DELETE /admin/projects/:id/sessions/:sid → Session sonlandir
-GET    /admin/projects/:id/audit-logs  → Audit log sorgula
+# Setup + Admin Auth (Faz 0)
+POST   /admin/setup                          → Ilk kurulum
+POST   /admin/login                          → Admin login → admin JWT
+GET    /admin/users                          → Dashboard admin kullanicilari
+POST   /admin/users/invite                   → Admin davet
+
+# Project + API Keys (Faz 0)
+GET    /admin/projects                       → Proje listesi
+POST   /admin/projects                       → Yeni proje olustur
+GET    /admin/projects/:id                   → Proje detay
+PUT    /admin/projects/:id/config            → Konfigurasyon guncelle
+DELETE /admin/projects/:id                   → Proje sil
+GET    /admin/projects/:id/keys              → API key listesi
+POST   /admin/projects/:id/keys/rotate       → API key rotate
+
+# Users (Faz 0)
+GET    /admin/projects/:id/users             → Kullanici listesi
+POST   /admin/projects/:id/users             → Kullanici olustur
+GET    /admin/projects/:id/users/:uid        → Kullanici detay
+PUT    /admin/projects/:id/users/:uid        → Kullanici guncelle
+DELETE /admin/projects/:id/users/:uid        → GDPR erasure
+POST   /admin/projects/:id/users/:uid/ban    → Ban
+POST   /admin/projects/:id/users/:uid/unban  → Unban
+POST   /admin/projects/:id/users/:uid/reset-password → Admin password reset
+GET    /admin/projects/:id/users/:uid/export → GDPR export (Faz 3)
+GET    /admin/projects/:id/users/:uid/consents → Consent gecmisi (Faz 3)
+
+# Audit + Analytics (Faz 0)
+GET    /admin/projects/:id/audit-logs        → Audit log sorgula
 POST   /admin/projects/:id/audit-logs/verify → Hash chain dogrula
-GET    /admin/projects/:id/analytics   → Analytics verileri
-PUT    /admin/projects/:id/hooks       → Hook konfigurasyonu
-PUT    /admin/projects/:id/webhooks    → Webhook konfigurasyonu
-GET    /admin/projects/:id/webhooks/dlq → Dead letter queue
-POST   /admin/projects/:id/webhooks/replay → Event replay
-GET    /admin/users                    → Dashboard admin kullanicilari
-POST   /admin/users/invite             → Admin davet
+GET    /admin/projects/:id/audit-logs/export → JSON/CSV export
+GET    /admin/projects/:id/analytics         → Analytics
+
+# Hooks + Webhooks (Faz 1)
+GET    /admin/projects/:id/hooks             → Hook listesi
+POST   /admin/projects/:id/hooks             → Hook olustur
+PUT    /admin/projects/:id/hooks/:hid        → Hook guncelle
+DELETE /admin/projects/:id/hooks/:hid        → Hook sil
+POST   /admin/projects/:id/hooks/:hid/test   → Hook test
+GET    /admin/projects/:id/hooks/:hid/logs   → Hook loglari
+GET    /admin/projects/:id/webhooks          → Webhook listesi
+POST   /admin/projects/:id/webhooks          → Webhook olustur
+PUT    /admin/projects/:id/webhooks/:wid     → Webhook guncelle
+DELETE /admin/projects/:id/webhooks/:wid     → Webhook sil
+GET    /admin/projects/:id/webhooks/:wid/deliveries → Delivery loglar
+GET    /admin/projects/:id/webhooks/dlq      → Dead letter queue
+POST   /admin/projects/:id/webhooks/dlq/:did/retry → DLQ retry
+POST   /admin/projects/:id/webhooks/replay   → Event replay
+
+# Organizations (Faz 2)
+POST   /admin/projects/:id/organizations              → Org olustur
+GET    /admin/projects/:id/organizations              → Org listesi
+GET    /admin/projects/:id/organizations/:oid         → Org detay
+PUT    /admin/projects/:id/organizations/:oid         → Org guncelle
+DELETE /admin/projects/:id/organizations/:oid         → Org sil
+POST   /admin/projects/:id/organizations/:oid/members → Member ekle
+PUT    /admin/projects/:id/organizations/:oid/members/:uid → Rol degistir
+DELETE /admin/projects/:id/organizations/:oid/members/:uid → Member cikar
+POST   /admin/projects/:id/organizations/:oid/invitations → Davet
+POST   /admin/projects/:id/organizations/:oid/domain/verify → Domain dogrula
+
+# OAuth Clients (Faz 2)
+POST   /admin/projects/:id/oauth-clients              → Client olustur
+GET    /admin/projects/:id/oauth-clients              → Client listesi
+PUT    /admin/projects/:id/oauth-clients/:cid         → Client guncelle
+DELETE /admin/projects/:id/oauth-clients/:cid         → Client sil
+
+# Key Rotation (Faz 2)
+POST   /admin/keys/rotate                   → Manuel key rotation
+GET    /admin/keys                          → Key listesi
+
+# SSO + SCIM (Faz 3)
+POST   /admin/projects/:id/organizations/:oid/sso     → SSO connection
+GET    /admin/projects/:id/organizations/:oid/sso     → SSO listesi
+PUT    /admin/projects/:id/organizations/:oid/sso/:sid → SSO guncelle
+DELETE /admin/projects/:id/organizations/:oid/sso/:sid → SSO sil
+
+# API Keys + Service Accounts (Faz 3)
+POST   /admin/projects/:id/api-keys                   → Scoped API key
+DELETE /admin/projects/:id/api-keys/:kid              → Key revoke
+POST   /admin/projects/:id/service-accounts           → Service account
+POST   /admin/projects/:id/service-accounts/:said/rotate → Credential rotate
+DELETE /admin/projects/:id/service-accounts/:said     → Revoke
+
+# Breach + Compliance (Faz 3)
+GET    /admin/projects/:id/breach-status              → Breach durumu
+POST   /admin/projects/:id/breach-check               → Manuel check
+
+# Impersonation (Faz 4)
+POST   /admin/projects/:id/users/:uid/impersonate     → Impersonate
+POST   /admin/impersonation/end                       → Impersonation sonlandir
+
+# Custom Domains (Faz 4)
+POST   /admin/projects/:id/domains                    → Domain ekle
+GET    /admin/projects/:id/domains                    → Domain listesi
+DELETE /admin/projects/:id/domains/:did               → Domain kaldir
+PUT    /admin/projects/:id/branding                   → Branding config
+
+# Migration (Faz 4)
+POST   /admin/projects/:id/migrations                 → Import baslat
+GET    /admin/projects/:id/migrations                 → Job listesi
+GET    /admin/projects/:id/migrations/:mid            → Job detay
+
+# Agents (Faz 5)
+POST   /admin/projects/:id/agents                     → Agent olustur
+GET    /admin/projects/:id/agents                     → Agent listesi
+DELETE /admin/projects/:id/agents/:aid                → Agent revoke
 ```
 
 Tum admin endpoint'leri `sk_live_*` veya `sk_test_*` key ile authenticate edilir.

@@ -381,6 +381,19 @@ GET  /admin/projects/:id/migrations/:mid → job detay (progress, errors)
     - Ceremony script + checklist
     - Witness + video kayit proseduru
     - Share distribution + safe storage
+  - GDPR DPIA (Data Protection Impact Assessment — spec-compliance Section 7, Art. 35):
+    - Deployment oncesi tamamlanmali
+    - Isleme amaci, risk degerlendirmesi, risk azaltma onlemleri dokumante
+  - DPF (EU-US Data Privacy Framework) self-certification (spec-compliance Section 1):
+    - Transatlantic veri transferi icin
+    - Self-certification proseduru + annual renewal
+  - CSA STAR Level 1 self-assessment (spec-compliance Section 1 — "Day 1" ama Faz 4'te resmi):
+    - CAIQ (Consensus Assessments Initiative Questionnaire) doldur
+    - CSA STAR Registry'ye kayit (ucretsiz)
+  - FIPS 140-3 mode implementasyonu (spec-compliance Section 9):
+    - Argon2id FIPS-approved degil → FIPS modunda PBKDF2-HMAC-SHA256 (600K+ iteration)
+    - Project config: `fips_mode: true` → approved-only algoritmalar enforce
+    - `PALAUTH_FIPS=true` env var veya `--fips` flag
   - DORA compliance (spec-compliance Section 8):
     - DORA-compliant sozlesme template'leri (SLA, exit plan, denetim haklari)
     - ICT risk management framework dokumantasyonu

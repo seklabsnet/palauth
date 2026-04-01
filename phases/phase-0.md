@@ -487,7 +487,7 @@ GET    /admin/projects/:id/keys     → API key listesi (hash'siz, prefix + meta
 
 **Yapilacaklar:**
 - `internal/auth/signup.go`:
-  - Password policy kontrolu (15 char min single-factor, composition yok, HIBP check)
+  - Password policy kontrolu (15 char min single-factor, max 64 char — truncate YASAK, composition yok, HIBP check)
   - Password hash (Argon2id + pepper)
   - Email encryption (AES-256-GCM, per-project DEK)
   - Email hash (deterministic, lookup icin)
@@ -633,7 +633,7 @@ POST /auth/login → { email, password } → { access_token, refresh_token, user
 
 **Yapilacaklar:**
 - `internal/auth/password_reset.go`:
-  - `RequestReset(email)`: Token uret (256-bit), hash'ini DB'ye yaz, 1 saat expiry, email gonder
+  - `RequestReset(email)`: Token uret (256-bit), hash'ini DB'ye yaz, **15dk expiry** (spec Section 42 ile uyumlu), email gonder
   - `ConfirmReset(token, newPassword)`: Token dogrula, password policy + son 4 history check, re-hash, tum session'lari revoke et
 - `internal/auth/password_change.go`:
   - `Change(userID, currentPassword, newPassword)`: Current verify, policy check, history check, re-hash

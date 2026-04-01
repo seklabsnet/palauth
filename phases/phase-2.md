@@ -472,6 +472,7 @@ GET    /admin/projects/:id/organizations/:oid/domain/status → { verified, dns_
   - JWKS: `GET /.well-known/jwks.json` (Faz 0'dan mevcut, genisletilir)
   - Dynamic client registration: `POST /oauth/register` (RFC 7591)
   - Logout: RP-Initiated (`GET /oauth/logout`), back-channel (`POST /oauth/backchannel-logout`)
+  - Device Authorization Grant: `POST /oauth/device` (RFC 8628 — CLI login, smart TV, IoT cihazlar icin)
 
 - `internal/oidc/client.go`:
   - OAuth client CRUD (Admin API ile)
@@ -491,6 +492,7 @@ GET  /oauth/userinfo                    → userinfo endpoint
 POST /oauth/register                    → dynamic client registration
 GET  /oauth/logout                      → RP-initiated logout
 POST /oauth/backchannel-logout          → back-channel logout notification
+POST /oauth/device                      → Device Authorization Grant (RFC 8628)
 
 POST   /admin/projects/:id/oauth-clients     → client olustur
 GET    /admin/projects/:id/oauth-clients     → client listesi
@@ -704,6 +706,7 @@ GET  /admin/keys        → { keys: [...], active_kid, next_rotation }
 | `auth.step_up.failure` | Step-up basarisiz |
 | `risk.evaluate` | Risk skoru hesaplandi |
 | `risk.block` | Risk sebebiyle login bloklandi |
+| `session.anomaly` | Session icinde anomali tespit (device fp drift, impossible travel) |
 | `bot.pow.challenge` | PoW challenge gonderildi |
 | `bot.stuffing.detected` | Credential stuffing tespit |
 | `bot.ip.blocked` | IP otomatik bloklandi |

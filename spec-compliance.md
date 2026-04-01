@@ -135,7 +135,7 @@ FIPS 140-3, Common Criteria, FIDO2, FAPI gibi **urun-seviye sertifikalar** deplo
 |----------|---------|
 | `GET /.well-known/openid-configuration` | Discovery |
 | `GET /.well-known/jwks.json` | Public keys |
-| `POST /oauth/authorize` | Authorization (with PAR support) |
+| `GET /oauth/authorize` | Authorization (GET — OAuth 2.1 spec. PAR kullanildiginda request_uri parametresi ile) |
 | `POST /oauth/token` | Token exchange |
 | `GET /oauth/userinfo` | User claims |
 | `POST /oauth/revoke` | Token revocation (RFC 7009) |

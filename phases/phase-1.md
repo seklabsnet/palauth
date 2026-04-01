@@ -333,6 +333,9 @@ DELETE /auth/identities/:id          → social hesap ayir (en az 1 auth method 
   - `social/handler.go` → `before.social.link` hook cagir (account linking oncesi, spec Section 8.2)
   - `token/jwt.go` → `before.token.issue` hook cagir (custom claims ekleme — spec Section 8.2)
   - `token/refresh.go` → `before.token.refresh` hook cagir (session risk re-evaluation — spec Section 8.2)
+  - Non-blocking hooks (after.*) — webhook sistemi uzerinden degil, **named hook type** olarak da tanimlanir:
+    - `after.login.failed` → security monitoring, basarisiz login bildirim
+    - `after.session.revoke` → cleanup, kullanici bildirim
   - Hook response'daki `custom_claims` → JWT'ye ekle
   - Hook response'daki `metadata` → audit log'a ekle
 
@@ -358,6 +361,8 @@ GET    /admin/projects/:id/hooks/:hid/logs → son 100 hook cagri logu (hook_log
 - [ ] `before.social.link` hook calisiyor — deny donerse account linking reddedilir (spec Section 8.2)
 - [ ] `before.token.issue` hook calisiyor — custom claims JWT'ye ekleniyor (spec Section 8.2)
 - [ ] `before.token.refresh` hook calisiyor — session risk re-evaluation (spec Section 8.2)
+- [ ] `after.login.failed` hook calisiyor — security monitoring icin (spec Section 8.2)
+- [ ] `after.session.revoke` hook calisiyor — cleanup icin (spec Section 8.2)
 - [ ] HMAC-SHA256 imzalama dogru (Standard Webhooks spec)
 - [ ] Bidirectional: Response imzasi da dogrulaniyor
 - [ ] Timeout: 15sn icinde cevap gelmezse failure_mode'a gore davranir

@@ -9,17 +9,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/palauth/palauth/internal/httputil"
 )
 
-type ctxKey string
-
-const requestIDKey ctxKey = "request_id"
-
+// GetRequestID returns the request ID from the context.
+// Delegates to httputil.GetRequestID for backward compatibility.
 func GetRequestID(ctx context.Context) string {
-	if id, ok := ctx.Value(requestIDKey).(string); ok {
-		return id
-	}
-	return ""
+	return httputil.GetRequestID(ctx)
 }
 
 // RequestID generates a UUIDv7 request ID and sets it in context + response header.
@@ -31,7 +28,7 @@ func RequestID(next http.Handler) http.Handler {
 		}
 		reqID := fmt.Sprintf("req_%s", id.String())
 
-		ctx := context.WithValue(r.Context(), requestIDKey, reqID)
+		ctx := httputil.SetRequestID(r.Context(), reqID)
 		w.Header().Set("X-Request-ID", reqID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

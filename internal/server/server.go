@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,28 +17,47 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 
+	"github.com/palauth/palauth/internal/admin"
+	"github.com/palauth/palauth/internal/apikey"
 	"github.com/palauth/palauth/internal/config"
+	"github.com/palauth/palauth/internal/project"
 	palredis "github.com/palauth/palauth/internal/redis"
 )
 
 type Server struct {
-	cfg    *config.Config
-	router *chi.Mux
-	logger *slog.Logger
-	http   *http.Server
-	db     *pgxpool.Pool
-	redis  *palredis.Client
+	cfg        *config.Config
+	router     *chi.Mux
+	logger     *slog.Logger
+	http       *http.Server
+	db         *pgxpool.Pool
+	redis      *palredis.Client
+	adminSvc   *admin.Service
+	projectSvc *project.Service
+	apikeySvc  *apikey.Service
 }
 
 func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredis.Client) *Server {
 	r := chi.NewRouter()
 
+	projectSvc := project.NewService(db, logger)
+	apikeySvc := apikey.NewService(db, logger)
+
+	// Derive admin JWT signing key from pepper via HMAC-SHA256 for key separation.
+	// In T0.8 this moves to go-jose with proper key management.
+	mac := hmac.New(sha256.New, []byte(cfg.Auth.Pepper))
+	mac.Write([]byte("admin-jwt-signing"))
+	signingKey := mac.Sum(nil)
+	adminSvc := admin.NewService(db, cfg.Auth.Pepper, signingKey, logger)
+
 	s := &Server{
-		cfg:    cfg,
-		router: r,
-		logger: logger,
-		db:     db,
-		redis:  rdb,
+		cfg:        cfg,
+		router:     r,
+		logger:     logger,
+		db:         db,
+		redis:      rdb,
+		adminSvc:   adminSvc,
+		projectSvc: projectSvc,
+		apikeySvc:  apikeySvc,
 	}
 
 	s.setupMiddleware()
@@ -76,6 +97,28 @@ func (s *Server) setupRoutes() {
 	s.router.Get("/healthz", s.handleHealthz)
 	s.router.Get("/readyz", s.handleReadyz)
 	s.router.Get("/metrics", promhttp.Handler().ServeHTTP)
+
+	// Admin setup and login (no auth required, but cache-control is required).
+	s.router.Group(func(r chi.Router) {
+		r.Use(CacheControl)
+		r.Post("/admin/setup", s.handleAdminSetup)
+		r.Post("/admin/login", s.handleAdminLogin)
+	})
+
+	// Admin-protected routes.
+	s.router.Route("/admin", func(r chi.Router) {
+		r.Use(CacheControl)
+		r.Use(s.adminSvc.AuthMiddleware())
+		r.Post("/projects", s.handleCreateProject)
+		r.Get("/projects", s.handleListProjects)
+		r.Route("/projects/{id}", func(r chi.Router) {
+			r.Get("/", s.handleGetProject)
+			r.Put("/config", s.handleUpdateProject)
+			r.Delete("/", s.handleDeleteProject)
+			r.Post("/keys/rotate", s.handleRotateKeys)
+			r.Get("/keys", s.handleListKeys)
+		})
+	})
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {

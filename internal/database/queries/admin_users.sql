@@ -14,3 +14,6 @@ SELECT id, email, role, created_at FROM admin_users ORDER BY created_at DESC;
 
 -- name: DeleteAdmin :exec
 DELETE FROM admin_users WHERE id = $1;
+
+-- name: CountAdmins :one
+SELECT count(*) FROM admin_users;

@@ -69,6 +69,27 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash []byte) (ApiKey, 
 	return i, err
 }
 
+const getAPIKeyByHashWithGrace = `-- name: GetAPIKeyByHashWithGrace :one
+SELECT id, project_id, key_hash, key_prefix, key_type, name, last_used, created_at, revoked_at FROM api_keys WHERE key_hash = $1 AND (revoked_at IS NULL OR revoked_at > now())
+`
+
+func (q *Queries) GetAPIKeyByHashWithGrace(ctx context.Context, keyHash []byte) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getAPIKeyByHashWithGrace, keyHash)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.KeyHash,
+		&i.KeyPrefix,
+		&i.KeyType,
+		&i.Name,
+		&i.LastUsed,
+		&i.CreatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const listAPIKeys = `-- name: ListAPIKeys :many
 SELECT id, project_id, key_hash, key_prefix, key_type, name, last_used, created_at, revoked_at FROM api_keys WHERE project_id = $1 ORDER BY created_at DESC
 `
@@ -109,6 +130,15 @@ UPDATE api_keys SET revoked_at = now() WHERE id = $1
 
 func (q *Queries) RevokeAPIKey(ctx context.Context, id string) error {
 	_, err := q.db.Exec(ctx, revokeAPIKey, id)
+	return err
+}
+
+const revokeAPIKeyWithGrace = `-- name: RevokeAPIKeyWithGrace :exec
+UPDATE api_keys SET revoked_at = now() + interval '30 seconds' WHERE id = $1 AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeAPIKeyWithGrace(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, revokeAPIKeyWithGrace, id)
 	return err
 }
 

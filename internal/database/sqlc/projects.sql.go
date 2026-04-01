@@ -34,13 +34,14 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 	return i, err
 }
 
-const deleteProject = `-- name: DeleteProject :exec
-DELETE FROM projects WHERE id = $1
+const deleteProject = `-- name: DeleteProject :one
+DELETE FROM projects WHERE id = $1 RETURNING id
 `
 
-func (q *Queries) DeleteProject(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, deleteProject, id)
-	return err
+func (q *Queries) DeleteProject(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, deleteProject, id)
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getProject = `-- name: GetProject :one

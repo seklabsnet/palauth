@@ -465,17 +465,17 @@ GET    /admin/projects/:id/keys     → API key listesi (hash'siz, prefix + meta
 ```
 
 **Kabul kriterleri:**
-- [ ] `/admin/setup` ilk admin + project olusturuyor (sadece bir kez calisir)
-- [ ] `/admin/setup` zaten admin varsa 409 doner
-- [ ] `/admin/login` dogru credentials → admin JWT doner
-- [ ] Admin JWT ile admin endpoint'lere erisim calisiyor
-- [ ] Admin JWT olmadan admin endpoint → 401
-- [ ] Project olusturulunca 4 API key uretilir (pk_test, sk_test, pk_live, sk_live)
-- [ ] API key ile authenticate edilebiliyor (public endpoint'ler)
-- [ ] Yanlis key → 401
-- [ ] Revoke edilmis key → 401
-- [ ] Key rotation calisiyor (yeni key calisir, eski hala 30sn grace period boyunca gecerli)
-- [ ] Tum project endpoint'ler project_id ile scope'lanmis
+- [x] `/admin/setup` ilk admin + project olusturuyor (sadece bir kez calisir)
+- [x] `/admin/setup` zaten admin varsa 409 doner
+- [x] `/admin/login` dogru credentials → admin JWT doner
+- [x] Admin JWT ile admin endpoint'lere erisim calisiyor
+- [x] Admin JWT olmadan admin endpoint → 401
+- [x] Project olusturulunca 4 API key uretilir (pk_test, sk_test, pk_live, sk_live)
+- [x] API key ile authenticate edilebiliyor (public endpoint'ler)
+- [x] Yanlis key → 401
+- [x] Revoke edilmis key → 401
+- [x] Key rotation calisiyor (yeni key calisir, eski hala 30sn grace period boyunca gecerli)
+- [x] Tum project endpoint'ler project_id ile scope'lanmis
 
 **Bagimlilk:** T0.3 (DB), T0.5 (crypto), T0.2 (router)
 

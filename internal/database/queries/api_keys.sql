@@ -14,3 +14,9 @@ UPDATE api_keys SET revoked_at = now() WHERE id = $1;
 
 -- name: UpdateAPIKeyLastUsed :exec
 UPDATE api_keys SET last_used = now() WHERE id = $1;
+
+-- name: GetAPIKeyByHashWithGrace :one
+SELECT * FROM api_keys WHERE key_hash = $1 AND (revoked_at IS NULL OR revoked_at > now());
+
+-- name: RevokeAPIKeyWithGrace :exec
+UPDATE api_keys SET revoked_at = now() + interval '30 seconds' WHERE id = $1 AND revoked_at IS NULL;

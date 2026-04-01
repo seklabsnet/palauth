@@ -14,5 +14,5 @@ UPDATE projects SET name = $2, config = $3, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
--- name: DeleteProject :exec
-DELETE FROM projects WHERE id = $1;
+-- name: DeleteProject :one
+DELETE FROM projects WHERE id = $1 RETURNING id;

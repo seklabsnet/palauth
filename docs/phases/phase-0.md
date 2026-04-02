@@ -615,13 +615,13 @@ POST /auth/login → { email, password } → { access_token, refresh_token, user
 ```
 
 **Kabul kriterleri:**
-- [ ] Dogru credentials → token'lar doner
-- [ ] Yanlis password → 401 `{ "error": "invalid_credentials" }`
-- [ ] Var olmayan email → 401 `{ "error": "invalid_credentials" }` (AYNI mesaj, AYNI sure)
-- [ ] 10 basarisiz → 429 `{ "error": "account_locked", "retry_after": 1800 }`
-- [ ] Lockout suresi dolunca login tekrar calisiyor
-- [ ] Basarili login failed counter'i resetliyor
-- [ ] Timing attack testi: existing vs non-existing user response time farki < %20
+- [x] Dogru credentials → token'lar doner
+- [x] Yanlis password → 401 `{ "error": "invalid_credentials" }`
+- [x] Var olmayan email → 401 `{ "error": "invalid_credentials" }` (AYNI mesaj, AYNI sure)
+- [x] 10 basarisiz → 429 `{ "error": "account_locked", "retry_after": 1800 }`
+- [x] Lockout suresi dolunca login tekrar calisiyor
+- [x] Basarili login failed counter'i resetliyor
+- [x] Timing attack testi: existing vs non-existing user response time farki < %20
 
 **Bagimlilk:** T0.7 (signup — user var olmali), T0.8 (token), T0.4 (rate limit + Redis)
 

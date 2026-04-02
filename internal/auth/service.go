@@ -28,7 +28,7 @@ var (
 	ErrOTPMaxAttempts   = errors.New("maximum verification attempts exceeded")
 )
 
-// Service handles authentication operations: signup, email verification, resend.
+// Service handles authentication operations: signup, login, email verification, resend.
 type Service struct {
 	db             *pgxpool.Pool
 	projectSvc     *project.Service
@@ -36,6 +36,7 @@ type Service struct {
 	refreshSvc     *token.RefreshService
 	auditSvc       *audit.Service
 	breachChecker  *crypto.BreachChecker
+	lockoutSvc     *LockoutService
 	pepper         string
 	kek            []byte
 	emailHashKey   []byte
@@ -50,6 +51,7 @@ func NewService(
 	refreshSvc *token.RefreshService,
 	auditSvc *audit.Service,
 	breachChecker *crypto.BreachChecker,
+	lockoutSvc *LockoutService,
 	pepper string,
 	kek []byte,
 	logger *slog.Logger,
@@ -66,6 +68,7 @@ func NewService(
 		refreshSvc:    refreshSvc,
 		auditSvc:      auditSvc,
 		breachChecker: breachChecker,
+		lockoutSvc:    lockoutSvc,
 		pepper:        pepper,
 		kek:           kek,
 		emailHashKey:  emailHashKey,

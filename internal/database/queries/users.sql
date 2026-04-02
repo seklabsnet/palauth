@@ -19,7 +19,7 @@ WHERE id = $1;
 
 -- name: UpdateUserLastLogin :exec
 UPDATE users SET last_login_at = now(), updated_at = now()
-WHERE id = $1;
+WHERE id = $1 AND project_id = $2;
 
 -- name: BanUser :exec
 UPDATE users SET banned = true, ban_reason = $2, updated_at = now()

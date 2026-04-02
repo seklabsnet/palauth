@@ -28,6 +28,7 @@ import (
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/project"
+	"github.com/palauth/palauth/internal/ratelimit"
 	palredis "github.com/palauth/palauth/internal/redis"
 	"github.com/palauth/palauth/internal/token"
 )
@@ -47,6 +48,7 @@ type Server struct {
 	refreshSvc *token.RefreshService
 	customSvc  *token.CustomTokenService
 	authSvc    *auth.Service
+	rl         *ratelimit.RouteMiddlewares
 }
 
 func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredis.Client) *Server {
@@ -96,7 +98,18 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	authKEK := authKEKMac.Sum(nil)
 
 	breachChecker := crypto.NewBreachChecker()
-	authSvc := auth.NewService(db, projectSvc, jwtSvc, refreshSvc, auditSvc, breachChecker, cfg.Auth.Pepper, authKEK, logger)
+
+	var lockoutSvc *auth.LockoutService
+	if rdb != nil {
+		lockoutSvc = auth.NewLockoutService(rdb.Unwrap(), logger)
+	}
+	authSvc := auth.NewService(db, projectSvc, jwtSvc, refreshSvc, auditSvc, breachChecker, lockoutSvc, cfg.Auth.Pepper, authKEK, logger)
+
+	// Rate limit middlewares.
+	var rl *ratelimit.RouteMiddlewares
+	if rdb != nil {
+		rl = ratelimit.NewRouteMiddlewares(rdb.Unwrap(), logger)
+	}
 
 	s := &Server{
 		cfg:        cfg,
@@ -112,6 +125,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		refreshSvc: refreshSvc,
 		customSvc:  customSvc,
 		authSvc:    authSvc,
+		rl:         rl,
 	}
 
 	s.setupMiddleware()
@@ -167,6 +181,11 @@ func (s *Server) setupRoutes() {
 		r.Use(CacheControl)
 		r.Use(s.apikeySvc.Middleware(s.logger))
 		r.Post("/signup", s.handleSignup)
+		if s.rl != nil {
+			r.With(s.rl.LoginByIP).Post("/login", s.handleLogin)
+		} else {
+			r.Post("/login", s.handleLogin)
+		}
 		r.Post("/verify-email", s.handleVerifyEmail)
 		r.Post("/resend-verification", s.handleResendVerification)
 		r.Post("/token/refresh", s.handleRefreshToken)

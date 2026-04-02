@@ -240,11 +240,16 @@ func (q *Queries) UpdateUserEmailVerified(ctx context.Context, id string) error 
 
 const updateUserLastLogin = `-- name: UpdateUserLastLogin :exec
 UPDATE users SET last_login_at = now(), updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND project_id = $2
 `
 
-func (q *Queries) UpdateUserLastLogin(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, updateUserLastLogin, id)
+type UpdateUserLastLoginParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) UpdateUserLastLogin(ctx context.Context, arg UpdateUserLastLoginParams) error {
+	_, err := q.db.Exec(ctx, updateUserLastLogin, arg.ID, arg.ProjectID)
 	return err
 }
 

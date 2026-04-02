@@ -11,7 +11,7 @@ import (
 	httprateredis "github.com/go-chi/httprate-redis"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/palauth/palauth/internal/server"
+	"github.com/palauth/palauth/internal/httputil"
 )
 
 // Config holds the parameters for a single rate limit rule.
@@ -72,7 +72,7 @@ func limitHandler(window time.Duration, logger *slog.Logger) http.HandlerFunc {
 	retryAfter := int(window.Seconds())
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		reqID := server.GetRequestID(r.Context())
+		reqID := httputil.GetRequestID(r.Context())
 
 		resp := errorResponse{
 			Error:       "rate_limit_exceeded",

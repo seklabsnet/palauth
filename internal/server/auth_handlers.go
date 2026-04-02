@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/palauth/palauth/internal/apikey"
@@ -11,6 +12,11 @@ import (
 )
 
 type signupRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type loginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -103,6 +109,55 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.WriteJSON(w, http.StatusOK, map[string]string{"status": "verified"})
+}
+
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var req loginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.WriteError(w, r, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+
+	projectID := apikey.ProjectIDFromContext(r.Context())
+
+	ip := r.RemoteAddr
+	ua := r.Header.Get("User-Agent")
+
+	result, retryAfter, err := s.authSvc.Login(r.Context(), &auth.LoginParams{
+		Email:     req.Email,
+		Password:  req.Password,
+		ProjectID: projectID,
+		IP:        &ip,
+		UserAgent: &ua,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrEmailRequired):
+			s.WriteError(w, r, http.StatusBadRequest, "email_required", "A valid email address is required")
+		case errors.Is(err, auth.ErrPasswordRequired):
+			s.WriteError(w, r, http.StatusBadRequest, "password_required", "Password is required")
+		case errors.Is(err, auth.ErrInvalidCredentials):
+			s.WriteError(w, r, http.StatusUnauthorized, "invalid_credentials", "Email or password is incorrect")
+		case errors.Is(err, auth.ErrUserBanned):
+			s.WriteError(w, r, http.StatusForbidden, "user_banned", "This account has been suspended")
+		case errors.Is(err, auth.ErrAccountLocked):
+			retrySeconds := int(retryAfter.Seconds())
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", retrySeconds))
+			s.WriteJSON(w, http.StatusTooManyRequests, map[string]any{
+				"error":             "account_locked",
+				"error_description": fmt.Sprintf("Account is temporarily locked due to too many failed login attempts. Try again in %d seconds", retrySeconds),
+				"status":            http.StatusTooManyRequests,
+				"request_id":        GetRequestID(r.Context()),
+				"retry_after":       retrySeconds,
+			})
+		default:
+			s.logger.Error("login failed", "error", err)
+			s.WriteError(w, r, http.StatusInternalServerError, "internal_error", "An unexpected error occurred")
+		}
+		return
+	}
+
+	s.WriteJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleResendVerification(w http.ResponseWriter, r *http.Request) {

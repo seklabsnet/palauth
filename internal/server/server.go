@@ -31,6 +31,7 @@ import (
 	"github.com/palauth/palauth/internal/project"
 	"github.com/palauth/palauth/internal/ratelimit"
 	palredis "github.com/palauth/palauth/internal/redis"
+	"github.com/palauth/palauth/internal/session"
 	"github.com/palauth/palauth/internal/token"
 )
 
@@ -48,6 +49,7 @@ type Server struct {
 	jwtSvc     *token.JWTService
 	refreshSvc *token.RefreshService
 	customSvc  *token.CustomTokenService
+	sessionSvc *session.Service
 	authSvc    *auth.Service
 	rl         *ratelimit.RouteMiddlewares
 }
@@ -116,6 +118,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	if rdb != nil {
 		lockoutSvc = auth.NewLockoutService(rdb.Unwrap(), logger)
 	}
+	sessionSvc := session.NewService(db, auditSvc, logger)
 	authSvc := auth.NewService(db, projectSvc, jwtSvc, refreshSvc, auditSvc, breachChecker, lockoutSvc, emailSender, emailRenderer, cfg.Auth.Pepper, authKEK, logger)
 
 	// Rate limit middlewares.
@@ -134,6 +137,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		projectSvc: projectSvc,
 		apikeySvc:  apikeySvc,
 		auditSvc:   auditSvc,
+		sessionSvc: sessionSvc,
 		jwtSvc:     jwtSvc,
 		refreshSvc: refreshSvc,
 		customSvc:  customSvc,
@@ -210,6 +214,15 @@ func (s *Server) setupRoutes() {
 		r.Post("/password/change", s.handlePasswordChange)
 		r.Post("/token/refresh", s.handleRefreshToken)
 		r.Post("/token/exchange", s.handleExchangeCustomToken)
+
+		// Authenticated routes (require valid session).
+		r.Group(func(r chi.Router) {
+			r.Use(s.sessionMiddleware)
+			r.Get("/sessions", s.handleListSessions)
+			r.Delete("/sessions/{id}", s.handleRevokeSession)
+			r.Delete("/sessions", s.handleRevokeAllSessions)
+			r.Post("/logout", s.handleLogout)
+		})
 	})
 
 	// Admin custom token endpoint.
@@ -308,12 +321,19 @@ func (s *Server) newQueries() *sqlc.Queries {
 	return sqlc.New(s.db)
 }
 
-// createSessionParams builds session creation parameters.
-func (s *Server) createSessionParams(projectID, userID string, ip, userAgent *string, acr string, amr []string, authTime time.Time) sqlc.CreateSessionParams {
-	amrJSON, _ := json.Marshal(amr)
+// createSessionParams builds session creation parameters using AAL-based timeouts.
+func (s *Server) createSessionParams(projectID, userID string, ip, userAgent *string, acr string, amr []string, authTime time.Time) (sqlc.CreateSessionParams, error) {
+	amrJSON, err := json.Marshal(amr)
+	if err != nil {
+		return sqlc.CreateSessionParams{}, fmt.Errorf("marshal amr: %w", err)
+	}
 
-	// AAL1 defaults: no idle timeout, 30-day absolute.
-	absTimeout := authTime.Add(30 * 24 * time.Hour)
+	idleTimeout, absTimeout := session.AALTimeouts(acr)
+
+	var idleTimeoutAt pgtype.Timestamptz
+	if idleTimeout > 0 {
+		idleTimeoutAt = pgtype.Timestamptz{Time: authTime.Add(idleTimeout), Valid: true}
+	}
 
 	return sqlc.CreateSessionParams{
 		ID:            id.New("sess_"),
@@ -323,12 +343,17 @@ func (s *Server) createSessionParams(projectID, userID string, ip, userAgent *st
 		UserAgent:     userAgent,
 		Acr:           acr,
 		Amr:           amrJSON,
-		IdleTimeoutAt: pgtype.Timestamptz{},
-		AbsTimeoutAt:  pgtype.Timestamptz{Time: absTimeout, Valid: true},
-	}
+		IdleTimeoutAt: idleTimeoutAt,
+		AbsTimeoutAt:  pgtype.Timestamptz{Time: authTime.Add(absTimeout), Valid: true},
+	}, nil
 }
 
 // JWTService returns the JWT service for testing and external use.
 func (s *Server) JWTService() *token.JWTService {
 	return s.jwtSvc
+}
+
+// SessionService returns the session service for testing and external use.
+func (s *Server) SessionService() *session.Service {
+	return s.sessionSvc
 }

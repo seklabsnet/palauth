@@ -17,6 +17,7 @@ import (
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/id"
+	"github.com/palauth/palauth/internal/session"
 	"github.com/palauth/palauth/internal/token"
 )
 
@@ -205,19 +206,24 @@ func (s *Service) Signup(ctx context.Context, email, password, projectID string)
 		verificationCode = otp
 	}
 
-	// Create session for the new user.
-	// AAL1: no idle timeout (NIST 800-63B-4), absolute 30 days.
+	// Create session for the new user using AAL-based timeouts.
 	sessionID := id.New("sess_")
 	now := time.Now()
-	absTimeout := now.Add(30 * 24 * time.Hour)
+	idleTimeout, absTimeout := session.AALTimeouts("aal1")
+
+	var sessIdleTimeoutAt pgtype.Timestamptz
+	if idleTimeout > 0 {
+		sessIdleTimeoutAt = pgtype.Timestamptz{Time: now.Add(idleTimeout), Valid: true}
+	}
+
 	_, err = txq.CreateSession(ctx, sqlc.CreateSessionParams{
 		ID:            sessionID,
 		ProjectID:     projectID,
 		UserID:        userID,
 		Acr:           "aal1",
 		Amr:           []byte(`["pwd"]`),
-		IdleTimeoutAt: pgtype.Timestamptz{}, // AAL1: no idle timeout
-		AbsTimeoutAt:  pgtype.Timestamptz{Time: absTimeout, Valid: true},
+		IdleTimeoutAt: sessIdleTimeoutAt,
+		AbsTimeoutAt:  pgtype.Timestamptz{Time: now.Add(absTimeout), Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create session: %w", err)

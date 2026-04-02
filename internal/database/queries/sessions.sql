@@ -8,10 +8,13 @@ SELECT * FROM sessions WHERE id = $1 AND revoked_at IS NULL;
 
 -- name: UpdateSessionActivity :exec
 UPDATE sessions SET last_activity = now(), idle_timeout_at = $2
-WHERE id = $1;
+WHERE id = $1 AND revoked_at IS NULL;
 
 -- name: RevokeSession :exec
 UPDATE sessions SET revoked_at = now() WHERE id = $1;
+
+-- name: RevokeSessionByProject :exec
+UPDATE sessions SET revoked_at = now() WHERE id = $1 AND project_id = $2 AND revoked_at IS NULL;
 
 -- name: RevokeUserSessions :exec
 UPDATE sessions SET revoked_at = now()
@@ -25,3 +28,14 @@ WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL;
 SELECT * FROM sessions
 WHERE user_id = $1 AND revoked_at IS NULL
 ORDER BY created_at DESC;
+
+-- name: ListActiveSessionsByProject :many
+SELECT * FROM sessions
+WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL
+ORDER BY created_at DESC;
+
+-- name: GetSessionByProject :one
+SELECT * FROM sessions WHERE id = $1 AND project_id = $2 AND revoked_at IS NULL;
+
+-- name: GetSessionByProjectAndUser :one
+SELECT * FROM sessions WHERE id = $1 AND project_id = $2 AND user_id = $3 AND revoked_at IS NULL;

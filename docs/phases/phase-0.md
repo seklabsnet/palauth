@@ -790,16 +790,16 @@ POST   /auth/logout            → mevcut session'i sonlandir
 ```
 
 **Kabul kriterleri:**
-- [ ] Session olusturuluyor (login basarili)
-- [ ] AAL1 session: idle timeout yok, absolute 30 gun
-- [ ] AAL2 session: idle 1 saat, absolute 24 saat
-- [ ] AAL3 session: idle 15dk, absolute 12 saat
-- [ ] Touch calisiyor — her request idle timer'i resetliyor
-- [ ] Session'da `acr` ve `amr` dogru set ediliyor (Faz 0: acr=aal1, amr=["pwd"])
-- [ ] Session listesi dogru (cihaz, IP, son aktivite gorunuyor)
-- [ ] Tek session revoke calisiyor
-- [ ] Tum session'lar revoke calisiyor (logout all)
-- [ ] Revoked session ile request → 401
+- [x] Session olusturuluyor (login basarili)
+- [x] AAL1 session: idle timeout yok, absolute 30 gun
+- [x] AAL2 session: idle 1 saat, absolute 24 saat
+- [x] AAL3 session: idle 15dk, absolute 12 saat
+- [x] Touch calisiyor — her request idle timer'i resetliyor
+- [x] Session'da `acr` ve `amr` dogru set ediliyor (Faz 0: acr=aal1, amr=["pwd"])
+- [x] Session listesi dogru (cihaz, IP, son aktivite gorunuyor)
+- [x] Tek session revoke calisiyor
+- [x] Tum session'lar revoke calisiyor (logout all)
+- [x] Revoked session ile request → 401
 
 **Bagimlilk:** T0.3 (DB), T0.8 (token — session_id JWT'de)
 

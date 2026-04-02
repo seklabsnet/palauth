@@ -14,6 +14,7 @@ import (
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/id"
+	"github.com/palauth/palauth/internal/session"
 	"github.com/palauth/palauth/internal/token"
 )
 
@@ -187,7 +188,13 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*LoginResult,
 	// Create session.
 	now := time.Now()
 	sessionID := id.New("sess_")
-	absTimeout := now.Add(30 * 24 * time.Hour) // AAL1: 30 days
+	idleTimeout, absTimeout := session.AALTimeouts("aal1")
+
+	var idleTimeoutAt pgtype.Timestamptz
+	if idleTimeout > 0 {
+		idleTimeoutAt = pgtype.Timestamptz{Time: now.Add(idleTimeout), Valid: true}
+	}
+
 	_, err = q.CreateSession(ctx, sqlc.CreateSessionParams{
 		ID:            sessionID,
 		ProjectID:     params.ProjectID,
@@ -196,8 +203,8 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*LoginResult,
 		UserAgent:     params.UserAgent,
 		Acr:           "aal1",
 		Amr:           []byte(`["pwd"]`),
-		IdleTimeoutAt: pgtype.Timestamptz{},                                  // AAL1: no idle timeout
-		AbsTimeoutAt:  pgtype.Timestamptz{Time: absTimeout, Valid: true},
+		IdleTimeoutAt: idleTimeoutAt,
+		AbsTimeoutAt:  pgtype.Timestamptz{Time: now.Add(absTimeout), Valid: true},
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("create session: %w", err)

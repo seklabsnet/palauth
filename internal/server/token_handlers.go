@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -355,7 +356,11 @@ func (s *Server) createSessionForCustomToken(r *http.Request, claims *token.Clai
 	ua := r.UserAgent()
 
 	now := time.Now()
-	sess, err := q.CreateSession(r.Context(), s.createSessionParams(projectID, claims.Subject, &ip, &ua, "aal1", []string{"custom_token"}, now))
+	params, err := s.createSessionParams(projectID, claims.Subject, &ip, &ua, "aal1", []string{"custom_token"}, now)
+	if err != nil {
+		return nil, fmt.Errorf("build session params: %w", err)
+	}
+	sess, err := q.CreateSession(r.Context(), params)
 	if err != nil {
 		return nil, err
 	}

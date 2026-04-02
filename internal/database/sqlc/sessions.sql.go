@@ -87,6 +87,67 @@ func (q *Queries) GetSession(ctx context.Context, id string) (Session, error) {
 	return i, err
 }
 
+const getSessionByProject = `-- name: GetSessionByProject :one
+SELECT id, project_id, user_id, ip, user_agent, device_fp_hash, acr, amr, idle_timeout_at, abs_timeout_at, last_activity, revoked_at, created_at FROM sessions WHERE id = $1 AND project_id = $2 AND revoked_at IS NULL
+`
+
+type GetSessionByProjectParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) GetSessionByProject(ctx context.Context, arg GetSessionByProjectParams) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionByProject, arg.ID, arg.ProjectID)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.Ip,
+		&i.UserAgent,
+		&i.DeviceFpHash,
+		&i.Acr,
+		&i.Amr,
+		&i.IdleTimeoutAt,
+		&i.AbsTimeoutAt,
+		&i.LastActivity,
+		&i.RevokedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getSessionByProjectAndUser = `-- name: GetSessionByProjectAndUser :one
+SELECT id, project_id, user_id, ip, user_agent, device_fp_hash, acr, amr, idle_timeout_at, abs_timeout_at, last_activity, revoked_at, created_at FROM sessions WHERE id = $1 AND project_id = $2 AND user_id = $3 AND revoked_at IS NULL
+`
+
+type GetSessionByProjectAndUserParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+	UserID    string `json:"user_id"`
+}
+
+func (q *Queries) GetSessionByProjectAndUser(ctx context.Context, arg GetSessionByProjectAndUserParams) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionByProjectAndUser, arg.ID, arg.ProjectID, arg.UserID)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.Ip,
+		&i.UserAgent,
+		&i.DeviceFpHash,
+		&i.Acr,
+		&i.Amr,
+		&i.IdleTimeoutAt,
+		&i.AbsTimeoutAt,
+		&i.LastActivity,
+		&i.RevokedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listActiveSessions = `-- name: ListActiveSessions :many
 SELECT id, project_id, user_id, ip, user_agent, device_fp_hash, acr, amr, idle_timeout_at, abs_timeout_at, last_activity, revoked_at, created_at FROM sessions
 WHERE user_id = $1 AND revoked_at IS NULL
@@ -95,6 +156,51 @@ ORDER BY created_at DESC
 
 func (q *Queries) ListActiveSessions(ctx context.Context, userID string) ([]Session, error) {
 	rows, err := q.db.Query(ctx, listActiveSessions, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Session{}
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.UserID,
+			&i.Ip,
+			&i.UserAgent,
+			&i.DeviceFpHash,
+			&i.Acr,
+			&i.Amr,
+			&i.IdleTimeoutAt,
+			&i.AbsTimeoutAt,
+			&i.LastActivity,
+			&i.RevokedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveSessionsByProject = `-- name: ListActiveSessionsByProject :many
+SELECT id, project_id, user_id, ip, user_agent, device_fp_hash, acr, amr, idle_timeout_at, abs_timeout_at, last_activity, revoked_at, created_at FROM sessions
+WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL
+ORDER BY created_at DESC
+`
+
+type ListActiveSessionsByProjectParams struct {
+	UserID    string `json:"user_id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) ListActiveSessionsByProject(ctx context.Context, arg ListActiveSessionsByProjectParams) ([]Session, error) {
+	rows, err := q.db.Query(ctx, listActiveSessionsByProject, arg.UserID, arg.ProjectID)
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +242,20 @@ func (q *Queries) RevokeSession(ctx context.Context, id string) error {
 	return err
 }
 
+const revokeSessionByProject = `-- name: RevokeSessionByProject :exec
+UPDATE sessions SET revoked_at = now() WHERE id = $1 AND project_id = $2 AND revoked_at IS NULL
+`
+
+type RevokeSessionByProjectParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) RevokeSessionByProject(ctx context.Context, arg RevokeSessionByProjectParams) error {
+	_, err := q.db.Exec(ctx, revokeSessionByProject, arg.ID, arg.ProjectID)
+	return err
+}
+
 const revokeUserSessions = `-- name: RevokeUserSessions :exec
 UPDATE sessions SET revoked_at = now()
 WHERE user_id = $1 AND revoked_at IS NULL
@@ -163,7 +283,7 @@ func (q *Queries) RevokeUserSessionsByProject(ctx context.Context, arg RevokeUse
 
 const updateSessionActivity = `-- name: UpdateSessionActivity :exec
 UPDATE sessions SET last_activity = now(), idle_timeout_at = $2
-WHERE id = $1
+WHERE id = $1 AND revoked_at IS NULL
 `
 
 type UpdateSessionActivityParams struct {

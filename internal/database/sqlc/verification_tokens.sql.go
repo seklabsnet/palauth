@@ -14,7 +14,7 @@ import (
 const createVerificationToken = `-- name: CreateVerificationToken :one
 INSERT INTO verification_tokens (id, project_id, user_id, token_hash, type, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, project_id, user_id, token_hash, type, used, created_at, expires_at
+RETURNING id, project_id, user_id, token_hash, type, used, created_at, expires_at, failed_attempts
 `
 
 type CreateVerificationTokenParams struct {
@@ -45,16 +45,22 @@ func (q *Queries) CreateVerificationToken(ctx context.Context, arg CreateVerific
 		&i.Used,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.FailedAttempts,
 	)
 	return i, err
 }
 
 const getVerificationTokenByHash = `-- name: GetVerificationTokenByHash :one
-SELECT id, project_id, user_id, token_hash, type, used, created_at, expires_at FROM verification_tokens WHERE token_hash = $1 AND used = false
+SELECT id, project_id, user_id, token_hash, type, used, created_at, expires_at, failed_attempts FROM verification_tokens WHERE token_hash = $1 AND project_id = $2 AND used = false
 `
 
-func (q *Queries) GetVerificationTokenByHash(ctx context.Context, tokenHash []byte) (VerificationToken, error) {
-	row := q.db.QueryRow(ctx, getVerificationTokenByHash, tokenHash)
+type GetVerificationTokenByHashParams struct {
+	TokenHash []byte `json:"token_hash"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) GetVerificationTokenByHash(ctx context.Context, arg GetVerificationTokenByHashParams) (VerificationToken, error) {
+	row := q.db.QueryRow(ctx, getVerificationTokenByHash, arg.TokenHash, arg.ProjectID)
 	var i VerificationToken
 	err := row.Scan(
 		&i.ID,
@@ -65,8 +71,67 @@ func (q *Queries) GetVerificationTokenByHash(ctx context.Context, tokenHash []by
 		&i.Used,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.FailedAttempts,
 	)
 	return i, err
+}
+
+const getVerificationTokenByUserAndType = `-- name: GetVerificationTokenByUserAndType :one
+SELECT id, project_id, user_id, token_hash, type, used, created_at, expires_at, failed_attempts FROM verification_tokens
+WHERE user_id = $1 AND type = $2 AND project_id = $3 AND used = false
+ORDER BY created_at DESC LIMIT 1
+`
+
+type GetVerificationTokenByUserAndTypeParams struct {
+	UserID    string `json:"user_id"`
+	Type      string `json:"type"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) GetVerificationTokenByUserAndType(ctx context.Context, arg GetVerificationTokenByUserAndTypeParams) (VerificationToken, error) {
+	row := q.db.QueryRow(ctx, getVerificationTokenByUserAndType, arg.UserID, arg.Type, arg.ProjectID)
+	var i VerificationToken
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.Type,
+		&i.Used,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.FailedAttempts,
+	)
+	return i, err
+}
+
+const incrementVerificationFailedAttempts = `-- name: IncrementVerificationFailedAttempts :one
+UPDATE verification_tokens SET failed_attempts = failed_attempts + 1
+WHERE id = $1
+RETURNING failed_attempts
+`
+
+func (q *Queries) IncrementVerificationFailedAttempts(ctx context.Context, id string) (int32, error) {
+	row := q.db.QueryRow(ctx, incrementVerificationFailedAttempts, id)
+	var failed_attempts int32
+	err := row.Scan(&failed_attempts)
+	return failed_attempts, err
+}
+
+const invalidateVerificationTokens = `-- name: InvalidateVerificationTokens :exec
+UPDATE verification_tokens SET used = true
+WHERE user_id = $1 AND type = $2 AND project_id = $3 AND used = false
+`
+
+type InvalidateVerificationTokensParams struct {
+	UserID    string `json:"user_id"`
+	Type      string `json:"type"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) InvalidateVerificationTokens(ctx context.Context, arg InvalidateVerificationTokensParams) error {
+	_, err := q.db.Exec(ctx, invalidateVerificationTokens, arg.UserID, arg.Type, arg.ProjectID)
+	return err
 }
 
 const markVerificationTokenUsed = `-- name: MarkVerificationTokenUsed :exec

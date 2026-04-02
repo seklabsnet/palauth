@@ -510,14 +510,14 @@ POST /auth/resend-verification → { email } → { success } (rate limited)
 ```
 
 **Kabul kriterleri:**
-- [ ] Signup basarili — user olusur, token'lar doner
-- [ ] Zayif sifre reddedilir (14 char → hata)
-- [ ] Breached sifre reddedilir (HIBP)
-- [ ] Ayni email ile tekrar signup → hata (ama user enumeration yok — ayni hata mesaji)
-- [ ] Email verification token calisiyor
-- [ ] Kullanilmis token → hata
-- [ ] Suresi dolmus token → hata
-- [ ] Audit log yazildi
+- [x] Signup basarili — user olusur, token'lar doner
+- [x] Zayif sifre reddedilir (14 char → hata)
+- [x] Breached sifre reddedilir (HIBP)
+- [x] Ayni email ile tekrar signup → hata (ama user enumeration yok — ayni hata mesaji)
+- [x] Email verification token calisiyor
+- [x] Kullanilmis token → hata
+- [x] Suresi dolmus token → hata
+- [x] Audit log yazildi
 
 **Bagimlilk:** T0.5 (crypto), T0.6 (project/apikey), T0.3 (DB), T0.8 (token), T0.11 (audit)
 

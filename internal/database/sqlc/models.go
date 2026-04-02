@@ -129,12 +129,13 @@ type UserConsent struct {
 }
 
 type VerificationToken struct {
-	ID        string             `json:"id"`
-	ProjectID string             `json:"project_id"`
-	UserID    string             `json:"user_id"`
-	TokenHash []byte             `json:"token_hash"`
-	Type      string             `json:"type"`
-	Used      bool               `json:"used"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	ID             string             `json:"id"`
+	ProjectID      string             `json:"project_id"`
+	UserID         string             `json:"user_id"`
+	TokenHash      []byte             `json:"token_hash"`
+	Type           string             `json:"type"`
+	Used           bool               `json:"used"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	FailedAttempts int32              `json:"failed_attempts"`
 }

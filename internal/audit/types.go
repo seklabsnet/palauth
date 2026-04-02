@@ -3,6 +3,7 @@ package audit
 // Event type constants for all auditable auth operations.
 const (
 	EventAuthSignup           = "auth.signup"
+	EventAuthSignupFailure    = "auth.signup.failure"
 	EventAuthLoginSuccess     = "auth.login.success"
 	EventAuthLoginFailure     = "auth.login.failure"
 	EventAuthLogout           = "auth.logout"
@@ -27,6 +28,7 @@ const (
 // AllEventTypes lists all valid event types for validation.
 var AllEventTypes = []string{
 	EventAuthSignup,
+	EventAuthSignupFailure,
 	EventAuthLoginSuccess,
 	EventAuthLoginFailure,
 	EventAuthLogout,

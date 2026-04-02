@@ -13,6 +13,7 @@ func TestEventTypeConstants(t *testing.T) {
 		expected string
 	}{
 		{"signup", EventAuthSignup, "auth.signup"},
+		{"signup failure", EventAuthSignupFailure, "auth.signup.failure"},
 		{"login success", EventAuthLoginSuccess, "auth.login.success"},
 		{"login failure", EventAuthLoginFailure, "auth.login.failure"},
 		{"logout", EventAuthLogout, "auth.logout"},
@@ -44,6 +45,7 @@ func TestEventTypeConstants(t *testing.T) {
 func TestAllEventTypesContainsAll(t *testing.T) {
 	expected := []string{
 		EventAuthSignup,
+		EventAuthSignupFailure,
 		EventAuthLoginSuccess,
 		EventAuthLoginFailure,
 		EventAuthLogout,
@@ -66,5 +68,5 @@ func TestAllEventTypesContainsAll(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, AllEventTypes)
-	assert.Len(t, AllEventTypes, 20)
+	assert.Len(t, AllEventTypes, 21)
 }

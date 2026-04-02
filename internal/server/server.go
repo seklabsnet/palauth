@@ -22,7 +22,9 @@ import (
 	"github.com/palauth/palauth/internal/admin"
 	"github.com/palauth/palauth/internal/apikey"
 	"github.com/palauth/palauth/internal/audit"
+	"github.com/palauth/palauth/internal/auth"
 	"github.com/palauth/palauth/internal/config"
+	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/project"
@@ -44,6 +46,7 @@ type Server struct {
 	jwtSvc     *token.JWTService
 	refreshSvc *token.RefreshService
 	customSvc  *token.CustomTokenService
+	authSvc    *auth.Service
 }
 
 func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredis.Client) *Server {
@@ -87,6 +90,14 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	refreshSvc := token.NewRefreshService(db, jwtSvc, refreshTTL, logger)
 	customSvc := token.NewCustomTokenService(jwtSvc, rdb, logger)
 
+	// Auth KEK: derived from pepper for email encryption key management.
+	authKEKMac := hmac.New(sha256.New, []byte(cfg.Auth.Pepper))
+	authKEKMac.Write([]byte("auth-email-kek"))
+	authKEK := authKEKMac.Sum(nil)
+
+	breachChecker := crypto.NewBreachChecker()
+	authSvc := auth.NewService(db, projectSvc, jwtSvc, refreshSvc, auditSvc, breachChecker, cfg.Auth.Pepper, authKEK, logger)
+
 	s := &Server{
 		cfg:        cfg,
 		router:     r,
@@ -100,6 +111,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		jwtSvc:     jwtSvc,
 		refreshSvc: refreshSvc,
 		customSvc:  customSvc,
+		authSvc:    authSvc,
 	}
 
 	s.setupMiddleware()
@@ -150,12 +162,15 @@ func (s *Server) setupRoutes() {
 	// JWKS endpoint (public, no auth).
 	s.router.Get("/.well-known/jwks.json", s.handleJWKS)
 
-	// Auth token endpoints (API key auth required).
-	s.router.Route("/auth/token", func(r chi.Router) {
+	// Public auth routes (API key required).
+	s.router.Route("/auth", func(r chi.Router) {
 		r.Use(CacheControl)
 		r.Use(s.apikeySvc.Middleware(s.logger))
-		r.Post("/refresh", s.handleRefreshToken)
-		r.Post("/exchange", s.handleExchangeCustomToken)
+		r.Post("/signup", s.handleSignup)
+		r.Post("/verify-email", s.handleVerifyEmail)
+		r.Post("/resend-verification", s.handleResendVerification)
+		r.Post("/token/refresh", s.handleRefreshToken)
+		r.Post("/token/exchange", s.handleExchangeCustomToken)
 	})
 
 	// Admin custom token endpoint.

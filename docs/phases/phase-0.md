@@ -380,11 +380,11 @@ GET  /metrics
 - 429 response format: `{ "error": "rate_limit_exceeded", "retry_after": 300 }`
 
 **Kabul kriterleri:**
-- [ ] Rate limit dogru calisiyor (limit asildiginda 429 doner)
-- [ ] httprate-redis distributed — multi-instance'da dogru calisiyor
-- [ ] Rate limit header'lari tum response'larda
-- [ ] Per-IP + per-account ayri limitler
-- [ ] Redis baglantisi kesilirse → log + request'i gec (fail open — rate limit icin)
+- [x] Rate limit dogru calisiyor (limit asildiginda 429 doner)
+- [x] httprate-redis distributed — multi-instance'da dogru calisiyor
+- [x] Rate limit header'lari tum response'larda
+- [x] Per-IP + per-account ayri limitler
+- [x] Redis baglantisi kesilirse → log + request'i gec (fail open — rate limit icin)
 
 **Bagimlilk:** T0.1
 

@@ -2,6 +2,8 @@
   "permissions": {
     "allow": [
       "Read",
+      "Edit",
+      "Write",
       "Glob",
       "Grep",
       "LSP",
@@ -9,7 +11,28 @@
       "WebSearch",
       "Bash(curl *)",
       "Bash(go mod:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(go build:*)",
+      "Bash(go run:*)",
+      "Bash(go get:*)",
+      "Bash(go vet:*)",
+      "Bash(go fmt:*)",
+      "Bash(gofmt:*)",
+      "Bash(goimports:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(sqlc:*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch*)",
+      "Bash(git checkout*)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(wc *)"
     ]
   },
   "env": {

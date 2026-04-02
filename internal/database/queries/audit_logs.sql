@@ -13,15 +13,17 @@ SELECT * FROM audit_logs WHERE project_id = $1 ORDER BY created_at ASC, id ASC;
 
 -- name: ListAuditLogsCursor :many
 SELECT * FROM audit_logs
-WHERE project_id = $1 AND (created_at, id) < ($2, $3)
+WHERE project_id = @project_id
+  AND (created_at < @cursor_created_at OR (created_at = @cursor_created_at AND id < @cursor_id))
 ORDER BY created_at DESC, id DESC
-LIMIT $4;
+LIMIT @lim;
 
 -- name: ListAuditLogsCursorByType :many
 SELECT * FROM audit_logs
-WHERE project_id = $1 AND event_type = $2 AND (created_at, id) < ($3, $4)
+WHERE project_id = @project_id AND event_type = @event_type
+  AND (created_at < @cursor_created_at OR (created_at = @cursor_created_at AND id < @cursor_id))
 ORDER BY created_at DESC, id DESC
-LIMIT $5;
+LIMIT @lim;
 
 -- name: ListAuditLogsFirst :many
 SELECT * FROM audit_logs

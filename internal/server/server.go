@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
@@ -21,8 +23,11 @@ import (
 	"github.com/palauth/palauth/internal/apikey"
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/config"
+	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/project"
 	palredis "github.com/palauth/palauth/internal/redis"
+	"github.com/palauth/palauth/internal/token"
 )
 
 type Server struct {
@@ -36,6 +41,9 @@ type Server struct {
 	projectSvc *project.Service
 	apikeySvc  *apikey.Service
 	auditSvc   *audit.Service
+	jwtSvc     *token.JWTService
+	refreshSvc *token.RefreshService
+	customSvc  *token.CustomTokenService
 }
 
 func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredis.Client) *Server {
@@ -57,6 +65,28 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	auditKEK := auditMac.Sum(nil)
 	auditSvc := audit.NewService(db, auditKEK, logger)
 
+	// Token services.
+	jwtAlg := token.AlgPS256
+	if cfg.FIPS {
+		jwtAlg = token.AlgPS256 // FIPS: PS256 is approved
+	}
+	jwtSvc, err := token.NewJWTService(token.JWTConfig{
+		Algorithm: jwtAlg,
+		FAPI:      false, // TODO: read from project config
+		Logger:    logger,
+	})
+	if err != nil {
+		logger.Error("failed to initialize JWT service", "error", err)
+		panic(fmt.Sprintf("jwt service init: %v", err))
+	}
+
+	var refreshTTL time.Duration
+	if cfg.Auth.RefreshTokenTTL > 0 {
+		refreshTTL = time.Duration(cfg.Auth.RefreshTokenTTL) * time.Second
+	}
+	refreshSvc := token.NewRefreshService(db, jwtSvc, refreshTTL, logger)
+	customSvc := token.NewCustomTokenService(jwtSvc, rdb, logger)
+
 	s := &Server{
 		cfg:        cfg,
 		router:     r,
@@ -67,6 +97,9 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		projectSvc: projectSvc,
 		apikeySvc:  apikeySvc,
 		auditSvc:   auditSvc,
+		jwtSvc:     jwtSvc,
+		refreshSvc: refreshSvc,
+		customSvc:  customSvc,
 	}
 
 	s.setupMiddleware()
@@ -112,6 +145,33 @@ func (s *Server) setupRoutes() {
 		r.Use(CacheControl)
 		r.Post("/admin/setup", s.handleAdminSetup)
 		r.Post("/admin/login", s.handleAdminLogin)
+	})
+
+	// JWKS endpoint (public, no auth).
+	s.router.Get("/.well-known/jwks.json", s.handleJWKS)
+
+	// Auth token endpoints (API key auth required).
+	s.router.Route("/auth/token", func(r chi.Router) {
+		r.Use(CacheControl)
+		r.Use(s.apikeySvc.Middleware(s.logger))
+		r.Post("/refresh", s.handleRefreshToken)
+		r.Post("/exchange", s.handleExchangeCustomToken)
+	})
+
+	// Admin custom token endpoint.
+	s.router.Route("/admin/token", func(r chi.Router) {
+		r.Use(CacheControl)
+		r.Use(s.adminSvc.AuthMiddleware())
+		r.Use(s.apikeySvc.Middleware(s.logger))
+		r.Post("/custom", s.handleCreateCustomToken)
+	})
+
+	// OAuth endpoints (API key auth required).
+	s.router.Route("/oauth", func(r chi.Router) {
+		r.Use(CacheControl)
+		r.Use(s.apikeySvc.Middleware(s.logger))
+		r.Post("/introspect", s.handleIntrospect)
+		r.Post("/revoke", s.handleRevoke)
 	})
 
 	// Admin-protected routes.
@@ -187,4 +247,34 @@ func (s *Server) Start() error {
 	}
 	s.logger.Info("server stopped")
 	return nil
+}
+
+// newQueries creates a new sqlc.Queries instance.
+func (s *Server) newQueries() *sqlc.Queries {
+	return sqlc.New(s.db)
+}
+
+// createSessionParams builds session creation parameters.
+func (s *Server) createSessionParams(projectID, userID string, ip, userAgent *string, acr string, amr []string, authTime time.Time) sqlc.CreateSessionParams {
+	amrJSON, _ := json.Marshal(amr)
+
+	// AAL1 defaults: no idle timeout, 30-day absolute.
+	absTimeout := authTime.Add(30 * 24 * time.Hour)
+
+	return sqlc.CreateSessionParams{
+		ID:            id.New("sess_"),
+		ProjectID:     projectID,
+		UserID:        userID,
+		Ip:            ip,
+		UserAgent:     userAgent,
+		Acr:           acr,
+		Amr:           amrJSON,
+		IdleTimeoutAt: pgtype.Timestamptz{},
+		AbsTimeoutAt:  pgtype.Timestamptz{Time: absTimeout, Valid: true},
+	}
+}
+
+// JWTService returns the JWT service for testing and external use.
+func (s *Server) JWTService() *token.JWTService {
+	return s.jwtSvc
 }

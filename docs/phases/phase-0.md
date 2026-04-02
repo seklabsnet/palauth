@@ -572,19 +572,19 @@ GET  /.well-known/jwks.json → { keys: [...] }
 ```
 
 **Kabul kriterleri:**
-- [ ] JWT dogru imzalaniyor (PS256 veya ES256)
-- [ ] JWT dogrulamasi calisiyor (valid token → claims, expired → hata)
-- [ ] Refresh token rotation calisiyor (yeni token doner, eski gecersiz)
-- [ ] Family-based revocation: eski token reuse → tum family revoke
-- [ ] 30sn grace period: concurrent request'ler → ikisi de basarili
-- [ ] JWKS endpoint dogru formatta doner
-- [ ] kid header dogru set ediliyor
-- [ ] JWT'de `auth_time` claim'i var (RFC 9068 zorunlu)
-- [ ] Custom token uretimi calisiyor (admin endpoint)
-- [ ] Custom token exchange calisiyor (custom token → access + refresh)
-- [ ] Token introspection calisiyor (gecerli token → active:true, gecersiz → active:false)
-- [ ] Token revocation calisiyor (revoke sonrasi introspect → active:false)
-- [ ] Revocation her zaman 200 doner (gecersiz token icin de)
+- [x] JWT dogru imzalaniyor (PS256 veya ES256)
+- [x] JWT dogrulamasi calisiyor (valid token → claims, expired → hata)
+- [x] Refresh token rotation calisiyor (yeni token doner, eski gecersiz)
+- [x] Family-based revocation: eski token reuse → tum family revoke
+- [x] 30sn grace period: concurrent request'ler → ikisi de basarili
+- [x] JWKS endpoint dogru formatta doner
+- [x] kid header dogru set ediliyor
+- [x] JWT'de `auth_time` claim'i var (RFC 9068 zorunlu)
+- [x] Custom token uretimi calisiyor (admin endpoint)
+- [x] Custom token exchange calisiyor (custom token → access + refresh)
+- [x] Token introspection calisiyor (gecerli token → active:true, gecersiz → active:false)
+- [x] Token revocation calisiyor (revoke sonrasi introspect → active:false)
+- [x] Revocation her zaman 200 doner (gecersiz token icin de)
 
 **Bagimlilk:** T0.3 (DB), T0.5 (crypto), T0.2 (router)
 

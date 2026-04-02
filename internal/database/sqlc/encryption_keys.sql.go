@@ -84,23 +84,18 @@ func (q *Queries) GetUserDEK(ctx context.Context, userID *string) (EncryptionKey
 	return i, err
 }
 
-const revokeUserDEK = `-- name: RevokeUserDEK :exec
-UPDATE encryption_keys SET revoked_at = now()
-WHERE user_id = $1 AND key_type = 'user_dek' AND revoked_at IS NULL
-`
-
-func (q *Queries) RevokeUserDEK(ctx context.Context, userID *string) error {
-	_, err := q.db.Exec(ctx, revokeUserDEK, userID)
-	return err
-}
-
 const getUserDEKByProject = `-- name: GetUserDEKByProject :one
 SELECT id, project_id, user_id, encrypted_key, key_type, created_at, revoked_at FROM encryption_keys
 WHERE user_id = $1 AND project_id = $2 AND key_type = 'user_dek' AND revoked_at IS NULL
 `
 
-func (q *Queries) GetUserDEKByProject(ctx context.Context, userID *string, projectID *string) (EncryptionKey, error) {
-	row := q.db.QueryRow(ctx, getUserDEKByProject, userID, projectID)
+type GetUserDEKByProjectParams struct {
+	UserID    *string `json:"user_id"`
+	ProjectID *string `json:"project_id"`
+}
+
+func (q *Queries) GetUserDEKByProject(ctx context.Context, arg GetUserDEKByProjectParams) (EncryptionKey, error) {
+	row := q.db.QueryRow(ctx, getUserDEKByProject, arg.UserID, arg.ProjectID)
 	var i EncryptionKey
 	err := row.Scan(
 		&i.ID,
@@ -114,12 +109,27 @@ func (q *Queries) GetUserDEKByProject(ctx context.Context, userID *string, proje
 	return i, err
 }
 
+const revokeUserDEK = `-- name: RevokeUserDEK :exec
+UPDATE encryption_keys SET revoked_at = now()
+WHERE user_id = $1 AND key_type = 'user_dek' AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeUserDEK(ctx context.Context, userID *string) error {
+	_, err := q.db.Exec(ctx, revokeUserDEK, userID)
+	return err
+}
+
 const revokeUserDEKByProject = `-- name: RevokeUserDEKByProject :exec
 UPDATE encryption_keys SET revoked_at = now()
 WHERE user_id = $1 AND project_id = $2 AND key_type = 'user_dek' AND revoked_at IS NULL
 `
 
-func (q *Queries) RevokeUserDEKByProject(ctx context.Context, userID *string, projectID *string) error {
-	_, err := q.db.Exec(ctx, revokeUserDEKByProject, userID, projectID)
+type RevokeUserDEKByProjectParams struct {
+	UserID    *string `json:"user_id"`
+	ProjectID *string `json:"project_id"`
+}
+
+func (q *Queries) RevokeUserDEKByProject(ctx context.Context, arg RevokeUserDEKByProjectParams) error {
+	_, err := q.db.Exec(ctx, revokeUserDEKByProject, arg.UserID, arg.ProjectID)
 	return err
 }

@@ -328,18 +328,18 @@ func (s *Service) List(ctx context.Context, projectID string, opts ListOptions) 
 		ts := pgtype.Timestamptz{Time: opts.Cursor.CreatedAt, Valid: true}
 		if opts.EventType != "" {
 			logs, err = q.ListAuditLogsCursorByType(ctx, sqlc.ListAuditLogsCursorByTypeParams{
-				ProjectID: projectID,
-				EventType: opts.EventType,
-				CreatedAt: ts,
-				ID:        opts.Cursor.ID,
-				Limit:     fetchLimit,
+				ProjectID:       projectID,
+				EventType:       opts.EventType,
+				CursorCreatedAt: ts,
+				CursorID:        opts.Cursor.ID,
+				Lim:             fetchLimit,
 			})
 		} else {
 			logs, err = q.ListAuditLogsCursor(ctx, sqlc.ListAuditLogsCursorParams{
-				ProjectID: projectID,
-				CreatedAt: ts,
-				ID:        opts.Cursor.ID,
-				Limit:     fetchLimit,
+				ProjectID:       projectID,
+				CursorCreatedAt: ts,
+				CursorID:        opts.Cursor.ID,
+				Lim:             fetchLimit,
 			})
 		}
 	} else {
@@ -362,7 +362,10 @@ func (s *Service) List(ctx context.Context, projectID string, opts ListOptions) 
 
 	var total int64
 	if opts.EventType != "" {
-		total, err = q.CountAuditLogsByType(ctx, projectID, opts.EventType)
+		total, err = q.CountAuditLogsByType(ctx, sqlc.CountAuditLogsByTypeParams{
+			ProjectID: projectID,
+			EventType: opts.EventType,
+		})
 	} else {
 		total, err = q.CountAuditLogs(ctx, projectID)
 	}
@@ -435,7 +438,10 @@ func (s *Service) Erase(ctx context.Context, projectID, userID string) error {
 	q := sqlc.New(s.db)
 
 	// Revoke the user's DEK scoped to this project — makes their encrypted PII unreadable.
-	if err := q.RevokeUserDEKByProject(ctx, &userID, &projectID); err != nil {
+	if err := q.RevokeUserDEKByProject(ctx, sqlc.RevokeUserDEKByProjectParams{
+		UserID:    &userID,
+		ProjectID: &projectID,
+	}); err != nil {
 		return fmt.Errorf("revoke user DEK: %w", err)
 	}
 
@@ -458,7 +464,10 @@ func (s *Service) Erase(ctx context.Context, projectID, userID string) error {
 func (s *Service) getOrCreateUserDEK(ctx context.Context, q *sqlc.Queries, userID, projectID string) ([]byte, error) {
 	dekAAD := []byte("dek:" + projectID + ":" + userID)
 
-	ek, err := q.GetUserDEKByProject(ctx, &userID, &projectID)
+	ek, err := q.GetUserDEKByProject(ctx, sqlc.GetUserDEKByProjectParams{
+		UserID:    &userID,
+		ProjectID: &projectID,
+	})
 	if err == nil {
 		return crypto.Decrypt(ek.EncryptedKey, s.kek, dekAAD)
 	}
@@ -605,7 +614,10 @@ func (s *Service) decryptFramedJSON(ctx context.Context, q *sqlc.Queries, framed
 		return nil
 	}
 
-	ek, err := q.GetUserDEKByProject(ctx, &userID, &projectID)
+	ek, err := q.GetUserDEKByProject(ctx, sqlc.GetUserDEKByProjectParams{
+		UserID:    &userID,
+		ProjectID: &projectID,
+	})
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			s.logger.Warn("failed to get user DEK for decryption", "user_id", userID, "project_id", projectID, "error", err)

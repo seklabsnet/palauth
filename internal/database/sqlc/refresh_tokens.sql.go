@@ -12,13 +12,14 @@ import (
 )
 
 const createRefreshToken = `-- name: CreateRefreshToken :one
-INSERT INTO refresh_tokens (id, session_id, user_id, token_hash, family_id, parent_id, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, session_id, user_id, token_hash, family_id, parent_id, used, created_at, expires_at
+INSERT INTO refresh_tokens (id, project_id, session_id, user_id, token_hash, family_id, parent_id, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, session_id, user_id, token_hash, family_id, parent_id, used, created_at, expires_at, project_id
 `
 
 type CreateRefreshTokenParams struct {
 	ID        string             `json:"id"`
+	ProjectID string             `json:"project_id"`
 	SessionID string             `json:"session_id"`
 	UserID    string             `json:"user_id"`
 	TokenHash []byte             `json:"token_hash"`
@@ -30,6 +31,7 @@ type CreateRefreshTokenParams struct {
 func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error) {
 	row := q.db.QueryRow(ctx, createRefreshToken,
 		arg.ID,
+		arg.ProjectID,
 		arg.SessionID,
 		arg.UserID,
 		arg.TokenHash,
@@ -48,12 +50,57 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 		&i.Used,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.ProjectID,
+	)
+	return i, err
+}
+
+const getChildRefreshToken = `-- name: GetChildRefreshToken :one
+SELECT id, session_id, user_id, token_hash, family_id, parent_id, used, created_at, expires_at, project_id FROM refresh_tokens WHERE parent_id = $1 AND used = false ORDER BY created_at DESC LIMIT 1
+`
+
+func (q *Queries) GetChildRefreshToken(ctx context.Context, parentID *string) (RefreshToken, error) {
+	row := q.db.QueryRow(ctx, getChildRefreshToken, parentID)
+	var i RefreshToken
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.FamilyID,
+		&i.ParentID,
+		&i.Used,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ProjectID,
+	)
+	return i, err
+}
+
+const getChildRefreshTokenForUpdate = `-- name: GetChildRefreshTokenForUpdate :one
+SELECT id, session_id, user_id, token_hash, family_id, parent_id, used, created_at, expires_at, project_id FROM refresh_tokens WHERE parent_id = $1 AND used = false ORDER BY created_at DESC LIMIT 1 FOR UPDATE
+`
+
+func (q *Queries) GetChildRefreshTokenForUpdate(ctx context.Context, parentID *string) (RefreshToken, error) {
+	row := q.db.QueryRow(ctx, getChildRefreshTokenForUpdate, parentID)
+	var i RefreshToken
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.FamilyID,
+		&i.ParentID,
+		&i.Used,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ProjectID,
 	)
 	return i, err
 }
 
 const getRefreshTokenByHash = `-- name: GetRefreshTokenByHash :one
-SELECT id, session_id, user_id, token_hash, family_id, parent_id, used, created_at, expires_at FROM refresh_tokens WHERE token_hash = $1
+SELECT id, session_id, user_id, token_hash, family_id, parent_id, used, created_at, expires_at, project_id FROM refresh_tokens WHERE token_hash = $1
 `
 
 func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (RefreshToken, error) {
@@ -69,6 +116,29 @@ func (q *Queries) GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (
 		&i.Used,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.ProjectID,
+	)
+	return i, err
+}
+
+const getRefreshTokenByHashForUpdate = `-- name: GetRefreshTokenByHashForUpdate :one
+SELECT id, session_id, user_id, token_hash, family_id, parent_id, used, created_at, expires_at, project_id FROM refresh_tokens WHERE token_hash = $1 FOR UPDATE
+`
+
+func (q *Queries) GetRefreshTokenByHashForUpdate(ctx context.Context, tokenHash []byte) (RefreshToken, error) {
+	row := q.db.QueryRow(ctx, getRefreshTokenByHashForUpdate, tokenHash)
+	var i RefreshToken
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.UserID,
+		&i.TokenHash,
+		&i.FamilyID,
+		&i.ParentID,
+		&i.Used,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ProjectID,
 	)
 	return i, err
 }
@@ -88,5 +158,19 @@ UPDATE refresh_tokens SET used = true WHERE family_id = $1
 
 func (q *Queries) RevokeRefreshTokenFamily(ctx context.Context, familyID string) error {
 	_, err := q.db.Exec(ctx, revokeRefreshTokenFamily, familyID)
+	return err
+}
+
+const updateRefreshTokenHash = `-- name: UpdateRefreshTokenHash :exec
+UPDATE refresh_tokens SET token_hash = $1 WHERE id = $2
+`
+
+type UpdateRefreshTokenHashParams struct {
+	TokenHash []byte `json:"token_hash"`
+	ID        string `json:"id"`
+}
+
+func (q *Queries) UpdateRefreshTokenHash(ctx context.Context, arg UpdateRefreshTokenHashParams) error {
+	_, err := q.db.Exec(ctx, updateRefreshTokenHash, arg.TokenHash, arg.ID)
 	return err
 }

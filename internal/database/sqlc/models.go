@@ -80,6 +80,7 @@ type RefreshToken struct {
 	Used      bool               `json:"used"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	ProjectID string             `json:"project_id"`
 }
 
 type Session struct {

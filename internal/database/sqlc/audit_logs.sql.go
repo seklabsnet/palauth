@@ -11,6 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAuditLogs = `-- name: CountAuditLogs :one
+SELECT count(*) FROM audit_logs WHERE project_id = $1
+`
+
+func (q *Queries) CountAuditLogs(ctx context.Context, projectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countAuditLogs, projectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAuditLogsByType = `-- name: CountAuditLogsByType :one
+SELECT count(*) FROM audit_logs WHERE project_id = $1 AND event_type = $2
+`
+
+type CountAuditLogsByTypeParams struct {
+	ProjectID string `json:"project_id"`
+	EventType string `json:"event_type"`
+}
+
+func (q *Queries) CountAuditLogsByType(ctx context.Context, arg CountAuditLogsByTypeParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAuditLogsByType, arg.ProjectID, arg.EventType)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAuditLog = `-- name: CreateAuditLog :one
 INSERT INTO audit_logs (id, project_id, trace_id, event_type, actor_encrypted, target_type, target_id, result, auth_method, risk_score, metadata_encrypted, prev_hash, event_hash)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -99,6 +126,8 @@ const listAuditLogsAsc = `-- name: ListAuditLogsAsc :many
 SELECT id, project_id, trace_id, event_type, actor_encrypted, target_type, target_id, result, auth_method, risk_score, metadata_encrypted, prev_hash, event_hash, created_at FROM audit_logs WHERE project_id = $1 ORDER BY created_at ASC, id ASC
 `
 
+// NOTE: No LIMIT — used by Verify() and Export() which need full chain.
+// Acceptable for Phase 0 (bounded project sizes). Add streaming/batching for production scale.
 func (q *Queries) ListAuditLogsAsc(ctx context.Context, projectID string) ([]AuditLog, error) {
 	rows, err := q.db.Query(ctx, listAuditLogsAsc, projectID)
 	if err != nil {
@@ -136,24 +165,25 @@ func (q *Queries) ListAuditLogsAsc(ctx context.Context, projectID string) ([]Aud
 
 const listAuditLogsCursor = `-- name: ListAuditLogsCursor :many
 SELECT id, project_id, trace_id, event_type, actor_encrypted, target_type, target_id, result, auth_method, risk_score, metadata_encrypted, prev_hash, event_hash, created_at FROM audit_logs
-WHERE project_id = $1 AND (created_at, id) < ($2, $3)
+WHERE project_id = $1
+  AND (created_at < $2 OR (created_at = $2 AND id < $3))
 ORDER BY created_at DESC, id DESC
 LIMIT $4
 `
 
 type ListAuditLogsCursorParams struct {
-	ProjectID string             `json:"project_id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	ID        string             `json:"id"`
-	Limit     int32              `json:"limit"`
+	ProjectID       string             `json:"project_id"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        string             `json:"cursor_id"`
+	Lim             int32              `json:"lim"`
 }
 
 func (q *Queries) ListAuditLogsCursor(ctx context.Context, arg ListAuditLogsCursorParams) ([]AuditLog, error) {
 	rows, err := q.db.Query(ctx, listAuditLogsCursor,
 		arg.ProjectID,
-		arg.CreatedAt,
-		arg.ID,
-		arg.Limit,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.Lim,
 	)
 	if err != nil {
 		return nil, err
@@ -190,26 +220,27 @@ func (q *Queries) ListAuditLogsCursor(ctx context.Context, arg ListAuditLogsCurs
 
 const listAuditLogsCursorByType = `-- name: ListAuditLogsCursorByType :many
 SELECT id, project_id, trace_id, event_type, actor_encrypted, target_type, target_id, result, auth_method, risk_score, metadata_encrypted, prev_hash, event_hash, created_at FROM audit_logs
-WHERE project_id = $1 AND event_type = $2 AND (created_at, id) < ($3, $4)
+WHERE project_id = $1 AND event_type = $2
+  AND (created_at < $3 OR (created_at = $3 AND id < $4))
 ORDER BY created_at DESC, id DESC
 LIMIT $5
 `
 
 type ListAuditLogsCursorByTypeParams struct {
-	ProjectID string             `json:"project_id"`
-	EventType string             `json:"event_type"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	ID        string             `json:"id"`
-	Limit     int32              `json:"limit"`
+	ProjectID       string             `json:"project_id"`
+	EventType       string             `json:"event_type"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        string             `json:"cursor_id"`
+	Lim             int32              `json:"lim"`
 }
 
 func (q *Queries) ListAuditLogsCursorByType(ctx context.Context, arg ListAuditLogsCursorByTypeParams) ([]AuditLog, error) {
 	rows, err := q.db.Query(ctx, listAuditLogsCursorByType,
 		arg.ProjectID,
 		arg.EventType,
-		arg.CreatedAt,
-		arg.ID,
-		arg.Limit,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.Lim,
 	)
 	if err != nil {
 		return nil, err
@@ -257,10 +288,7 @@ type ListAuditLogsFirstParams struct {
 }
 
 func (q *Queries) ListAuditLogsFirst(ctx context.Context, arg ListAuditLogsFirstParams) ([]AuditLog, error) {
-	rows, err := q.db.Query(ctx, listAuditLogsFirst,
-		arg.ProjectID,
-		arg.Limit,
-	)
+	rows, err := q.db.Query(ctx, listAuditLogsFirst, arg.ProjectID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -308,11 +336,7 @@ type ListAuditLogsFirstByTypeParams struct {
 }
 
 func (q *Queries) ListAuditLogsFirstByType(ctx context.Context, arg ListAuditLogsFirstByTypeParams) ([]AuditLog, error) {
-	rows, err := q.db.Query(ctx, listAuditLogsFirstByType,
-		arg.ProjectID,
-		arg.EventType,
-		arg.Limit,
-	)
+	rows, err := q.db.Query(ctx, listAuditLogsFirstByType, arg.ProjectID, arg.EventType, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -344,26 +368,4 @@ func (q *Queries) ListAuditLogsFirstByType(ctx context.Context, arg ListAuditLog
 		return nil, err
 	}
 	return items, nil
-}
-
-const countAuditLogs = `-- name: CountAuditLogs :one
-SELECT count(*) FROM audit_logs WHERE project_id = $1
-`
-
-func (q *Queries) CountAuditLogs(ctx context.Context, projectID string) (int64, error) {
-	row := q.db.QueryRow(ctx, countAuditLogs, projectID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countAuditLogsByType = `-- name: CountAuditLogsByType :one
-SELECT count(*) FROM audit_logs WHERE project_id = $1 AND event_type = $2
-`
-
-func (q *Queries) CountAuditLogsByType(ctx context.Context, projectID string, eventType string) (int64, error) {
-	row := q.db.QueryRow(ctx, countAuditLogsByType, projectID, eventType)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }

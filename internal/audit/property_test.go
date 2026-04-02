@@ -43,10 +43,10 @@ func TestComputeEventHash_Deterministic_Property(t *testing.T) {
 			prevHash = &input.PrevHash
 		}
 
-		hash1, err := computeEventHash(input, prevHash)
+		hash1, err := computeEventHash(&input, prevHash)
 		require.NoError(t, err)
 
-		hash2, err := computeEventHash(input, prevHash)
+		hash2, err := computeEventHash(&input, prevHash)
 		require.NoError(t, err)
 
 		assert.Equal(t, hash1, hash2,
@@ -95,10 +95,10 @@ func TestComputeEventHash_DifferentInputsDifferentHashes_Property(t *testing.T) 
 		input2 := input1
 		input2.Result = "failure"
 
-		hash1, err := computeEventHash(input1, nil)
+		hash1, err := computeEventHash(&input1, nil)
 		require.NoError(t, err)
 
-		hash2, err := computeEventHash(input2, nil)
+		hash2, err := computeEventHash(&input2, nil)
 		require.NoError(t, err)
 
 		assert.NotEqual(t, hash1, hash2,

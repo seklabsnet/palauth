@@ -20,7 +20,7 @@ func TestSignAndValidateToken(t *testing.T) {
 		signingKey: []byte("test-signing-key-at-least-32-bytes!"),
 	}
 
-	claims := AdminClaims{
+	claims := Claims{
 		Sub:  "adm_test-123",
 		Role: "owner",
 		Iat:  time.Now().Unix(),
@@ -47,7 +47,7 @@ func TestValidateToken_Expired(t *testing.T) {
 		signingKey: []byte("test-signing-key-at-least-32-bytes!"),
 	}
 
-	claims := AdminClaims{
+	claims := Claims{
 		Sub:  "adm_test-123",
 		Role: "owner",
 		Iat:  time.Now().Add(-2 * time.Hour).Unix(),
@@ -69,7 +69,7 @@ func TestValidateToken_InvalidSignature(t *testing.T) {
 		signingKey: []byte("key-two-at-least-32-bytes-long!!"),
 	}
 
-	claims := AdminClaims{
+	claims := Claims{
 		Sub:  "adm_test-123",
 		Role: "owner",
 		Iat:  time.Now().Unix(),
@@ -112,7 +112,7 @@ func TestValidateToken_TamperedPayload(t *testing.T) {
 		signingKey: []byte("test-signing-key-at-least-32-bytes!"),
 	}
 
-	claims := AdminClaims{
+	claims := Claims{
 		Sub:  "adm_test-123",
 		Role: "owner",
 		Iat:  time.Now().Unix(),
@@ -123,7 +123,7 @@ func TestValidateToken_TamperedPayload(t *testing.T) {
 	require.NoError(t, err)
 
 	parts := strings.SplitN(token, ".", 3)
-	tamperedClaims := AdminClaims{
+	tamperedClaims := Claims{
 		Sub:  "adm_test-123",
 		Role: "admin",
 		Iat:  claims.Iat,
@@ -142,7 +142,7 @@ func TestSignToken_HeaderIsHS256(t *testing.T) {
 		signingKey: []byte("test-signing-key-at-least-32-bytes!"),
 	}
 
-	claims := AdminClaims{
+	claims := Claims{
 		Sub:  "adm_test",
 		Role: "owner",
 		Iat:  time.Now().Unix(),
@@ -171,7 +171,7 @@ func TestSignToken_Property_RoundTrip(t *testing.T) {
 		sub := rapid.StringMatching(`adm_[a-z0-9]{5,10}`).Draw(t, "sub")
 		role := rapid.SampledFrom([]string{"owner", "admin", "developer"}).Draw(t, "role")
 
-		claims := AdminClaims{
+		claims := Claims{
 			Sub:  sub,
 			Role: role,
 			Iat:  time.Now().Unix(),
@@ -198,7 +198,7 @@ func TestToAdminUser(t *testing.T) {
 		CreatedAt:    pgtype.Timestamptz{Time: now, Valid: true},
 	}
 
-	admin := toAdminUser(row)
+	admin := toAdminUser(&row)
 	assert.Equal(t, "adm_test-123", admin.ID)
 	assert.Equal(t, "admin@example.com", admin.Email)
 	assert.Equal(t, "owner", admin.Role)
@@ -214,6 +214,6 @@ func TestToAdminUser_InvalidTimestamp(t *testing.T) {
 		CreatedAt:    pgtype.Timestamptz{Valid: false},
 	}
 
-	admin := toAdminUser(row)
+	admin := toAdminUser(&row)
 	assert.Equal(t, "", admin.CreatedAt)
 }

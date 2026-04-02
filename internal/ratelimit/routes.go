@@ -36,21 +36,21 @@ type RouteMiddlewares struct {
 // limits by spoofing these headers.
 func NewRouteMiddlewares(rdb redis.UniversalClient, logger *slog.Logger) *RouteMiddlewares {
 	return &RouteMiddlewares{
-		SignupByIP: NewMiddleware(RateLimitConfig{
+		SignupByIP: NewMiddleware(Config{
 			Name:    "signup",
 			Limit:   5,
 			Window:  15 * time.Minute,
 			KeyFunc: httprate.KeyByRealIP,
 		}, rdb, logger),
 
-		LoginByIP: NewMiddleware(RateLimitConfig{
+		LoginByIP: NewMiddleware(Config{
 			Name:    "login_ip",
 			Limit:   10,
 			Window:  5 * time.Minute,
 			KeyFunc: httprate.KeyByRealIP,
 		}, rdb, logger),
 
-		LoginByAccount: NewMiddleware(RateLimitConfig{
+		LoginByAccount: NewMiddleware(Config{
 			Name:   "login_acct",
 			Limit:  5,
 			Window: 5 * time.Minute,
@@ -64,7 +64,7 @@ func NewRouteMiddlewares(rdb redis.UniversalClient, logger *slog.Logger) *RouteM
 			},
 		}, rdb, logger),
 
-		PasswordByAccount: NewMiddleware(RateLimitConfig{
+		PasswordByAccount: NewMiddleware(Config{
 			Name:   "pwd",
 			Limit:  3,
 			Window: 15 * time.Minute,
@@ -76,7 +76,7 @@ func NewRouteMiddlewares(rdb redis.UniversalClient, logger *slog.Logger) *RouteM
 			},
 		}, rdb, logger),
 
-		TokenRefreshBySession: NewMiddleware(RateLimitConfig{
+		TokenRefreshBySession: NewMiddleware(Config{
 			Name:   "refresh",
 			Limit:  30,
 			Window: 1 * time.Minute,

@@ -23,7 +23,7 @@ import (
 	"github.com/palauth/palauth/internal/database/sqlc"
 )
 
-func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
+func setupTestDB(t *testing.T) (pool *pgxpool.Pool, cleanup func()) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -43,7 +43,7 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 
-	pool, err := pgxpool.New(ctx, connStr)
+	pool, err = pgxpool.New(ctx, connStr)
 	require.NoError(t, err)
 
 	// Run migrations by reading SQL files directly.
@@ -51,7 +51,7 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 	require.NoError(t, err)
 	runMigrations(t, pool, migrationsDir)
 
-	cleanup := func() {
+	cleanup = func() {
 		pool.Close()
 		_ = pgContainer.Terminate(ctx)
 	}
@@ -82,7 +82,7 @@ func TestIntegration_LogAndVerify(t *testing.T) {
 	createTestUser(t, pool, projectID, "usr_1")
 
 	// Log 3 events to build a chain.
-	events := []audit.AuditEvent{
+	events := []audit.Event{
 		{
 			EventType: audit.EventAuthSignup,
 			Actor:     audit.ActorInfo{UserID: "usr_1", Email: "alice@example.com", IP: "10.0.0.1"},
@@ -107,8 +107,8 @@ func TestIntegration_LogAndVerify(t *testing.T) {
 		},
 	}
 
-	for _, e := range events {
-		err := svc.Log(ctx, e)
+	for i := range events {
+		err := svc.Log(ctx, &events[i])
 		require.NoError(t, err)
 	}
 
@@ -138,7 +138,7 @@ func TestIntegration_TamperedLogDetected(t *testing.T) {
 
 	// Log 3 events.
 	for i := 0; i < 3; i++ {
-		err := svc.Log(ctx, audit.AuditEvent{
+		err := svc.Log(ctx, &audit.Event{
 			EventType: audit.EventAuthLoginSuccess,
 			Actor:     audit.ActorInfo{UserID: fmt.Sprintf("usr_%d", i)},
 			Result:    "success",
@@ -179,7 +179,7 @@ func TestIntegration_PIIEncryptedInDB(t *testing.T) {
 	projectID := createTestProject(t, pool)
 	createTestUser(t, pool, projectID, "usr_pii")
 
-	err := svc.Log(ctx, audit.AuditEvent{
+	err := svc.Log(ctx, &audit.Event{
 		EventType: audit.EventAuthSignup,
 		Actor:     audit.ActorInfo{UserID: "usr_pii", Email: "secret@example.com", IP: "192.168.1.100"},
 		Result:    "success",
@@ -217,7 +217,7 @@ func TestIntegration_GDPRErasure(t *testing.T) {
 	createTestUser(t, pool, projectID, "system")
 
 	// Log events for a user.
-	err := svc.Log(ctx, audit.AuditEvent{
+	err := svc.Log(ctx, &audit.Event{
 		EventType: audit.EventAuthSignup,
 		Actor:     audit.ActorInfo{UserID: "usr_eraseme", Email: "erase@example.com", IP: "10.0.0.1"},
 		Target:    &audit.TargetInfo{Type: "user", ID: "usr_eraseme"},
@@ -271,7 +271,7 @@ func TestIntegration_CursorPagination(t *testing.T) {
 
 	// Log 5 events.
 	for i := 0; i < 5; i++ {
-		err := svc.Log(ctx, audit.AuditEvent{
+		err := svc.Log(ctx, &audit.Event{
 			EventType: audit.EventAuthLoginSuccess,
 			Actor:     audit.ActorInfo{UserID: fmt.Sprintf("usr_%d", i)},
 			Result:    "success",
@@ -335,7 +335,7 @@ func TestIntegration_ExportJSON(t *testing.T) {
 	projectID := createTestProject(t, pool)
 	createTestUser(t, pool, projectID, "usr_export")
 
-	err := svc.Log(ctx, audit.AuditEvent{
+	err := svc.Log(ctx, &audit.Event{
 		EventType: audit.EventAuthSignup,
 		Actor:     audit.ActorInfo{UserID: "usr_export", Email: "export@example.com"},
 		Result:    "success",
@@ -363,7 +363,7 @@ func TestIntegration_ExportCSV(t *testing.T) {
 	projectID := createTestProject(t, pool)
 	createTestUser(t, pool, projectID, "usr_csv")
 
-	err := svc.Log(ctx, audit.AuditEvent{
+	err := svc.Log(ctx, &audit.Event{
 		EventType: audit.EventAuthSignup,
 		Actor:     audit.ActorInfo{UserID: "usr_csv", Email: "csv@example.com"},
 		Result:    "success",
@@ -397,7 +397,7 @@ func TestIntegration_ProjectIsolation(t *testing.T) {
 	createTestUser(t, pool, projectB, "usr_shared_b")
 
 	// Log events to different projects.
-	err := svc.Log(ctx, audit.AuditEvent{
+	err := svc.Log(ctx, &audit.Event{
 		EventType: audit.EventAuthSignup,
 		Actor:     audit.ActorInfo{UserID: "usr_shared_a"},
 		Result:    "success",
@@ -405,7 +405,7 @@ func TestIntegration_ProjectIsolation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = svc.Log(ctx, audit.AuditEvent{
+	err = svc.Log(ctx, &audit.Event{
 		EventType: audit.EventAuthSignup,
 		Actor:     audit.ActorInfo{UserID: "usr_shared_b"},
 		Result:    "success",

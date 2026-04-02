@@ -33,16 +33,16 @@ var (
 
 const adminTokenExpiry = 24 * time.Hour
 
-// AdminUser is the domain model for an admin user.
-type AdminUser struct {
+// User is the domain model for an admin user.
+type User struct {
 	ID        string `json:"id"`
 	Email     string `json:"email"`
 	Role      string `json:"role"`
 	CreatedAt string `json:"created_at"`
 }
 
-// AdminClaims holds the parsed admin JWT claims.
-type AdminClaims struct {
+// Claims holds the parsed admin JWT claims.
+type Claims struct {
 	Sub  string `json:"sub"`
 	Role string `json:"role"`
 	Iat  int64  `json:"iat"`
@@ -51,7 +51,7 @@ type AdminClaims struct {
 
 // SetupResult is returned from the initial admin setup.
 type SetupResult struct {
-	Admin   *AdminUser       `json:"admin"`
+	Admin   *User            `json:"admin"`
 	Project *project.Project `json:"project"`
 	APIKeys *apikey.APIKeys  `json:"api_keys"`
 }
@@ -127,7 +127,7 @@ func (s *Service) Setup(ctx context.Context, email, password string) (*SetupResu
 		return nil, fmt.Errorf("create admin: %w", err)
 	}
 
-	adminUser := toAdminUser(adminRow)
+	adminUser := toAdminUser(&adminRow)
 
 	// Create default project.
 	cfg := project.DefaultConfig()
@@ -235,7 +235,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, er
 
 	// Issue admin JWT.
 	now := time.Now()
-	claims := AdminClaims{
+	claims := Claims{
 		Sub:  adminRow.ID,
 		Role: adminRow.Role,
 		Iat:  now.Unix(),
@@ -251,7 +251,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, er
 }
 
 // ValidateToken parses and validates an admin JWT.
-func (s *Service) ValidateToken(token string) (*AdminClaims, error) {
+func (s *Service) ValidateToken(token string) (*Claims, error) {
 	parts := strings.SplitN(token, ".", 3)
 	if len(parts) != 3 {
 		return nil, ErrInvalidToken
@@ -278,7 +278,7 @@ func (s *Service) ValidateToken(token string) (*AdminClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
-	var claims AdminClaims
+	var claims Claims
 	if err := json.Unmarshal(payload, &claims); err != nil {
 		return nil, ErrInvalidToken
 	}
@@ -292,7 +292,7 @@ func (s *Service) ValidateToken(token string) (*AdminClaims, error) {
 }
 
 // signToken creates an HMAC-SHA256 signed JWT.
-func (s *Service) signToken(claims AdminClaims) (string, error) {
+func (s *Service) signToken(claims Claims) (string, error) {
 	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
 
 	claimsJSON, err := json.Marshal(claims)
@@ -309,8 +309,8 @@ func (s *Service) signToken(claims AdminClaims) (string, error) {
 	return signingInput + "." + signature, nil
 }
 
-func toAdminUser(row sqlc.AdminUser) *AdminUser {
-	a := &AdminUser{
+func toAdminUser(row *sqlc.AdminUser) *User {
+	a := &User{
 		ID:    row.ID,
 		Email: row.Email,
 		Role:  row.Role,

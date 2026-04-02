@@ -14,8 +14,8 @@ import (
 	"github.com/palauth/palauth/internal/server"
 )
 
-// RateLimitConfig holds the parameters for a single rate limit rule.
-type RateLimitConfig struct {
+// Config holds the parameters for a single rate limit rule.
+type Config struct {
 	// Name identifies this rate limit rule. Used as part of the Redis key prefix
 	// to ensure different route limiters have isolated counter namespaces.
 	Name    string
@@ -37,7 +37,7 @@ type errorResponse struct {
 // If rdb is nil, rate limiting uses in-memory only (useful for single-instance / tests).
 // If Redis goes down at runtime, httprate-redis automatically falls back to a local
 // in-memory counter (fail-open behavior).
-func NewMiddleware(cfg RateLimitConfig, rdb redis.UniversalClient, logger *slog.Logger) func(http.Handler) http.Handler {
+func NewMiddleware(cfg Config, rdb redis.UniversalClient, logger *slog.Logger) func(http.Handler) http.Handler {
 	opts := []httprate.Option{
 		httprate.WithKeyFuncs(cfg.KeyFunc),
 		httprate.WithLimitHandler(limitHandler(cfg.Window, logger)),

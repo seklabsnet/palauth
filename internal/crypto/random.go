@@ -20,10 +20,10 @@ func GenerateToken(length int) (string, error) {
 
 // GenerateOTP generates a numeric OTP with the specified number of digits using crypto/rand.
 func GenerateOTP(digits int) (string, error) {
-	max := new(big.Int)
-	max.Exp(big.NewInt(10), big.NewInt(int64(digits)), nil)
+	maxVal := new(big.Int)
+	maxVal.Exp(big.NewInt(10), big.NewInt(int64(digits)), nil)
 
-	n, err := rand.Int(rand.Reader, max)
+	n, err := rand.Int(rand.Reader, maxVal)
 	if err != nil {
 		return "", fmt.Errorf("crypto/rand: %w", err)
 	}

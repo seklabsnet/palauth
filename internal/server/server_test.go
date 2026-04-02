@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +28,7 @@ func newTestServer(t *testing.T) *Server {
 func TestHealthz(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/healthz", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	srv.Router().ServeHTTP(rec, req)
@@ -39,7 +40,7 @@ func TestHealthz(t *testing.T) {
 func TestReadyz(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/readyz", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	srv.Router().ServeHTTP(rec, req)
@@ -50,7 +51,7 @@ func TestReadyz(t *testing.T) {
 func TestSecurityHeaders(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/healthz", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	srv.Router().ServeHTTP(rec, req)
@@ -68,7 +69,7 @@ func TestSecurityHeaders(t *testing.T) {
 func TestRequestID(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/healthz", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	srv.Router().ServeHTTP(rec, req)
@@ -81,7 +82,7 @@ func TestRequestID(t *testing.T) {
 func TestCORS_AllowedOrigin(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodOptions, "/healthz", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodOptions, "/healthz", http.NoBody)
 	req.Header.Set("Origin", "http://localhost:3001")
 	req.Header.Set("Access-Control-Request-Method", "GET")
 	rec := httptest.NewRecorder()
@@ -94,7 +95,7 @@ func TestCORS_AllowedOrigin(t *testing.T) {
 func TestCORS_DisallowedOrigin(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodOptions, "/healthz", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodOptions, "/healthz", http.NoBody)
 	req.Header.Set("Origin", "http://evil.com")
 	req.Header.Set("Access-Control-Request-Method", "GET")
 	rec := httptest.NewRecorder()
@@ -107,7 +108,7 @@ func TestCORS_DisallowedOrigin(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/metrics", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	srv.Router().ServeHTTP(rec, req)
@@ -119,7 +120,7 @@ func TestMetrics(t *testing.T) {
 func TestNotFound(t *testing.T) {
 	srv := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/nonexistent", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/nonexistent", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	srv.Router().ServeHTTP(rec, req)

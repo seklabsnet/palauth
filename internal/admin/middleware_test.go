@@ -22,7 +22,7 @@ func newTestService() *Service {
 func TestAuthMiddleware_ValidToken(t *testing.T) {
 	svc := newTestService()
 
-	claims := AdminClaims{
+	claims := Claims{
 		Sub:  "adm_test-123",
 		Role: "owner",
 		Iat:  time.Now().Unix(),
@@ -32,14 +32,14 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	require.NoError(t, err)
 
 	handler := svc.AuthMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c := AdminClaimsFromContext(r.Context())
+		c := ClaimsFromContext(r.Context())
 		require.NotNil(t, c)
 		assert.Equal(t, "adm_test-123", c.Sub)
 		assert.Equal(t, "owner", c.Role)
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/projects", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/admin/projects", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -54,7 +54,7 @@ func TestAuthMiddleware_MissingHeader(t *testing.T) {
 		t.Fatal("handler should not be called")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/projects", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/admin/projects", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -69,7 +69,7 @@ func TestAuthMiddleware_InvalidScheme(t *testing.T) {
 		t.Fatal("handler should not be called")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/projects", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/admin/projects", http.NoBody)
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
 	rec := httptest.NewRecorder()
 
@@ -81,7 +81,7 @@ func TestAuthMiddleware_InvalidScheme(t *testing.T) {
 func TestAuthMiddleware_ExpiredToken(t *testing.T) {
 	svc := newTestService()
 
-	claims := AdminClaims{
+	claims := Claims{
 		Sub:  "adm_test-123",
 		Role: "owner",
 		Iat:  time.Now().Add(-2 * time.Hour).Unix(),
@@ -94,7 +94,7 @@ func TestAuthMiddleware_ExpiredToken(t *testing.T) {
 		t.Fatal("handler should not be called")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/projects", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/admin/projects", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 
@@ -102,7 +102,7 @@ func TestAuthMiddleware_ExpiredToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
-func TestAdminClaimsFromContext_Empty(t *testing.T) {
+func TestClaimsFromContext_Empty(t *testing.T) {
 	ctx := context.Background()
-	assert.Nil(t, AdminClaimsFromContext(ctx))
+	assert.Nil(t, ClaimsFromContext(ctx))
 }

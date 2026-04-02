@@ -160,7 +160,9 @@ func (s *Service) Verify(ctx context.Context, key string) (*KeyInfo, error) {
 	}
 
 	// Update last_used in a fire-and-forget goroutine with a timeout.
-	go func() {
+	// Using context.Background() intentionally: the parent request context may be
+	// cancelled before this async write completes, and we want it to finish.
+	go func() { //nolint:gosec // G118: intentional — fire-and-forget must outlive request
 		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		bgQ := sqlc.New(s.db)
@@ -192,9 +194,9 @@ func (s *Service) Rotate(ctx context.Context, projectID, keyType string) (newPla
 	}
 
 	// Mark existing keys of this type with grace period revocation.
-	for _, k := range existingKeys {
-		if k.KeyType == keyType && !k.RevokedAt.Valid {
-			if err := q.RevokeAPIKeyWithGrace(ctx, k.ID); err != nil {
+	for i := range existingKeys {
+		if existingKeys[i].KeyType == keyType && !existingKeys[i].RevokedAt.Valid {
+			if err := q.RevokeAPIKeyWithGrace(ctx, existingKeys[i].ID); err != nil {
 				return "", fmt.Errorf("revoke old key: %w", err)
 			}
 		}
@@ -241,20 +243,20 @@ func (s *Service) List(ctx context.Context, projectID string) ([]KeySummary, err
 	}
 
 	summaries := make([]KeySummary, 0, len(rows))
-	for _, row := range rows {
+	for i := range rows {
 		ks := KeySummary{
-			ID:        row.ID,
-			ProjectID: row.ProjectID,
-			KeyPrefix: row.KeyPrefix,
-			KeyType:   row.KeyType,
-			Name:      row.Name,
-			Revoked:   row.RevokedAt.Valid,
+			ID:        rows[i].ID,
+			ProjectID: rows[i].ProjectID,
+			KeyPrefix: rows[i].KeyPrefix,
+			KeyType:   rows[i].KeyType,
+			Name:      rows[i].Name,
+			Revoked:   rows[i].RevokedAt.Valid,
 		}
-		if row.LastUsed.Valid {
-			ks.LastUsed = row.LastUsed.Time.UTC().Format("2006-01-02T15:04:05Z")
+		if rows[i].LastUsed.Valid {
+			ks.LastUsed = rows[i].LastUsed.Time.UTC().Format("2006-01-02T15:04:05Z")
 		}
-		if row.CreatedAt.Valid {
-			ks.CreatedAt = row.CreatedAt.Time.UTC().Format("2006-01-02T15:04:05Z")
+		if rows[i].CreatedAt.Valid {
+			ks.CreatedAt = rows[i].CreatedAt.Time.UTC().Format("2006-01-02T15:04:05Z")
 		}
 		summaries = append(summaries, ks)
 	}

@@ -12,9 +12,9 @@ type adminCtxKey string
 
 const adminClaimsCtxKey adminCtxKey = "admin_claims"
 
-// AdminClaimsFromContext returns the admin claims from the request context.
-func AdminClaimsFromContext(ctx context.Context) *AdminClaims {
-	if c, ok := ctx.Value(adminClaimsCtxKey).(*AdminClaims); ok {
+// ClaimsFromContext returns the admin claims from the request context.
+func ClaimsFromContext(ctx context.Context) *Claims {
+	if c, ok := ctx.Value(adminClaimsCtxKey).(*Claims); ok {
 		return c
 	}
 	return nil

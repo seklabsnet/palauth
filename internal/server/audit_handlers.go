@@ -17,12 +17,12 @@ func (s *Server) handleListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	opts := audit.ListOptions{}
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		limit, err := strconv.Atoi(limitStr)
+		limit, err := strconv.ParseInt(limitStr, 10, 32)
 		if err != nil || limit < 1 {
 			s.WriteError(w, r, http.StatusBadRequest, "invalid_limit", "Limit must be a positive integer")
 			return
 		}
-		opts.Limit = int32(limit)
+		opts.Limit = int32(limit) //nolint:gosec // G109: range validated above
 	}
 
 	if eventType := r.URL.Query().Get("event_type"); eventType != "" {

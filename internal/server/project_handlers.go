@@ -12,12 +12,12 @@ import (
 
 type createProjectRequest struct {
 	Name   string                `json:"name"`
-	Config *project.ProjectConfig `json:"config,omitempty"`
+	Config *project.Config `json:"config,omitempty"`
 }
 
 type updateProjectRequest struct {
 	Name   string                `json:"name"`
-	Config *project.ProjectConfig `json:"config,omitempty"`
+	Config *project.Config `json:"config,omitempty"`
 }
 
 type rotateKeysRequest struct {
@@ -103,7 +103,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// When config is not provided, preserve the existing project config.
-	var cfg project.ProjectConfig
+	var cfg project.Config
 	if req.Config != nil {
 		cfg = *req.Config
 	} else {

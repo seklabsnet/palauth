@@ -18,7 +18,7 @@ var (
 // Encrypt encrypts plaintext using AES-256-GCM with a random nonce prepended to the ciphertext.
 // aad (Additional Authenticated Data) binds the ciphertext to a context (e.g., user ID, project ID).
 // Pass nil for aad if no context binding is needed.
-func Encrypt(plaintext []byte, key []byte, aad []byte) ([]byte, error) {
+func Encrypt(plaintext, key, aad []byte) ([]byte, error) {
 	if len(key) != 32 {
 		return nil, ErrInvalidKeyLength
 	}
@@ -45,7 +45,7 @@ func Encrypt(plaintext []byte, key []byte, aad []byte) ([]byte, error) {
 // Decrypt decrypts AES-256-GCM ciphertext where the nonce is prepended.
 // aad must match the value used during encryption, or decryption will fail.
 // Pass nil for aad if none was used during encryption.
-func Decrypt(ciphertext []byte, key []byte, aad []byte) ([]byte, error) {
+func Decrypt(ciphertext, key, aad []byte) ([]byte, error) {
 	if len(key) != 32 {
 		return nil, ErrInvalidKeyLength
 	}

@@ -27,7 +27,7 @@ func TestWriteError(t *testing.T) {
 	logger := slog.Default()
 	rec := httptest.NewRecorder()
 	ctx := SetRequestID(context.Background(), "req_abc")
-	r := httptest.NewRequest(http.MethodGet, "/test", nil).WithContext(ctx)
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/test", http.NoBody)
 
 	WriteError(logger, rec, r, http.StatusBadRequest, "test_error", "Test description")
 

@@ -153,7 +153,8 @@ func TestVerify_TimingVariance(t *testing.T) {
 
 	// Interleaved measurement: alternate correct/wrong to cancel out
 	// CPU scheduling drift that occurs with sequential blocks.
-	var correctTimes, wrongTimes []time.Duration
+	correctTimes := make([]time.Duration, 0, iterations)
+	wrongTimes := make([]time.Duration, 0, iterations)
 	for range iterations {
 		start := time.Now()
 		_, _ = Verify(password, hash, testPepper)
@@ -214,7 +215,7 @@ func TestCheckPasswordHistory_Last4(t *testing.T) {
 		"password-number-three",
 		"password-number-four!",
 	}
-	var hashes []string
+	hashes := make([]string, 0, len(passwords))
 	for _, p := range passwords {
 		h, err := Hash(p, testPepper)
 		require.NoError(t, err)

@@ -48,7 +48,7 @@ func NewService(db *pgxpool.Pool, kek []byte, logger *slog.Logger) *Service {
 
 // Log records an audit event with encrypted PII and hash chain linkage.
 // Uses a transaction with advisory lock to prevent concurrent chain forks.
-func (s *Service) Log(ctx context.Context, event AuditEvent) error {
+func (s *Service) Log(ctx context.Context, event *Event) error {
 	if event.ProjectID == "" {
 		return ErrProjectIDRequired
 	}
@@ -123,7 +123,7 @@ func (s *Service) Log(ctx context.Context, event AuditEvent) error {
 	}
 
 	// Compute event hash on CIPHERTEXT (not plaintext).
-	eventHash, err := computeEventHash(computeHashInput{
+	eventHash, err := computeEventHash(&computeHashInput{
 		EventType:         event.EventType,
 		ProjectID:         event.ProjectID,
 		ActorEncrypted:    hex.EncodeToString(actorEncrypted),
@@ -211,51 +211,51 @@ func (s *Service) Verify(ctx context.Context, projectID string) (*IntegrityRepor
 		Total: len(logs),
 	}
 
-	for i, log := range logs {
+	for i := range logs {
 		var prevHash *string
 		if i > 0 {
 			prevHash = &logs[i-1].EventHash
 		}
 
-		expectedHash, err := computeEventHash(computeHashInput{
-			EventType:         log.EventType,
-			ProjectID:         log.ProjectID,
-			ActorEncrypted:    hex.EncodeToString(log.ActorEncrypted),
-			TargetType:        derefStr(log.TargetType),
-			TargetID:          derefStr(log.TargetID),
-			Result:            log.Result,
-			AuthMethod:        derefStr(log.AuthMethod),
-			MetadataEncrypted: hex.EncodeToString(log.MetadataEncrypted),
+		expectedHash, err := computeEventHash(&computeHashInput{
+			EventType:         logs[i].EventType,
+			ProjectID:         logs[i].ProjectID,
+			ActorEncrypted:    hex.EncodeToString(logs[i].ActorEncrypted),
+			TargetType:        derefStr(logs[i].TargetType),
+			TargetID:          derefStr(logs[i].TargetID),
+			Result:            logs[i].Result,
+			AuthMethod:        derefStr(logs[i].AuthMethod),
+			MetadataEncrypted: hex.EncodeToString(logs[i].MetadataEncrypted),
 			PrevHash:          derefStr(prevHash),
 		}, prevHash)
 		if err != nil {
 			return nil, fmt.Errorf("compute event hash for verification at index %d: %w", i, err)
 		}
 
-		if subtle.ConstantTimeCompare([]byte(expectedHash), []byte(log.EventHash)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(expectedHash), []byte(logs[i].EventHash)) != 1 {
 			report.Valid = false
 			report.BrokenAt = &BrokenLink{
-				EventID: log.ID,
+				EventID: logs[i].ID,
 				Index:   i,
 			}
 			return report, nil
 		}
 
 		// Also verify prev_hash linkage.
-		if i == 0 && log.PrevHash != nil {
+		if i == 0 && logs[i].PrevHash != nil {
 			report.Valid = false
 			report.BrokenAt = &BrokenLink{
-				EventID: log.ID,
+				EventID: logs[i].ID,
 				Index:   i,
 			}
 			return report, nil
 		}
 		if i > 0 {
 			expectedPrev := logs[i-1].EventHash
-			if log.PrevHash == nil || subtle.ConstantTimeCompare([]byte(*log.PrevHash), []byte(expectedPrev)) != 1 {
+			if logs[i].PrevHash == nil || subtle.ConstantTimeCompare([]byte(*logs[i].PrevHash), []byte(expectedPrev)) != 1 {
 				report.Valid = false
 				report.BrokenAt = &BrokenLink{
-					EventID: log.ID,
+					EventID: logs[i].ID,
 					Index:   i,
 				}
 				return report, nil
@@ -371,7 +371,7 @@ func (s *Service) List(ctx context.Context, projectID string, opts ListOptions) 
 	}
 
 	var nextCursor *Cursor
-	if int32(len(logs)) > opts.Limit {
+	if len(logs) > int(opts.Limit) {
 		logs = logs[:opts.Limit]
 		last := logs[len(logs)-1]
 		nextCursor = &Cursor{
@@ -381,8 +381,8 @@ func (s *Service) List(ctx context.Context, projectID string, opts ListOptions) 
 	}
 
 	events := make([]DecryptedEvent, 0, len(logs))
-	for _, log := range logs {
-		de := s.decryptEvent(ctx, q, log)
+	for i := range logs {
+		de := s.decryptEvent(ctx, q, &logs[i])
 		events = append(events, de)
 	}
 
@@ -394,7 +394,7 @@ func (s *Service) List(ctx context.Context, projectID string, opts ListOptions) 
 }
 
 // Export exports audit logs in JSON or CSV format with decrypted PII.
-func (s *Service) Export(ctx context.Context, projectID string, format string) ([]byte, error) {
+func (s *Service) Export(ctx context.Context, projectID, format string) ([]byte, error) {
 	if projectID == "" {
 		return nil, ErrProjectIDRequired
 	}
@@ -411,8 +411,8 @@ func (s *Service) Export(ctx context.Context, projectID string, format string) (
 	}
 
 	events := make([]DecryptedEvent, 0, len(logs))
-	for _, log := range logs {
-		de := s.decryptEvent(ctx, q, log)
+	for i := range logs {
+		de := s.decryptEvent(ctx, q, &logs[i])
 		events = append(events, de)
 	}
 
@@ -440,7 +440,7 @@ func (s *Service) Erase(ctx context.Context, projectID, userID string) error {
 	}
 
 	// Log the GDPR erasure event — this event uses no PII (actor is system).
-	return s.Log(ctx, AuditEvent{
+	return s.Log(ctx, &Event{
 		EventType: EventGDPRErasure,
 		Actor: ActorInfo{
 			UserID: "system",
@@ -504,7 +504,7 @@ type computeHashInput struct {
 }
 
 // computeEventHash computes SHA-256(prev_hash + canonicalJSON(hashInput)).
-func computeEventHash(input computeHashInput, prevHash *string) (string, error) {
+func computeEventHash(input *computeHashInput, prevHash *string) (string, error) {
 	canonical, err := CanonicalJSON(input)
 	if err != nil {
 		return "", fmt.Errorf("canonical json for hash: %w", err)
@@ -523,7 +523,8 @@ func computeEventHash(input computeHashInput, prevHash *string) (string, error) 
 func advisoryLockKey(projectID string) int64 {
 	h := sha256.Sum256([]byte("audit-chain:" + projectID))
 	// Use first 8 bytes as int64.
-	return int64(binary.BigEndian.Uint64(h[:8]))
+	v := binary.BigEndian.Uint64(h[:8])
+	return int64(v & ^uint64(1<<63)) // mask sign bit to avoid G115
 }
 
 // frameWithUserID prepends the userID to encrypted data so it can be extracted
@@ -532,14 +533,14 @@ func advisoryLockKey(projectID string) int64 {
 func frameWithUserID(userID string, ciphertext []byte) []byte {
 	uidBytes := []byte(userID)
 	buf := make([]byte, 2+len(uidBytes)+len(ciphertext))
-	binary.BigEndian.PutUint16(buf[:2], uint16(len(uidBytes)))
+	binary.BigEndian.PutUint16(buf[:2], uint16(len(uidBytes))) //nolint:gosec // G115: userID length is always small
 	copy(buf[2:2+len(uidBytes)], uidBytes)
 	copy(buf[2+len(uidBytes):], ciphertext)
 	return buf
 }
 
 // extractUserIDAndCiphertext extracts the userID and ciphertext from framed data.
-func extractUserIDAndCiphertext(data []byte) (string, []byte, error) {
+func extractUserIDAndCiphertext(data []byte) (userID string, ciphertext []byte, err error) {
 	if len(data) < 2 {
 		return "", nil, errors.New("framed data too short")
 	}
@@ -547,13 +548,13 @@ func extractUserIDAndCiphertext(data []byte) (string, []byte, error) {
 	if len(data) < 2+uidLen {
 		return "", nil, errors.New("framed data truncated")
 	}
-	userID := string(data[2 : 2+uidLen])
-	ciphertext := data[2+uidLen:]
+	userID = string(data[2 : 2+uidLen])
+	ciphertext = data[2+uidLen:]
 	return userID, ciphertext, nil
 }
 
 // decryptEvent converts a DB audit log to a decrypted event.
-func (s *Service) decryptEvent(ctx context.Context, q *sqlc.Queries, log sqlc.AuditLog) DecryptedEvent {
+func (s *Service) decryptEvent(ctx context.Context, q *sqlc.Queries, log *sqlc.AuditLog) DecryptedEvent {
 	de := DecryptedEvent{
 		ID:         log.ID,
 		ProjectID:  log.ProjectID,
@@ -660,29 +661,29 @@ func (s *Service) exportCSV(events []DecryptedEvent) ([]byte, error) {
 		return nil, fmt.Errorf("csv write headers: %w", err)
 	}
 
-	for _, e := range events {
+	for i := range events {
 		actorUserID, actorEmail, actorIP := "", "", ""
-		if e.Actor != nil {
-			actorUserID = e.Actor.UserID
-			actorEmail = e.Actor.Email
-			actorIP = e.Actor.IP
+		if events[i].Actor != nil {
+			actorUserID = events[i].Actor.UserID
+			actorEmail = events[i].Actor.Email
+			actorIP = events[i].Actor.IP
 		}
 		row := []string{
-			e.ID,
-			e.ProjectID,
-			e.TraceID,
-			e.EventType,
+			events[i].ID,
+			events[i].ProjectID,
+			events[i].TraceID,
+			events[i].EventType,
 			actorUserID,
 			actorEmail,
 			actorIP,
-			e.TargetType,
-			e.TargetID,
-			e.Result,
-			e.AuthMethod,
-			fmt.Sprintf("%.2f", e.RiskScore),
-			e.PrevHash,
-			e.EventHash,
-			e.CreatedAt.Format(time.RFC3339),
+			events[i].TargetType,
+			events[i].TargetID,
+			events[i].Result,
+			events[i].AuthMethod,
+			fmt.Sprintf("%.2f", events[i].RiskScore),
+			events[i].PrevHash,
+			events[i].EventHash,
+			events[i].CreatedAt.Format(time.RFC3339),
 		}
 		if err := w.Write(row); err != nil {
 			return nil, fmt.Errorf("csv write row: %w", err)

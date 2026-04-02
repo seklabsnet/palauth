@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAuditEvent_Struct(t *testing.T) {
-	event := AuditEvent{
+func TestEvent_Struct(t *testing.T) {
+	event := Event{
 		EventType: EventAuthSignup,
 		Actor: ActorInfo{
 			UserID: "usr_123",

@@ -47,7 +47,7 @@ func ValidatePassword(password string) error {
 }
 
 // Hash applies HMAC-SHA256 pepper then Argon2id hashing.
-func Hash(password string, pepper string) (string, error) {
+func Hash(password, pepper string) (string, error) {
 	if pepper == "" {
 		return "", ErrEmptyPepper
 	}
@@ -135,7 +135,7 @@ func (bc *BreachChecker) Check(ctx context.Context, password string) (bool, erro
 	prefix := fullHash[:5]
 	suffix := fullHash[5:]
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, bc.baseURL+prefix, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, bc.baseURL+prefix, http.NoBody)
 	if err != nil {
 		return false, fmt.Errorf("hibp request: %w", err)
 	}

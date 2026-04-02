@@ -22,10 +22,10 @@ func TestComputeEventHash_Deterministic(t *testing.T) {
 		PrevHash:          "",
 	}
 
-	hash1, err := computeEventHash(input, nil)
+	hash1, err := computeEventHash(&input, nil)
 	require.NoError(t, err)
 
-	hash2, err := computeEventHash(input, nil)
+	hash2, err := computeEventHash(&input, nil)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, hash1)
@@ -46,10 +46,10 @@ func TestComputeEventHash_WithPrevHash(t *testing.T) {
 	}
 
 	prev := "abc123"
-	hashWithPrev, err := computeEventHash(input, &prev)
+	hashWithPrev, err := computeEventHash(&input, &prev)
 	require.NoError(t, err)
 
-	hashNoPrev, err := computeEventHash(input, nil)
+	hashNoPrev, err := computeEventHash(&input, nil)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, hashWithPrev, hashNoPrev, "prev_hash should affect the event hash")
@@ -75,7 +75,7 @@ func TestComputeEventHash_ManualVerification(t *testing.T) {
 	h.Write(canonical)
 	expected := hex.EncodeToString(h.Sum(nil))
 
-	actual, err := computeEventHash(input, nil)
+	actual, err := computeEventHash(&input, nil)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
 }
@@ -89,7 +89,7 @@ func TestComputeEventHash_ChainConsistency(t *testing.T) {
 		Result:            "success",
 		MetadataEncrypted: "meta1",
 	}
-	hash1, err := computeEventHash(event1Input, nil)
+	hash1, err := computeEventHash(&event1Input, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, hash1)
 
@@ -101,7 +101,7 @@ func TestComputeEventHash_ChainConsistency(t *testing.T) {
 		MetadataEncrypted: "meta2",
 		PrevHash:          hash1,
 	}
-	hash2, err := computeEventHash(event2Input, &hash1)
+	hash2, err := computeEventHash(&event2Input, &hash1)
 	require.NoError(t, err)
 	require.NotEmpty(t, hash2)
 
@@ -113,27 +113,27 @@ func TestComputeEventHash_ChainConsistency(t *testing.T) {
 		MetadataEncrypted: "meta3",
 		PrevHash:          hash2,
 	}
-	hash3, err := computeEventHash(event3Input, &hash2)
+	hash3, err := computeEventHash(&event3Input, &hash2)
 	require.NoError(t, err)
 	require.NotEmpty(t, hash3)
 
 	// Verify the chain: re-compute each hash and confirm consistency.
-	reHash1, err := computeEventHash(event1Input, nil)
+	reHash1, err := computeEventHash(&event1Input, nil)
 	require.NoError(t, err)
 	assert.Equal(t, hash1, reHash1)
 
-	reHash2, err := computeEventHash(event2Input, &reHash1)
+	reHash2, err := computeEventHash(&event2Input, &reHash1)
 	require.NoError(t, err)
 	assert.Equal(t, hash2, reHash2)
 
-	reHash3, err := computeEventHash(event3Input, &reHash2)
+	reHash3, err := computeEventHash(&event3Input, &reHash2)
 	require.NoError(t, err)
 	assert.Equal(t, hash3, reHash3)
 
 	// If we tamper with event2, hash2 changes and hash3 no longer matches.
 	tamperedInput := event2Input
 	tamperedInput.Result = "failure"
-	tamperedHash2, err := computeEventHash(tamperedInput, &hash1)
+	tamperedHash2, err := computeEventHash(&tamperedInput, &hash1)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash2, tamperedHash2)
 }

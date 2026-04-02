@@ -20,8 +20,8 @@ var (
 	ErrInvalidJSON = errors.New("invalid project config JSON")
 )
 
-// ProjectConfig holds project-level settings stored as JSONB.
-type ProjectConfig struct {
+// Config holds project-level settings stored as JSONB.
+type Config struct {
 	EmailVerificationMethod string `json:"email_verification_method"` // "code" or "link"
 	EmailVerificationTTL    int    `json:"email_verification_ttl"`    // seconds
 	PasswordMinLength       int    `json:"password_min_length"`
@@ -32,8 +32,8 @@ type ProjectConfig struct {
 }
 
 // DefaultConfig returns sensible defaults for a new project.
-func DefaultConfig() ProjectConfig {
-	return ProjectConfig{
+func DefaultConfig() Config {
+	return Config{
 		EmailVerificationMethod: "code",
 		EmailVerificationTTL:    3600,
 		PasswordMinLength:       15,
@@ -48,7 +48,7 @@ func DefaultConfig() ProjectConfig {
 type Project struct {
 	ID        string        `json:"id"`
 	Name      string        `json:"name"`
-	Config    ProjectConfig `json:"config"`
+	Config    Config `json:"config"`
 	CreatedAt string        `json:"created_at"`
 	UpdatedAt string        `json:"updated_at"`
 }
@@ -65,7 +65,7 @@ func NewService(db *pgxpool.Pool, logger *slog.Logger) *Service {
 }
 
 // Create creates a new project with the given name and config.
-func (s *Service) Create(ctx context.Context, name string, cfg ProjectConfig) (*Project, error) {
+func (s *Service) Create(ctx context.Context, name string, cfg Config) (*Project, error) {
 	if name == "" {
 		return nil, ErrEmptyName
 	}
@@ -85,7 +85,7 @@ func (s *Service) Create(ctx context.Context, name string, cfg ProjectConfig) (*
 		return nil, fmt.Errorf("create project: %w", err)
 	}
 
-	return toProject(row)
+	return toProject(&row)
 }
 
 // Get retrieves a project by ID.
@@ -99,11 +99,11 @@ func (s *Service) Get(ctx context.Context, projectID string) (*Project, error) {
 		return nil, fmt.Errorf("get project: %w", err)
 	}
 
-	return toProject(row)
+	return toProject(&row)
 }
 
 // Update updates a project's name and config.
-func (s *Service) Update(ctx context.Context, projectID string, name string, cfg ProjectConfig) (*Project, error) {
+func (s *Service) Update(ctx context.Context, projectID, name string, cfg Config) (*Project, error) {
 	if name == "" {
 		return nil, ErrEmptyName
 	}
@@ -126,7 +126,7 @@ func (s *Service) Update(ctx context.Context, projectID string, name string, cfg
 		return nil, fmt.Errorf("update project: %w", err)
 	}
 
-	return toProject(row)
+	return toProject(&row)
 }
 
 // Delete deletes a project by ID. Returns ErrNotFound if the project does not exist.
@@ -152,7 +152,7 @@ func (s *Service) List(ctx context.Context) ([]Project, error) {
 
 	projects := make([]Project, 0, len(rows))
 	for _, row := range rows {
-		p, err := toProject(row)
+		p, err := toProject(&row)
 		if err != nil {
 			return nil, err
 		}
@@ -162,8 +162,8 @@ func (s *Service) List(ctx context.Context) ([]Project, error) {
 	return projects, nil
 }
 
-func toProject(row sqlc.Project) (*Project, error) {
-	var cfg ProjectConfig
+func toProject(row *sqlc.Project) (*Project, error) {
+	var cfg Config
 	if err := json.Unmarshal(row.Config, &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal project config: %w", err)
 	}

@@ -13,8 +13,8 @@ type TargetInfo struct {
 	ID   string `json:"id"`
 }
 
-// AuditEvent is the input struct for logging an audit event.
-type AuditEvent struct {
+// Event is the input struct for logging an audit event.
+type Event struct {
 	EventType  string
 	Actor      ActorInfo
 	Target     *TargetInfo

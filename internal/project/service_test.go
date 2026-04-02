@@ -24,16 +24,16 @@ func TestDefaultConfigJSON(t *testing.T) {
 	data, err := json.Marshal(cfg)
 	require.NoError(t, err)
 
-	var parsed ProjectConfig
+	var parsed Config
 	err = json.Unmarshal(data, &parsed)
 	require.NoError(t, err)
 	assert.Equal(t, cfg, parsed)
 }
 
 func TestToProject_EmptyConfig(t *testing.T) {
-	// Verify that an empty JSON object deserializes to zero-value ProjectConfig.
+	// Verify that an empty JSON object deserializes to zero-value Config.
 	data := []byte(`{}`)
-	var cfg ProjectConfig
+	var cfg Config
 	err := json.Unmarshal(data, &cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "", cfg.EmailVerificationMethod)

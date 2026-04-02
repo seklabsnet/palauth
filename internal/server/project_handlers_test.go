@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +27,7 @@ func TestProjectRoutes_RequireAuth(t *testing.T) {
 
 	for _, route := range routes {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
-			req := httptest.NewRequest(route.method, route.path, nil)
+			req := httptest.NewRequestWithContext(context.Background(),route.method, route.path, http.NoBody)
 			rec := httptest.NewRecorder()
 
 			s.router.ServeHTTP(rec, req)

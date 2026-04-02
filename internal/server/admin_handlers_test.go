@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,7 @@ import (
 func TestHandleAdminSetup_InvalidJSON(t *testing.T) {
 	s := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/setup", bytes.NewReader([]byte("not json")))
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodPost, "/admin/setup", bytes.NewReader([]byte("not json")))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -29,7 +30,7 @@ func TestHandleAdminSetup_InvalidJSON(t *testing.T) {
 func TestHandleAdminLogin_InvalidJSON(t *testing.T) {
 	s := newTestServer(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/login", bytes.NewReader([]byte("not json")))
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodPost, "/admin/login", bytes.NewReader([]byte("not json")))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -56,7 +57,7 @@ func TestAdminEndpoints_CacheControl(t *testing.T) {
 
 	for _, route := range routes {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
-			req := httptest.NewRequest(route.method, route.path, bytes.NewReader([]byte("{}")))
+			req := httptest.NewRequestWithContext(context.Background(),route.method, route.path, bytes.NewReader([]byte("{}")))
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 
@@ -80,7 +81,7 @@ func TestAdminProtectedRoutes_NoAuth(t *testing.T) {
 
 	for _, route := range routes {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
-			req := httptest.NewRequest(route.method, route.path, nil)
+			req := httptest.NewRequestWithContext(context.Background(),route.method, route.path, http.NoBody)
 			rec := httptest.NewRecorder()
 
 			s.router.ServeHTTP(rec, req)

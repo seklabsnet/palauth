@@ -29,7 +29,7 @@ func TestRateLimiter_InMemory_BlocksAfterLimit(t *testing.T) {
 	limit := 3
 	window := 1 * time.Minute
 
-	mw := NewMiddleware(RateLimitConfig{
+	mw := NewMiddleware(Config{
 		Name:    "test_block",
 		Limit:   limit,
 		Window:  window,
@@ -42,7 +42,7 @@ func TestRateLimiter_InMemory_BlocksAfterLimit(t *testing.T) {
 
 	// First 3 requests should succeed
 	for i := 0; i < limit; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 		req.RemoteAddr = "192.168.1.1:12345"
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
@@ -50,7 +50,7 @@ func TestRateLimiter_InMemory_BlocksAfterLimit(t *testing.T) {
 	}
 
 	// 4th request should be rate limited
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.RemoteAddr = "192.168.1.1:12345"
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -73,7 +73,7 @@ func TestRateLimiter_DifferentIPs_IndependentLimits(t *testing.T) {
 	logger := slog.Default()
 	limit := 2
 
-	mw := NewMiddleware(RateLimitConfig{
+	mw := NewMiddleware(Config{
 		Name:    "test_diffip",
 		Limit:   limit,
 		Window:  1 * time.Minute,
@@ -86,7 +86,7 @@ func TestRateLimiter_DifferentIPs_IndependentLimits(t *testing.T) {
 
 	// Exhaust limit for IP 1
 	for i := 0; i < limit; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 		req.RemoteAddr = "10.0.0.1:1234"
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
@@ -94,14 +94,14 @@ func TestRateLimiter_DifferentIPs_IndependentLimits(t *testing.T) {
 	}
 
 	// IP 1 is now limited
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.RemoteAddr = "10.0.0.1:1234"
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 
 	// IP 2 should still work
-	req2 := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req2.RemoteAddr = "10.0.0.2:1234"
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
@@ -112,7 +112,7 @@ func TestRateLimiter_ResponseHeaders(t *testing.T) {
 	logger := slog.Default()
 	limit := 5
 
-	mw := NewMiddleware(RateLimitConfig{
+	mw := NewMiddleware(Config{
 		Name:    "test_headers",
 		Limit:   limit,
 		Window:  1 * time.Minute,
@@ -123,7 +123,7 @@ func TestRateLimiter_ResponseHeaders(t *testing.T) {
 	r.Use(mw)
 	r.Get("/test", okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.RemoteAddr = "10.0.0.1:1234"
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -138,7 +138,7 @@ func TestRateLimiter_AccountKey(t *testing.T) {
 	logger := slog.Default()
 	limit := 2
 
-	mw := NewMiddleware(RateLimitConfig{
+	mw := NewMiddleware(Config{
 		Name:   "test_acct",
 		Limit:  limit,
 		Window: 1 * time.Minute,
@@ -167,7 +167,7 @@ func TestRateLimiter_AccountKey(t *testing.T) {
 
 	// Two different IPs but same account — should share rate limit
 	for i := 0; i < limit; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 		req.RemoteAddr = "10.0.0.1:1234"
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
@@ -175,7 +175,7 @@ func TestRateLimiter_AccountKey(t *testing.T) {
 	}
 
 	// Same account from different IP — should be limited
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.RemoteAddr = "10.0.0.2:1234"
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -201,7 +201,7 @@ func TestRateLimiter_WithRedis(t *testing.T) {
 	defer client.Close()
 
 	limit := 3
-	mw := NewMiddleware(RateLimitConfig{
+	mw := NewMiddleware(Config{
 		Name:    "test_redis",
 		Limit:   limit,
 		Window:  1 * time.Minute,
@@ -213,7 +213,7 @@ func TestRateLimiter_WithRedis(t *testing.T) {
 	r.Get("/test", okHandler)
 
 	for i := 0; i < limit; i++ {
-		req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 		req.RemoteAddr = "192.168.1.1:12345"
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
@@ -221,7 +221,7 @@ func TestRateLimiter_WithRedis(t *testing.T) {
 	}
 
 	// Next request should be rate limited
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.RemoteAddr = "192.168.1.1:12345"
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -246,7 +246,7 @@ func TestRateLimiter_FailOpen_RedisUnavailable(t *testing.T) {
 
 	rdb := client.Unwrap()
 
-	mw := NewMiddleware(RateLimitConfig{
+	mw := NewMiddleware(Config{
 		Name:    "test_failopen",
 		Limit:   100,
 		Window:  1 * time.Minute,
@@ -258,7 +258,7 @@ func TestRateLimiter_FailOpen_RedisUnavailable(t *testing.T) {
 	r.Get("/test", okHandler)
 
 	// Verify it works initially
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req.RemoteAddr = "10.0.0.1:1234"
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -271,7 +271,7 @@ func TestRateLimiter_FailOpen_RedisUnavailable(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// Requests should still go through (fail-open via local fallback)
-	req2 := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", http.NoBody)
 	req2.RemoteAddr = "10.0.0.1:1234"
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
@@ -283,16 +283,16 @@ func TestContextHelpers(t *testing.T) {
 
 	// Account key
 	ctx = WithAccountKey(ctx, "test@example.com")
-	r := httptest.NewRequest(http.MethodGet, "/", http.NoBody).WithContext(ctx)
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
 	assert.Equal(t, "test@example.com", GetAccountKey(r))
 
 	// Session key
 	ctx = WithSessionKey(ctx, "sess_123")
-	r = httptest.NewRequest(http.MethodGet, "/", http.NoBody).WithContext(ctx)
+	r = httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
 	assert.Equal(t, "sess_123", GetSessionKey(r))
 
 	// Missing keys return empty
-	r2 := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	r2 := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/", http.NoBody)
 	assert.Empty(t, GetAccountKey(r2))
 	assert.Empty(t, GetSessionKey(r2))
 }
@@ -303,14 +303,14 @@ func TestRateLimiter_CrossRouteIsolation(t *testing.T) {
 	logger := slog.Default()
 	limit := 2
 
-	signupMw := NewMiddleware(RateLimitConfig{
+	signupMw := NewMiddleware(Config{
 		Name:    "signup",
 		Limit:   limit,
 		Window:  1 * time.Minute,
 		KeyFunc: httprate.KeyByIP,
 	}, nil, logger)
 
-	loginMw := NewMiddleware(RateLimitConfig{
+	loginMw := NewMiddleware(Config{
 		Name:    "login_ip",
 		Limit:   limit,
 		Window:  1 * time.Minute,
@@ -329,7 +329,7 @@ func TestRateLimiter_CrossRouteIsolation(t *testing.T) {
 
 	// Exhaust signup limit
 	for i := 0; i < limit; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/auth/signup", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(),http.MethodPost, "/auth/signup", http.NoBody)
 		req.RemoteAddr = ip
 		rec := httptest.NewRecorder()
 		signupRouter.ServeHTTP(rec, req)
@@ -337,7 +337,7 @@ func TestRateLimiter_CrossRouteIsolation(t *testing.T) {
 	}
 
 	// Signup is now limited
-	req := httptest.NewRequest(http.MethodPost, "/auth/signup", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(),http.MethodPost, "/auth/signup", http.NoBody)
 	req.RemoteAddr = ip
 	rec := httptest.NewRecorder()
 	signupRouter.ServeHTTP(rec, req)
@@ -345,7 +345,7 @@ func TestRateLimiter_CrossRouteIsolation(t *testing.T) {
 
 	// Login from the same IP should still work (different Name = different counter)
 	for i := 0; i < limit; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/auth/login", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(),http.MethodPost, "/auth/login", http.NoBody)
 		req.RemoteAddr = ip
 		rec := httptest.NewRecorder()
 		loginRouter.ServeHTTP(rec, req)

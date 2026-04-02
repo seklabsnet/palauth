@@ -9,13 +9,13 @@ import (
 )
 
 func TestChangePassword_EmptyCurrentPassword(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
 	err := svc.ChangePassword(t.Context(), "prj_test", "usr_test", "", "new-password-1234!")
 	assert.ErrorIs(t, err, ErrCurrentPasswordRequired)
 }
 
 func TestChangePassword_EmptyNewPassword(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
 	err := svc.ChangePassword(t.Context(), "prj_test", "usr_test", "current-pass-1234!", "")
 	assert.ErrorIs(t, err, ErrNewPasswordRequired)
 }
@@ -40,7 +40,7 @@ func TestChangePassword_ErrorTypes_Defined(t *testing.T) {
 }
 
 func TestChangePassword_BothEmpty(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
 	// Current password is checked first.
 	err := svc.ChangePassword(t.Context(), "prj_test", "usr_test", "", "")
 	assert.ErrorIs(t, err, ErrCurrentPasswordRequired)

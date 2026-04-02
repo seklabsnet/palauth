@@ -1,0 +1,11 @@
+Your verification code
+
+Hi,
+
+Use the following code to verify your email address for {{.ProjectName}}:
+
+{{.Code}}
+
+This code expires in {{.ExpiryMinutes}} minutes.
+
+If you did not create an account, you can safely ignore this email.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/crypto"
+	"github.com/palauth/palauth/internal/email"
 	"github.com/palauth/palauth/internal/project"
 	"github.com/palauth/palauth/internal/token"
 )
@@ -37,6 +38,8 @@ type Service struct {
 	auditSvc       *audit.Service
 	breachChecker  *crypto.BreachChecker
 	lockoutSvc     *LockoutService
+	emailSender    email.Sender
+	emailRenderer  *email.TemplateRenderer
 	pepper         string
 	kek            []byte
 	emailHashKey   []byte
@@ -52,6 +55,8 @@ func NewService(
 	auditSvc *audit.Service,
 	breachChecker *crypto.BreachChecker,
 	lockoutSvc *LockoutService,
+	emailSender email.Sender,
+	emailRenderer *email.TemplateRenderer,
 	pepper string,
 	kek []byte,
 	logger *slog.Logger,
@@ -69,6 +74,8 @@ func NewService(
 		auditSvc:      auditSvc,
 		breachChecker: breachChecker,
 		lockoutSvc:    lockoutSvc,
+		emailSender:   emailSender,
+		emailRenderer: emailRenderer,
 		pepper:        pepper,
 		kek:           kek,
 		emailHashKey:  emailHashKey,
@@ -77,8 +84,8 @@ func NewService(
 }
 
 // normalizeEmail lowercases and trims whitespace from an email address.
-func normalizeEmail(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
+func normalizeEmail(addr string) string {
+	return strings.ToLower(strings.TrimSpace(addr))
 }
 
 // auditLog safely logs an audit event, handling nil auditSvc for unit tests.

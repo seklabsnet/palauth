@@ -1,0 +1,9 @@
+Welcome to {{.ProjectName}}
+
+Hi,
+
+Your account has been successfully created. You are now ready to get started with {{.ProjectName}}.
+
+If you have any questions, feel free to reach out to our support team.
+
+You received this email because an account was created with this email address.

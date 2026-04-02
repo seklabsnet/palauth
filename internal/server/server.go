@@ -26,6 +26,7 @@ import (
 	"github.com/palauth/palauth/internal/config"
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/email"
 	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/project"
 	"github.com/palauth/palauth/internal/ratelimit"
@@ -99,11 +100,23 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 
 	breachChecker := crypto.NewBreachChecker()
 
+	// Email service.
+	emailSender, err := email.NewSender(&cfg.Email, logger)
+	if err != nil {
+		logger.Error("failed to initialize email sender", "error", err)
+		panic(fmt.Sprintf("email sender init: %v", err))
+	}
+	emailRenderer, err := email.NewTemplateRenderer()
+	if err != nil {
+		logger.Error("failed to initialize email template renderer", "error", err)
+		panic(fmt.Sprintf("email renderer init: %v", err))
+	}
+
 	var lockoutSvc *auth.LockoutService
 	if rdb != nil {
 		lockoutSvc = auth.NewLockoutService(rdb.Unwrap(), logger)
 	}
-	authSvc := auth.NewService(db, projectSvc, jwtSvc, refreshSvc, auditSvc, breachChecker, lockoutSvc, cfg.Auth.Pepper, authKEK, logger)
+	authSvc := auth.NewService(db, projectSvc, jwtSvc, refreshSvc, auditSvc, breachChecker, lockoutSvc, emailSender, emailRenderer, cfg.Auth.Pepper, authKEK, logger)
 
 	// Rate limit middlewares.
 	var rl *ratelimit.RouteMiddlewares

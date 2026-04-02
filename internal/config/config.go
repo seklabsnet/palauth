@@ -9,6 +9,8 @@ import (
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+
+	"github.com/palauth/palauth/internal/email"
 )
 
 type Config struct {
@@ -16,7 +18,7 @@ type Config struct {
 	Database DatabaseConfig `koanf:"database"`
 	Redis    RedisConfig    `koanf:"redis"`
 	Auth     AuthConfig     `koanf:"auth"`
-	Email    EmailConfig    `koanf:"email"`
+	Email    email.Config   `koanf:"email"`
 	Log      LogConfig      `koanf:"log"`
 	FIPS     bool           `koanf:"fips"`
 }
@@ -50,10 +52,6 @@ type AuthConfig struct {
 	LockoutDuration  int    `koanf:"lockout_duration"`
 	MFALockout       int    `koanf:"mfa_lockout_threshold"`
 	InactiveDays     int    `koanf:"inactive_days"`
-}
-
-type EmailConfig struct {
-	Provider string `koanf:"provider"`
 }
 
 type LogConfig struct {

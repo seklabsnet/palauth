@@ -13,7 +13,7 @@ import (
 )
 
 func TestRequestReset_EmptyEmail_ReturnsNil(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
 
 	// Should return nil even with empty email (enumeration prevention).
 	err := svc.RequestReset(t.Context(), "prj_test", "")
@@ -21,7 +21,7 @@ func TestRequestReset_EmptyEmail_ReturnsNil(t *testing.T) {
 }
 
 func TestConfirmReset_EmptyToken_Error(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, testLogger)
 	err := svc.ConfirmReset(t.Context(), "prj_test", "", "new-password-1234!")
 	assert.ErrorIs(t, err, ErrTokenRequired)
 }

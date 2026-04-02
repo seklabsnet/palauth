@@ -107,7 +107,7 @@ func newTestAuthService(t *testing.T, pool *pgxpool.Pool, hibpServer *httptest.S
 		bc = crypto.NewBreachCheckerWithURL(s.URL + "/range/")
 	}
 
-	return auth.NewService(pool, projectSvc, jwtSvc, refreshSvc, auditSvc, bc, nil, testPepper, testKEK(), logger)
+	return auth.NewService(pool, projectSvc, jwtSvc, refreshSvc, auditSvc, bc, nil, nil, nil, testPepper, testKEK(), logger)
 }
 
 func createTestProject(t *testing.T, pool *pgxpool.Pool, verificationMethod string) string {
@@ -613,7 +613,7 @@ func newTestAuthServiceWithLockout(t *testing.T, pool *pgxpool.Pool, rdb *redis.
 		lockoutSvc = auth.NewLockoutService(rdb, logger)
 	}
 
-	return auth.NewService(pool, projectSvc, jwtSvc, refreshSvc, auditSvc, bc, lockoutSvc, testPepper, testKEK(), logger)
+	return auth.NewService(pool, projectSvc, jwtSvc, refreshSvc, auditSvc, bc, lockoutSvc, nil, nil, testPepper, testKEK(), logger)
 }
 
 func TestIntegration_LoginSuccess(t *testing.T) {

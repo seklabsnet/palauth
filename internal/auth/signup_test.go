@@ -21,31 +21,31 @@ var testLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Le
 const testPepper = "this-is-a-test-pepper-at-least-32-bytes-long-ok"
 
 func TestSignup_EmailRequired(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
 	_, err := svc.Signup(context.Background(), "", "validpassword1234", "prj_test")
 	assert.ErrorIs(t, err, ErrEmailRequired)
 }
 
 func TestSignup_PasswordRequired(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
 	_, err := svc.Signup(context.Background(), "test@example.com", "", "prj_test")
 	assert.ErrorIs(t, err, ErrPasswordRequired)
 }
 
 func TestSignup_InvalidEmail(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
 	_, err := svc.Signup(context.Background(), "not-an-email", "validpassword1234", "prj_test")
 	assert.ErrorIs(t, err, ErrEmailRequired)
 }
 
 func TestSignup_WeakPassword_TooShort(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
 	_, err := svc.Signup(context.Background(), "test@example.com", "short14chars!!", "prj_test")
 	assert.ErrorIs(t, err, crypto.ErrPasswordTooShort)
 }
 
 func TestSignup_WeakPassword_TooLong(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
 	longPw := make([]byte, 65)
 	for i := range longPw {
 		longPw[i] = 'a'
@@ -69,7 +69,7 @@ func TestSignup_BreachedPassword(t *testing.T) {
 	defer hibpServer.Close()
 
 	bc := crypto.NewBreachCheckerWithURL(hibpServer.URL + "/range/")
-	svc := NewService(nil, nil, nil, nil, nil, bc, nil, testPepper, nil, testLogger)
+	svc := NewService(nil, nil, nil, nil, nil, bc, nil, nil, nil, testPepper, nil, testLogger)
 	_, err := svc.Signup(context.Background(), "test@example.com", password, "prj_test")
 	assert.ErrorIs(t, err, crypto.ErrPasswordBreached)
 }
@@ -82,7 +82,7 @@ func TestSignup_HIBPUnavailable_FailClosed(t *testing.T) {
 	defer hibpServer.Close()
 
 	bc := crypto.NewBreachCheckerWithURL(hibpServer.URL + "/range/")
-	svc := NewService(nil, nil, nil, nil, nil, bc, nil, testPepper, nil, testLogger)
+	svc := NewService(nil, nil, nil, nil, nil, bc, nil, nil, nil, testPepper, nil, testLogger)
 	_, err := svc.Signup(context.Background(), "test@example.com", "validpassword1234", "prj_test")
 	assert.ErrorIs(t, err, ErrHIBPUnavailable)
 }
@@ -128,7 +128,7 @@ func TestConstantTimeTokenCompare(t *testing.T) {
 }
 
 func TestEmailHashBytes(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
 
 	hash1, err := svc.emailHashBytes("test@example.com")
 	require.NoError(t, err)

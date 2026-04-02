@@ -95,6 +95,10 @@ func (s *Service) ResendVerification(ctx context.Context, email, projectID strin
 			return nil, fmt.Errorf("create verification token: %w", err)
 		}
 		result.VerificationToken = plainToken
+
+		// Send verification email (best-effort).
+		s.sendVerificationEmailForResend(ctx, &user, projectID, proj.Name, "link", plainToken, "")
+
 	default: // "code" or "otp"
 		// Invalidate any previous OTP verification tokens for this user.
 		if err := q.InvalidateVerificationTokens(ctx, sqlc.InvalidateVerificationTokensParams{
@@ -122,6 +126,9 @@ func (s *Service) ResendVerification(ctx context.Context, email, projectID strin
 			return nil, fmt.Errorf("create verification OTP: %w", err)
 		}
 		result.VerificationCode = otp
+
+		// Send verification email (best-effort).
+		s.sendVerificationEmailForResend(ctx, &user, projectID, proj.Name, "code", "", otp)
 	}
 
 	return result, nil

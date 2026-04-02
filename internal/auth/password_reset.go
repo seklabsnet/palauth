@@ -72,9 +72,25 @@ func (s *Service) RequestReset(ctx context.Context, projectID, email string) err
 		return nil
 	}
 
-	// Log token generation (email service is T0.12, not built yet).
-	// Never log the plain token value — it grants password reset capability.
-	s.logger.Debug("password reset token generated", "user_id", user.ID)
+	// Send password reset email (best-effort).
+	proj, projErr := s.projectSvc.Get(ctx, projectID)
+	if projErr != nil {
+		s.logger.Error("failed to get project for reset email", "error", projErr)
+	} else {
+		// Decrypt user email for sending.
+		projectDEK, dekErr := s.getOrCreateProjectDEK(ctx, sqlc.New(s.db), projectID)
+		if dekErr != nil {
+			s.logger.Error("failed to get project DEK for reset email", "error", dekErr)
+		} else {
+			emailAAD := []byte("email:" + projectID)
+			decryptedEmail, decErr := crypto.Decrypt(user.EmailEncrypted, projectDEK, emailAAD)
+			if decErr != nil {
+				s.logger.Error("failed to decrypt email for reset", "error", decErr)
+			} else {
+				s.sendPasswordResetEmail(ctx, string(decryptedEmail), proj.Name, plainToken)
+			}
+		}
+	}
 
 	// Audit log.
 	s.auditLog(ctx, &audit.Event{

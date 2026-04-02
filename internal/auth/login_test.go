@@ -8,7 +8,7 @@ import (
 )
 
 func TestLogin_EmailRequired(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
 	_, _, err := svc.Login(context.Background(), &LoginParams{
 		Email:     "",
 		Password:  "validpassword1234",
@@ -18,7 +18,7 @@ func TestLogin_EmailRequired(t *testing.T) {
 }
 
 func TestLogin_PasswordRequired(t *testing.T) {
-	svc := NewService(nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
+	svc := NewService(nil, nil, nil, nil, nil, nil, nil, nil, nil, testPepper, nil, nil)
 	_, _, err := svc.Login(context.Background(), &LoginParams{
 		Email:     "test@example.com",
 		Password:  "",

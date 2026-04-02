@@ -247,6 +247,9 @@ func (s *Service) Signup(ctx context.Context, email, password, projectID string)
 		return nil, fmt.Errorf("issue refresh token: %w", err)
 	}
 
+	// Send verification email (best-effort, outside transaction).
+	s.sendVerificationEmail(ctx, email, proj.Name, verificationMethod, verificationToken, verificationCode)
+
 	// Audit log.
 	s.auditLog(ctx, &audit.Event{
 		EventType:  audit.EventAuthSignup,

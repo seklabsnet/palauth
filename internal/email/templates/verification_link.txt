@@ -1,0 +1,11 @@
+Verify your email address
+
+Hi,
+
+Please verify your email address for {{.ProjectName}} by visiting the link below:
+
+{{.Link}}
+
+This link expires in {{.ExpiryMinutes}} minutes.
+
+If you did not create an account, you can safely ignore this email.

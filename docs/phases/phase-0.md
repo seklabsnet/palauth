@@ -746,11 +746,11 @@ GET  /admin/projects/:id/audit-logs/export  → JSON/CSV download
 - XSS koruması: Template degiskenleri otomatik escape
 
 **Kabul kriterleri:**
-- [ ] SMTP ile email gonderiliyor (test SMTP server — MailHog)
-- [ ] Dev modunda console'a yaziliyor (`EMAIL_PROVIDER=console`)
-- [ ] Template'ler dogru render ediliyor
-- [ ] XSS: Template'e `<script>` inject edilemiyor
-- [ ] Plaintext fallback her email'de var
+- [x] SMTP ile email gonderiliyor (test SMTP server — MailHog)
+- [x] Dev modunda console'a yaziliyor (`EMAIL_PROVIDER=console`)
+- [x] Template'ler dogru render ediliyor
+- [x] XSS: Template'e `<script>` inject edilemiyor
+- [x] Plaintext fallback her email'de var
 
 **Bagimlilk:** T0.1
 

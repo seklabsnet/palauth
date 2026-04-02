@@ -188,6 +188,13 @@ func (s *Server) setupRoutes() {
 		}
 		r.Post("/verify-email", s.handleVerifyEmail)
 		r.Post("/resend-verification", s.handleResendVerification)
+		if s.rl != nil {
+			r.With(s.rl.PasswordByAccount).Post("/password/reset", s.handlePasswordResetRequest)
+		} else {
+			r.Post("/password/reset", s.handlePasswordResetRequest)
+		}
+		r.Post("/password/reset/confirm", s.handlePasswordResetConfirm)
+		r.Post("/password/change", s.handlePasswordChange)
 		r.Post("/token/refresh", s.handleRefreshToken)
 		r.Post("/token/exchange", s.handleExchangeCustomToken)
 	})

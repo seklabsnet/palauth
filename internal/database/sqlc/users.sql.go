@@ -255,15 +255,16 @@ func (q *Queries) UpdateUserLastLogin(ctx context.Context, arg UpdateUserLastLog
 
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE users SET password_hash = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND project_id = $3
 `
 
 type UpdateUserPasswordParams struct {
 	ID           string  `json:"id"`
 	PasswordHash *string `json:"password_hash"`
+	ProjectID    string  `json:"project_id"`
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
-	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.PasswordHash, arg.ProjectID)
 	return err
 }

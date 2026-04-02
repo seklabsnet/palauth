@@ -17,6 +17,10 @@ UPDATE sessions SET revoked_at = now() WHERE id = $1;
 UPDATE sessions SET revoked_at = now()
 WHERE user_id = $1 AND revoked_at IS NULL;
 
+-- name: RevokeUserSessionsByProject :exec
+UPDATE sessions SET revoked_at = now()
+WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL;
+
 -- name: ListActiveSessions :many
 SELECT * FROM sessions
 WHERE user_id = $1 AND revoked_at IS NULL

@@ -46,7 +46,10 @@ func (s *Service) VerifyEmailByToken(ctx context.Context, plainToken, projectID 
 	}
 
 	// Mark token as used.
-	if err := q.MarkVerificationTokenUsed(ctx, vt.ID); err != nil {
+	if err := q.MarkVerificationTokenUsed(ctx, sqlc.MarkVerificationTokenUsedParams{
+		ID:        vt.ID,
+		ProjectID: projectID,
+	}); err != nil {
 		return fmt.Errorf("mark token used: %w", err)
 	}
 
@@ -135,14 +138,20 @@ func (s *Service) VerifyEmailByCode(ctx context.Context, code, email, projectID 
 			s.logger.Error("failed to increment OTP attempts", "error", incErr)
 		}
 		if attempts >= maxOTPAttempts {
-			_ = q.MarkVerificationTokenUsed(ctx, vt.ID)
+			_ = q.MarkVerificationTokenUsed(ctx, sqlc.MarkVerificationTokenUsedParams{
+				ID:        vt.ID,
+				ProjectID: projectID,
+			})
 			return ErrOTPMaxAttempts
 		}
 		return ErrTokenNotFound
 	}
 
 	// Mark token as used.
-	if err := q.MarkVerificationTokenUsed(ctx, vt.ID); err != nil {
+	if err := q.MarkVerificationTokenUsed(ctx, sqlc.MarkVerificationTokenUsedParams{
+		ID:        vt.ID,
+		ProjectID: projectID,
+	}); err != nil {
 		return fmt.Errorf("mark token used: %w", err)
 	}
 

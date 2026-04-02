@@ -11,7 +11,7 @@ SELECT * FROM users WHERE project_id = $1 AND email_hash = $2;
 
 -- name: UpdateUserPassword :exec
 UPDATE users SET password_hash = $2, updated_at = now()
-WHERE id = $1;
+WHERE id = $1 AND project_id = $3;
 
 -- name: UpdateUserEmailVerified :exec
 UPDATE users SET email_verified = true, updated_at = now()

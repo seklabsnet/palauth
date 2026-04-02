@@ -950,6 +950,626 @@ func TestIntegration_LoginTimingEqualization(t *testing.T) {
 	assert.Less(t, ratio, 1.20, "timing difference between existing and non-existing user should be < 20%%")
 }
 
+// sha256Hash computes SHA-256 hash of a string and returns the raw bytes (test helper).
+func sha256Hash(s string) []byte {
+	h := sha256.Sum256([]byte(s))
+	return h[:]
+}
+
+// ============================================================================
+// Password Reset Integration Tests
+// ============================================================================
+
+func TestIntegration_PasswordReset_FullFlow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	// Signup.
+	_, err := svc.Signup(ctx, "reset-flow@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	// Request password reset.
+	err = svc.RequestReset(ctx, projectID, "reset-flow@example.com")
+	require.NoError(t, err)
+
+	// Get the token from the DB (in prod this comes via email).
+	var tokenHash []byte
+	err = pool.QueryRow(ctx,
+		"SELECT token_hash FROM verification_tokens WHERE type = 'password_reset' AND project_id = $1 ORDER BY created_at DESC LIMIT 1",
+		projectID).Scan(&tokenHash)
+	require.NoError(t, err)
+
+	// We need the plain token. Since we can't reverse the hash, read it from logs.
+	// For testing, generate a new token and insert it manually.
+	plainToken, err := crypto.GenerateToken(32)
+	require.NoError(t, err)
+	newHash := sha256Hash(plainToken)
+	_, err = pool.Exec(ctx,
+		"UPDATE verification_tokens SET token_hash = $1 WHERE type = 'password_reset' AND project_id = $2 AND token_hash = $3",
+		newHash, projectID, tokenHash)
+	require.NoError(t, err)
+
+	// Confirm reset with the new password.
+	err = svc.ConfirmReset(ctx, projectID, plainToken, "brand-new-password-5678!")
+	require.NoError(t, err)
+
+	// Login with new password should succeed.
+	result, _, err := svc.Login(ctx, &auth.LoginParams{
+		Email:     "reset-flow@example.com",
+		Password:  "brand-new-password-5678!",
+		ProjectID: projectID,
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, result.AccessToken)
+
+	// Login with old password should fail.
+	_, _, err = svc.Login(ctx, &auth.LoginParams{
+		Email:     "reset-flow@example.com",
+		Password:  "secure-password-1234!",
+		ProjectID: projectID,
+	})
+	assert.ErrorIs(t, err, auth.ErrInvalidCredentials)
+}
+
+func TestIntegration_PasswordReset_ExpiredToken(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	_, err := svc.Signup(ctx, "expired-reset@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.RequestReset(ctx, projectID, "expired-reset@example.com")
+	require.NoError(t, err)
+
+	// Replace with a known token and expire it.
+	plainToken, err := crypto.GenerateToken(32)
+	require.NoError(t, err)
+	newHash := sha256Hash(plainToken)
+	_, err = pool.Exec(ctx,
+		"UPDATE verification_tokens SET token_hash = $1, expires_at = $2 WHERE type = 'password_reset' AND project_id = $3",
+		newHash, time.Now().Add(-1*time.Hour), projectID)
+	require.NoError(t, err)
+
+	err = svc.ConfirmReset(ctx, projectID, plainToken, "brand-new-password-5678!")
+	assert.ErrorIs(t, err, auth.ErrTokenExpired)
+}
+
+func TestIntegration_PasswordReset_UsedToken(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	_, err := svc.Signup(ctx, "used-token@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.RequestReset(ctx, projectID, "used-token@example.com")
+	require.NoError(t, err)
+
+	// Replace with a known token.
+	plainToken, err := crypto.GenerateToken(32)
+	require.NoError(t, err)
+	newHash := sha256Hash(plainToken)
+	_, err = pool.Exec(ctx,
+		"UPDATE verification_tokens SET token_hash = $1 WHERE type = 'password_reset' AND project_id = $2",
+		newHash, projectID)
+	require.NoError(t, err)
+
+	// First confirm succeeds.
+	err = svc.ConfirmReset(ctx, projectID, plainToken, "brand-new-password-5678!")
+	require.NoError(t, err)
+
+	// Second confirm fails (token used).
+	err = svc.ConfirmReset(ctx, projectID, plainToken, "yet-another-password-999!")
+	assert.ErrorIs(t, err, auth.ErrTokenNotFound, "used token should not be found (used=true filtered)")
+}
+
+func TestIntegration_PasswordReset_PasswordHistory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	// Signup with password 1.
+	_, err := svc.Signup(ctx, "history@example.com", "original-password-1234!", projectID)
+	require.NoError(t, err)
+
+	// Helper to request reset and get a usable token.
+	getResetToken := func() string {
+		err := svc.RequestReset(ctx, projectID, "history@example.com")
+		require.NoError(t, err)
+		pt, err := crypto.GenerateToken(32)
+		require.NoError(t, err)
+		h := sha256Hash(pt)
+		_, err = pool.Exec(ctx,
+			"UPDATE verification_tokens SET token_hash = $1 WHERE id = (SELECT id FROM verification_tokens WHERE type = 'password_reset' AND project_id = $2 AND used = false ORDER BY created_at DESC LIMIT 1)",
+			h, projectID)
+		require.NoError(t, err)
+		return pt
+	}
+
+	// Try to reset to the original password — should fail (reuse).
+	token1 := getResetToken()
+	err = svc.ConfirmReset(ctx, projectID, token1, "original-password-1234!")
+	assert.ErrorIs(t, err, crypto.ErrPasswordReused)
+
+	// Reset to password 2.
+	token2 := getResetToken()
+	err = svc.ConfirmReset(ctx, projectID, token2, "second-password-56789!")
+	require.NoError(t, err)
+
+	// Reset to password 3.
+	token3 := getResetToken()
+	err = svc.ConfirmReset(ctx, projectID, token3, "third-password-abcdef!")
+	require.NoError(t, err)
+
+	// Reset to password 4.
+	token4 := getResetToken()
+	err = svc.ConfirmReset(ctx, projectID, token4, "fourth-password-ghijkl!")
+	require.NoError(t, err)
+
+	// Reset to password 5.
+	token5 := getResetToken()
+	err = svc.ConfirmReset(ctx, projectID, token5, "fifth-password-mnopqr!")
+	require.NoError(t, err)
+
+	// Now the original password should be allowed (only last 4 are checked).
+	token6 := getResetToken()
+	err = svc.ConfirmReset(ctx, projectID, token6, "original-password-1234!")
+	require.NoError(t, err, "original password should be allowed after 4 other passwords")
+}
+
+func TestIntegration_PasswordReset_WeakPassword(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	_, err := svc.Signup(ctx, "weakreset@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.RequestReset(ctx, projectID, "weakreset@example.com")
+	require.NoError(t, err)
+
+	plainToken, err := crypto.GenerateToken(32)
+	require.NoError(t, err)
+	newHash := sha256Hash(plainToken)
+	_, err = pool.Exec(ctx,
+		"UPDATE verification_tokens SET token_hash = $1 WHERE type = 'password_reset' AND project_id = $2 AND used = false",
+		newHash, projectID)
+	require.NoError(t, err)
+
+	// Too short password.
+	err = svc.ConfirmReset(ctx, projectID, plainToken, "short")
+	assert.ErrorIs(t, err, crypto.ErrPasswordTooShort)
+}
+
+func TestIntegration_PasswordReset_BreachedPassword(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	_, err := svc.Signup(ctx, "breachreset@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.RequestReset(ctx, projectID, "breachreset@example.com")
+	require.NoError(t, err)
+
+	plainToken, err := crypto.GenerateToken(32)
+	require.NoError(t, err)
+	newHash := sha256Hash(plainToken)
+	_, err = pool.Exec(ctx,
+		"UPDATE verification_tokens SET token_hash = $1 WHERE type = 'password_reset' AND project_id = $2 AND used = false",
+		newHash, projectID)
+	require.NoError(t, err)
+
+	// Now create a new service with a breached HIBP server for the new password.
+	breachedPw := "brand-new-password-5678!"
+	hibpBreached := breachedHIBPServer(breachedPw)
+	defer hibpBreached.Close()
+	svcBreached := newTestAuthService(t, pool, hibpBreached)
+
+	err = svcBreached.ConfirmReset(ctx, projectID, plainToken, breachedPw)
+	assert.ErrorIs(t, err, crypto.ErrPasswordBreached)
+}
+
+func TestIntegration_PasswordReset_SessionsRevoked(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	// Signup creates a session.
+	signupResult, err := svc.Signup(ctx, "sessions-reset@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	// Login creates another session.
+	_, _, err = svc.Login(ctx, &auth.LoginParams{
+		Email:     "sessions-reset@example.com",
+		Password:  "secure-password-1234!",
+		ProjectID: projectID,
+	})
+	require.NoError(t, err)
+
+	// Verify we have active sessions.
+	var activeCount int64
+	err = pool.QueryRow(ctx,
+		"SELECT count(*) FROM sessions WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL",
+		signupResult.User.ID, projectID).Scan(&activeCount)
+	require.NoError(t, err)
+	assert.True(t, activeCount >= 2, "should have at least 2 active sessions")
+
+	// Request and confirm reset.
+	err = svc.RequestReset(ctx, projectID, "sessions-reset@example.com")
+	require.NoError(t, err)
+
+	plainToken, err := crypto.GenerateToken(32)
+	require.NoError(t, err)
+	newHash := sha256Hash(plainToken)
+	_, err = pool.Exec(ctx,
+		"UPDATE verification_tokens SET token_hash = $1 WHERE type = 'password_reset' AND project_id = $2 AND used = false",
+		newHash, projectID)
+	require.NoError(t, err)
+
+	err = svc.ConfirmReset(ctx, projectID, plainToken, "brand-new-password-5678!")
+	require.NoError(t, err)
+
+	// Verify all sessions are revoked.
+	err = pool.QueryRow(ctx,
+		"SELECT count(*) FROM sessions WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL",
+		signupResult.User.ID, projectID).Scan(&activeCount)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), activeCount, "all sessions should be revoked after password reset")
+}
+
+func TestIntegration_PasswordReset_NonExistingEmail(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	// Request reset for non-existing email — should return nil (enumeration prevention).
+	err := svc.RequestReset(ctx, projectID, "nobody-here@example.com")
+	assert.NoError(t, err, "should return nil for non-existing email")
+}
+
+func TestIntegration_PasswordReset_AuditLog(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	_, err := svc.Signup(ctx, "auditreset@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.RequestReset(ctx, projectID, "auditreset@example.com")
+	require.NoError(t, err)
+
+	// Check audit log for reset request.
+	var count int64
+	err = pool.QueryRow(ctx,
+		"SELECT count(*) FROM audit_logs WHERE project_id = $1 AND event_type = $2",
+		projectID, "auth.password.reset.request").Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count, "should have password reset request audit event")
+}
+
+// ============================================================================
+// Password Change Integration Tests
+// ============================================================================
+
+func TestIntegration_PasswordChange_Success(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	signupResult, err := svc.Signup(ctx, "change@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.ChangePassword(ctx, projectID, signupResult.User.ID, "secure-password-1234!", "brand-new-password-5678!")
+	require.NoError(t, err)
+
+	// Login with new password should work.
+	_, _, err = svc.Login(ctx, &auth.LoginParams{
+		Email:     "change@example.com",
+		Password:  "brand-new-password-5678!",
+		ProjectID: projectID,
+	})
+	require.NoError(t, err)
+
+	// Login with old password should fail.
+	_, _, err = svc.Login(ctx, &auth.LoginParams{
+		Email:     "change@example.com",
+		Password:  "secure-password-1234!",
+		ProjectID: projectID,
+	})
+	assert.ErrorIs(t, err, auth.ErrInvalidCredentials)
+}
+
+func TestIntegration_PasswordChange_WrongCurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	signupResult, err := svc.Signup(ctx, "wrongcurrent@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.ChangePassword(ctx, projectID, signupResult.User.ID, "wrong-current-12345!", "brand-new-password-5678!")
+	assert.ErrorIs(t, err, auth.ErrInvalidCredentials)
+}
+
+func TestIntegration_PasswordChange_PasswordHistory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	signupResult, err := svc.Signup(ctx, "changehistory@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	// Try to change to the same password — should fail.
+	err = svc.ChangePassword(ctx, projectID, signupResult.User.ID, "secure-password-1234!", "secure-password-1234!")
+	assert.ErrorIs(t, err, crypto.ErrPasswordReused)
+}
+
+func TestIntegration_PasswordChange_AuditLog(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	signupResult, err := svc.Signup(ctx, "auditchange@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.ChangePassword(ctx, projectID, signupResult.User.ID, "secure-password-1234!", "brand-new-password-5678!")
+	require.NoError(t, err)
+
+	// Check audit log.
+	var count int64
+	err = pool.QueryRow(ctx,
+		"SELECT count(*) FROM audit_logs WHERE project_id = $1 AND event_type = $2 AND result = 'success'",
+		projectID, "auth.password.change").Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+}
+
+func TestIntegration_PasswordChange_WeakNewPassword(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	signupResult, err := svc.Signup(ctx, "weakchange@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.ChangePassword(ctx, projectID, signupResult.User.ID, "secure-password-1234!", "tooshort")
+	assert.ErrorIs(t, err, crypto.ErrPasswordTooShort)
+}
+
+func TestIntegration_PasswordChange_SessionsRevoked(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	// Signup creates a session.
+	signupResult, err := svc.Signup(ctx, "changesess@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	// Login creates another session.
+	_, _, err = svc.Login(ctx, &auth.LoginParams{
+		Email:     "changesess@example.com",
+		Password:  "secure-password-1234!",
+		ProjectID: projectID,
+	})
+	require.NoError(t, err)
+
+	// Verify we have active sessions.
+	var activeCount int64
+	err = pool.QueryRow(ctx,
+		"SELECT count(*) FROM sessions WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL",
+		signupResult.User.ID, projectID).Scan(&activeCount)
+	require.NoError(t, err)
+	assert.True(t, activeCount >= 2, "should have at least 2 active sessions")
+
+	// Change password.
+	err = svc.ChangePassword(ctx, projectID, signupResult.User.ID, "secure-password-1234!", "brand-new-password-5678!")
+	require.NoError(t, err)
+
+	// Verify all sessions are revoked.
+	err = pool.QueryRow(ctx,
+		"SELECT count(*) FROM sessions WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL",
+		signupResult.User.ID, projectID).Scan(&activeCount)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), activeCount, "all sessions should be revoked after password change")
+}
+
+func TestIntegration_PasswordReset_FailedConfirm_AuditLogged(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	hibp := notBreachedHIBPServer()
+	defer hibp.Close()
+
+	svc := newTestAuthService(t, pool, hibp)
+	ctx := context.Background()
+	projectID := createTestProject(t, pool, "code")
+
+	// Signup and request reset so we have a real token with user context.
+	_, err := svc.Signup(ctx, "auditfail@example.com", "secure-password-1234!", projectID)
+	require.NoError(t, err)
+
+	err = svc.RequestReset(ctx, projectID, "auditfail@example.com")
+	require.NoError(t, err)
+
+	// Replace the token hash and expire it so ConfirmReset fails with token_expired.
+	plainToken, err := crypto.GenerateToken(32)
+	require.NoError(t, err)
+	newHash := sha256Hash(plainToken)
+	_, err = pool.Exec(ctx,
+		"UPDATE verification_tokens SET token_hash = $1, expires_at = $2 WHERE type = 'password_reset' AND project_id = $3 AND used = false",
+		newHash, time.Now().Add(-1*time.Hour), projectID)
+	require.NoError(t, err)
+
+	// Try to confirm with expired token.
+	err = svc.ConfirmReset(ctx, projectID, plainToken, "brand-new-password-5678!")
+	assert.ErrorIs(t, err, auth.ErrTokenExpired)
+
+	// Check that the failed attempt was audit-logged.
+	var count int64
+	err = pool.QueryRow(ctx,
+		"SELECT count(*) FROM audit_logs WHERE project_id = $1 AND event_type = $2 AND result = 'failure'",
+		projectID, "auth.password.reset.complete").Scan(&count)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count, "failed reset confirm should be audit-logged")
+}
+
 func runMigrations(t *testing.T, pool *pgxpool.Pool, dir string) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)

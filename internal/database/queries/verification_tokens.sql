@@ -16,7 +16,7 @@ UPDATE verification_tokens SET used = true
 WHERE user_id = $1 AND type = $2 AND project_id = $3 AND used = false;
 
 -- name: MarkVerificationTokenUsed :exec
-UPDATE verification_tokens SET used = true WHERE id = $1;
+UPDATE verification_tokens SET used = true WHERE id = $1 AND project_id = $2;
 
 -- name: IncrementVerificationFailedAttempts :one
 UPDATE verification_tokens SET failed_attempts = failed_attempts + 1

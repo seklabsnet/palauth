@@ -135,10 +135,15 @@ func (q *Queries) InvalidateVerificationTokens(ctx context.Context, arg Invalida
 }
 
 const markVerificationTokenUsed = `-- name: MarkVerificationTokenUsed :exec
-UPDATE verification_tokens SET used = true WHERE id = $1
+UPDATE verification_tokens SET used = true WHERE id = $1 AND project_id = $2
 `
 
-func (q *Queries) MarkVerificationTokenUsed(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, markVerificationTokenUsed, id)
+type MarkVerificationTokenUsedParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) MarkVerificationTokenUsed(ctx context.Context, arg MarkVerificationTokenUsedParams) error {
+	_, err := q.db.Exec(ctx, markVerificationTokenUsed, arg.ID, arg.ProjectID)
 	return err
 }

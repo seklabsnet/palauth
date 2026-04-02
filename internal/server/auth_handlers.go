@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/palauth/palauth/internal/apikey"
 	"github.com/palauth/palauth/internal/auth"
 	"github.com/palauth/palauth/internal/crypto"
+	"github.com/palauth/palauth/internal/token"
 )
 
 type signupRequest struct {
@@ -29,6 +31,20 @@ type verifyEmailRequest struct {
 
 type resendVerificationRequest struct {
 	Email string `json:"email"`
+}
+
+type passwordResetRequest struct {
+	Email string `json:"email"`
+}
+
+type passwordResetConfirmRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
+type passwordChangeRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
@@ -187,4 +203,120 @@ func (s *Server) handleResendVerification(w http.ResponseWriter, r *http.Request
 
 	// Always return 200 — enumeration prevention.
 	s.WriteJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handlePasswordResetRequest(w http.ResponseWriter, r *http.Request) {
+	var req passwordResetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.WriteError(w, r, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+
+	projectID := apikey.ProjectIDFromContext(r.Context())
+
+	// Always returns nil for enumeration prevention.
+	_ = s.authSvc.RequestReset(r.Context(), projectID, req.Email)
+
+	s.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (s *Server) handlePasswordResetConfirm(w http.ResponseWriter, r *http.Request) {
+	var req passwordResetConfirmRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.WriteError(w, r, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+
+	projectID := apikey.ProjectIDFromContext(r.Context())
+
+	err := s.authSvc.ConfirmReset(r.Context(), projectID, req.Token, req.NewPassword)
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrTokenRequired):
+			s.WriteError(w, r, http.StatusBadRequest, "token_required", "Reset token is required")
+		case errors.Is(err, auth.ErrTokenNotFound):
+			s.WriteError(w, r, http.StatusBadRequest, "invalid_token", "The reset token is invalid")
+		case errors.Is(err, auth.ErrTokenUsed):
+			s.WriteError(w, r, http.StatusBadRequest, "token_used", "The reset token has already been used")
+		case errors.Is(err, auth.ErrTokenExpired):
+			s.WriteError(w, r, http.StatusBadRequest, "token_expired", "The reset token has expired")
+		case errors.Is(err, crypto.ErrPasswordTooShort):
+			s.WriteError(w, r, http.StatusBadRequest, "password_too_short", "Password must be at least 15 characters")
+		case errors.Is(err, crypto.ErrPasswordTooLong):
+			s.WriteError(w, r, http.StatusBadRequest, "password_too_long", "Password must be at most 64 characters")
+		case errors.Is(err, crypto.ErrPasswordBreached):
+			s.WriteError(w, r, http.StatusBadRequest, "password_breached", "This password has been found in a data breach and cannot be used")
+		case errors.Is(err, crypto.ErrPasswordReused):
+			s.WriteError(w, r, http.StatusBadRequest, "password_reused", "This password was recently used and cannot be reused")
+		case errors.Is(err, auth.ErrHIBPUnavailable):
+			s.WriteError(w, r, http.StatusServiceUnavailable, "service_unavailable", "Password breach check is temporarily unavailable, please retry")
+		default:
+			s.logger.Error("password reset confirm failed", "error", err)
+			s.WriteError(w, r, http.StatusInternalServerError, "internal_error", "An unexpected error occurred")
+		}
+		return
+	}
+
+	s.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+// extractBearerClaims extracts and verifies a JWT Bearer token from the Authorization header.
+// Returns nil claims and writes an error response if the token is missing or invalid.
+func (s *Server) extractBearerClaims(w http.ResponseWriter, r *http.Request) *token.Claims {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		s.WriteError(w, r, http.StatusUnauthorized, "unauthorized", "Bearer token is required")
+		return nil
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	claims, err := s.jwtSvc.Verify(tokenStr)
+	if err != nil {
+		s.WriteError(w, r, http.StatusUnauthorized, "unauthorized", "Invalid or expired token")
+		return nil
+	}
+	return claims
+}
+
+func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
+	var req passwordChangeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.WriteError(w, r, http.StatusBadRequest, "invalid_request", "Invalid JSON body")
+		return
+	}
+
+	claims := s.extractBearerClaims(w, r)
+	if claims == nil {
+		return
+	}
+
+	projectID := apikey.ProjectIDFromContext(r.Context())
+
+	err := s.authSvc.ChangePassword(r.Context(), projectID, claims.Subject, req.CurrentPassword, req.NewPassword)
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrCurrentPasswordRequired):
+			s.WriteError(w, r, http.StatusBadRequest, "current_password_required", "Current password is required")
+		case errors.Is(err, auth.ErrNewPasswordRequired):
+			s.WriteError(w, r, http.StatusBadRequest, "new_password_required", "New password is required")
+		case errors.Is(err, auth.ErrInvalidCredentials):
+			s.WriteError(w, r, http.StatusUnauthorized, "invalid_credentials", "Current password is incorrect")
+		case errors.Is(err, crypto.ErrPasswordTooShort):
+			s.WriteError(w, r, http.StatusBadRequest, "password_too_short", "Password must be at least 15 characters")
+		case errors.Is(err, crypto.ErrPasswordTooLong):
+			s.WriteError(w, r, http.StatusBadRequest, "password_too_long", "Password must be at most 64 characters")
+		case errors.Is(err, crypto.ErrPasswordBreached):
+			s.WriteError(w, r, http.StatusBadRequest, "password_breached", "This password has been found in a data breach and cannot be used")
+		case errors.Is(err, crypto.ErrPasswordReused):
+			s.WriteError(w, r, http.StatusBadRequest, "password_reused", "This password was recently used and cannot be reused")
+		case errors.Is(err, auth.ErrHIBPUnavailable):
+			s.WriteError(w, r, http.StatusServiceUnavailable, "service_unavailable", "Password breach check is temporarily unavailable, please retry")
+		default:
+			s.logger.Error("password change failed", "error", err)
+			s.WriteError(w, r, http.StatusInternalServerError, "internal_error", "An unexpected error occurred")
+		}
+		return
+	}
+
+	s.WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
 }

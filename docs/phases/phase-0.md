@@ -109,8 +109,8 @@ Her task kendi unit/integration testini birlikte yazar. T0.17 final sweep — co
 - [x] `make build` basarili — tek binary uretir
 - [x] `make test` basarili — bos test suite calisir
 - [x] `make lint` basarili — golangci-lint gecer
-- [ ] `make dev` → postgres+redis ayaga kalkar, Go server hot reload ile calisir
-- [ ] GitHub Actions PR'da calisir (lint + test + build + security review)
+- [x] `make dev` → postgres+redis ayaga kalkar, Go server hot reload ile calisir
+- [x] GitHub Actions PR'da calisir (lint + test + build + security review)
 - [x] Config koanf ile yuklenebiliyor (env var + yaml + defaults)
 - [x] `PALAUTH_PEPPER` set edilmemisse server baslamayi reddeder
 
@@ -646,14 +646,14 @@ POST /auth/password/change        → { current_password, new_password } → { s
 ```
 
 **Kabul kriterleri:**
-- [ ] Reset email gonderiliyor (veya log'a yaziliyor — dev modunda)
-- [ ] Token dogru calisir (gecerli token → sifre degisir)
-- [ ] Expired token → hata
-- [ ] Kullanilmis token → hata
-- [ ] Son 4 sifre tekrar kullanilamaz
-- [ ] Zayif yeni sifre reddedilir
-- [ ] Reset sonrasi tum session'lar sonlandiriliyor
-- [ ] Var olmayan email icin de 200 doner (enumeration koruması)
+- [x] Reset email gonderiliyor (veya log'a yaziliyor — dev modunda)
+- [x] Token dogru calisir (gecerli token → sifre degisir)
+- [x] Expired token → hata
+- [x] Kullanilmis token → hata
+- [x] Son 4 sifre tekrar kullanilamaz
+- [x] Zayif yeni sifre reddedilir
+- [x] Reset sonrasi tum session'lar sonlandiriliyor
+- [x] Var olmayan email icin de 200 doner (enumeration koruması)
 
 **Bagimlilk:** T0.7 (user), T0.5 (crypto), T0.12 (email)
 

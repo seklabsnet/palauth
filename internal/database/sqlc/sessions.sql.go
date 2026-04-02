@@ -146,6 +146,21 @@ func (q *Queries) RevokeUserSessions(ctx context.Context, userID string) error {
 	return err
 }
 
+const revokeUserSessionsByProject = `-- name: RevokeUserSessionsByProject :exec
+UPDATE sessions SET revoked_at = now()
+WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL
+`
+
+type RevokeUserSessionsByProjectParams struct {
+	UserID    string `json:"user_id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) RevokeUserSessionsByProject(ctx context.Context, arg RevokeUserSessionsByProjectParams) error {
+	_, err := q.db.Exec(ctx, revokeUserSessionsByProject, arg.UserID, arg.ProjectID)
+	return err
+}
+
 const updateSessionActivity = `-- name: UpdateSessionActivity :exec
 UPDATE sessions SET last_activity = now(), idle_timeout_at = $2
 WHERE id = $1

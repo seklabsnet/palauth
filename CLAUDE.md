@@ -354,6 +354,7 @@ The loop continues until security-reviewer gives final sign-off. Every fix by th
 - If a single review stage exceeds 3 iterations, lead intervenes
 - Task is NOT done until security-reviewer gives final sign-off
 - After final sign-off, lead verifies acceptance criteria and updates the phase file (checks off completed criteria with `- [x]`)
+- After everything is done, lead creates a git commit following repo conventions (e.g. `feat(auth): implement X [T0.N]`)
 
 ## Do NOT
 

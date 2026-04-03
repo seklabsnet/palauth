@@ -877,13 +877,13 @@ POST   /admin/users/invite                → { email, role } → admin kullanic
 - npm package config: `@palauth/client`, `@palauth/server`
 
 **Kabul kriterleri:**
-- [ ] OpenAPI spec valid (swagger-cli validate)
-- [ ] Go types generate ediliyor
-- [ ] TypeScript SDK generate ediliyor
-- [ ] `createAuthClient({ url, apiKey })` calisiyor
-- [ ] `auth.signUp()`, `auth.signIn()` calisiyor (Go server'a istek atiyor)
-- [ ] `createAuthServer({ url, serviceKey })` calisiyor
-- [ ] `auth.verifyToken()` calisiyor
+- [x] OpenAPI spec valid (swagger-cli validate)
+- [x] Go types generate ediliyor
+- [x] TypeScript SDK generate ediliyor
+- [x] `createAuthClient({ url, apiKey })` calisiyor
+- [x] `auth.signUp()`, `auth.signIn()` calisiyor (Go server'a istek atiyor)
+- [x] `createAuthServer({ url, serviceKey })` calisiyor
+- [x] `auth.verifyToken()` calisiyor
 
 **Bagimlilk:** T0.7, T0.8, T0.9, T0.10, T0.13, T0.14 (endpoint'ler mevcut olmali)
 

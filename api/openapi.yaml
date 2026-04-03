@@ -1,0 +1,1763 @@
+openapi: 3.1.0
+info:
+  title: PalAuth API
+  description: Self-hosted authentication server API
+  version: 0.1.0
+  license:
+    name: MIT
+
+servers:
+  - url: "{scheme}://{host}"
+    variables:
+      scheme:
+        default: https
+        enum: [https, http]
+      host:
+        default: localhost:8080
+
+security: []
+
+tags:
+  - name: Auth
+    description: Authentication endpoints (signup, login, verify, password)
+  - name: Token
+    description: Token management (refresh, exchange, introspect, revoke)
+  - name: Session
+    description: Session management (list, revoke, logout)
+  - name: Admin
+    description: Admin setup and login
+  - name: Admin Projects
+    description: Project CRUD, keys, and configuration
+  - name: Admin Users
+    description: User management (CRUD, ban, analytics)
+  - name: Admin Audit
+    description: Audit log listing, verification, and export
+  - name: Well-Known
+    description: Discovery endpoints (JWKS)
+
+paths:
+  # ── Well-Known ──────────────────────────────────────────
+  /.well-known/jwks.json:
+    get:
+      operationId: getJWKS
+      tags: [Well-Known]
+      summary: Get JSON Web Key Set
+      description: Returns the public keys used to verify JWT access tokens.
+      responses:
+        "200":
+          description: JWKS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JWKS"
+
+  # ── Health ──────────────────────────────────────────────
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [Well-Known]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /readyz:
+    get:
+      operationId: readyz
+      tags: [Well-Known]
+      summary: Readiness check
+      responses:
+        "200":
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ── Auth ────────────────────────────────────────────────
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [Auth]
+      summary: Register a new user
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [Auth]
+      summary: Authenticate with email and password
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Account locked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountLockedError"
+
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [Auth]
+      summary: Verify email address
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+      responses:
+        "200":
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      tags: [Auth]
+      summary: Resend email verification
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendVerificationRequest"
+      responses:
+        "200":
+          description: Verification sent (always returns 200 for enumeration prevention)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResendResult"
+
+  /auth/password/reset:
+    post:
+      operationId: requestPasswordReset
+      tags: [Auth]
+      summary: Request password reset
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequest"
+      responses:
+        "200":
+          description: Reset requested (always returns 200 for enumeration prevention)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/password/reset/confirm:
+    post:
+      operationId: confirmPasswordReset
+      tags: [Auth]
+      summary: Confirm password reset with token
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetConfirmRequest"
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /auth/password/change:
+    post:
+      operationId: changePassword
+      tags: [Auth]
+      summary: Change password (authenticated)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChangeRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  # ── Token ───────────────────────────────────────────────
+  /auth/token/refresh:
+    post:
+      operationId: refreshToken
+      tags: [Token]
+      summary: Refresh access token
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/token/exchange:
+    post:
+      operationId: exchangeCustomToken
+      tags: [Token]
+      summary: Exchange custom token for access/refresh tokens
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeCustomTokenRequest"
+      responses:
+        "200":
+          description: Token exchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/token/custom:
+    post:
+      operationId: createCustomToken
+      tags: [Token]
+      summary: Create a custom token (admin)
+      security:
+        - AdminAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomTokenRequest"
+      responses:
+        "201":
+          description: Custom token created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateCustomTokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /oauth/introspect:
+    post:
+      operationId: introspectToken
+      tags: [Token]
+      summary: Introspect a token (RFC 7662)
+      description: >
+        Introspects a token per RFC 7662. Requires a secret API key (sk_*).
+        Public API keys (pk_*) are not authorized for this endpoint.
+      security:
+        - ApiKeyAuth: []  # Requires secret API key (sk_*)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntrospectRequest"
+      responses:
+        "200":
+          description: Introspection result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntrospectionResponse"
+
+  /oauth/revoke:
+    post:
+      operationId: revokeToken
+      tags: [Token]
+      summary: Revoke a token (RFC 7009)
+      description: Always returns 200 per RFC 7009 — no information leakage.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeRequest"
+      responses:
+        "200":
+          description: Token revoked (always 200)
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ── Session ─────────────────────────────────────────────
+  /auth/sessions:
+    get:
+      operationId: listSessions
+      tags: [Session]
+      summary: List active sessions
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Sessions list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: revokeAllSessions
+      tags: [Session]
+      summary: Revoke all sessions
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        "200":
+          description: All sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/sessions/{id}:
+    delete:
+      operationId: revokeSession
+      tags: [Session]
+      summary: Revoke a specific session
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [Session]
+      summary: Logout (revoke current session)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Admin Setup & Login ─────────────────────────────────
+  /admin/setup:
+    post:
+      operationId: adminSetup
+      tags: [Admin]
+      summary: Initial admin setup
+      description: Creates the first admin user, a default project, and API keys. Only works when no admin exists.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSetupRequest"
+      responses:
+        "201":
+          description: Admin created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSetupResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Admin already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/login:
+    post:
+      operationId: adminLogin
+      tags: [Admin]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginRequest"
+      responses:
+        "200":
+          description: Admin login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Admin Projects ──────────────────────────────────────
+  /admin/projects:
+    post:
+      operationId: createProject
+      tags: [Admin Projects]
+      summary: Create a project
+      security:
+        - AdminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateProjectResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+    get:
+      operationId: listProjects
+      tags: [Admin Projects]
+      summary: List all projects
+      security:
+        - AdminAuth: []
+      responses:
+        "200":
+          description: Projects list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+
+  /admin/projects/{id}:
+    get:
+      operationId: getProject
+      tags: [Admin Projects]
+      summary: Get project by ID
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteProject
+      tags: [Admin Projects]
+      summary: Delete a project
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "204":
+          description: Project deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/projects/{id}/config:
+    put:
+      operationId: updateProject
+      tags: [Admin Projects]
+      summary: Update project configuration
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectRequest"
+      responses:
+        "200":
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/projects/{id}/keys:
+    get:
+      operationId: listKeys
+      tags: [Admin Projects]
+      summary: List API keys for a project
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: API keys list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KeySummary"
+
+  /admin/projects/{id}/keys/rotate:
+    post:
+      operationId: rotateKeys
+      tags: [Admin Projects]
+      summary: Rotate an API key
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RotateKeysRequest"
+      responses:
+        "200":
+          description: Key rotated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateKeysResponse"
+
+  # ── Admin Users ─────────────────────────────────────────
+  /admin/projects/{id}/users:
+    post:
+      operationId: adminCreateUser
+      tags: [Admin Users]
+      summary: Create a user in a project
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Duplicate email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: adminListUsers
+      tags: [Admin Users]
+      summary: List users in a project
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: cursor_created_at
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: cursor_id
+          in: query
+          schema:
+            type: string
+        - name: banned
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+        - name: email
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResult"
+
+  /admin/projects/{id}/users/{uid}:
+    get:
+      operationId: adminGetUser
+      tags: [Admin Users]
+      summary: Get user by ID
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: adminUpdateUser
+      tags: [Admin Users]
+      summary: Update user
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUpdateUserRequest"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: adminDeleteUser
+      tags: [Admin Users]
+      summary: Delete user (GDPR erasure)
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "204":
+          description: User deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/projects/{id}/users/{uid}/ban:
+    post:
+      operationId: adminBanUser
+      tags: [Admin Users]
+      summary: Ban a user
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminBanUserRequest"
+      responses:
+        "200":
+          description: User banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/projects/{id}/users/{uid}/unban:
+    post:
+      operationId: adminUnbanUser
+      tags: [Admin Users]
+      summary: Unban a user
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "200":
+          description: User unbanned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Not banned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/projects/{id}/users/{uid}/reset-password:
+    post:
+      operationId: adminResetPassword
+      tags: [Admin Users]
+      summary: Reset user password (admin)
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/projects/{id}/analytics:
+    get:
+      operationId: getProjectAnalytics
+      tags: [Admin Users]
+      summary: Get project analytics
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectAnalytics"
+
+  /admin/users/invite:
+    post:
+      operationId: adminInvite
+      tags: [Admin]
+      summary: Invite a new admin user
+      security:
+        - AdminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminInviteRequest"
+      responses:
+        "201":
+          description: Admin invited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminInviteResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Admin email exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/deactivate-inactive:
+    post:
+      operationId: deactivateInactive
+      tags: [Admin]
+      summary: Deactivate inactive users (PCI DSS)
+      security:
+        - AdminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeactivateInactiveRequest"
+      responses:
+        "200":
+          description: Users deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deactivated_count:
+                    type: integer
+
+  # ── Admin Audit ─────────────────────────────────────────
+  /admin/projects/{id}/audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [Admin Audit]
+      summary: List audit logs
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: cursor_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: cursor_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditListResult"
+
+  /admin/projects/{id}/audit-logs/verify:
+    post:
+      operationId: verifyAuditLogs
+      tags: [Admin Audit]
+      summary: Verify audit log hash chain integrity
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: Integrity report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrityReport"
+
+  /admin/projects/{id}/audit-logs/export:
+    get:
+      operationId: exportAuditLogs
+      tags: [Admin Audit]
+      summary: Export audit logs
+      security:
+        - AdminAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - name: format
+          in: query
+          schema:
+            type: string
+            default: json
+            enum: [json, csv]
+      responses:
+        "200":
+          description: Exported audit logs
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+                format: binary
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Project API key (pk_test_*, pk_live_*, sk_test_*, sk_live_*)
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: User access token (JWT)
+    AdminAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Admin JWT token
+
+  parameters:
+    ProjectID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Project ID (prj_*)
+    UserID:
+      name: uid
+      in: path
+      required: true
+      schema:
+        type: string
+      description: User ID (usr_*)
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: Service unavailable
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    # ── Common ──────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      required: [error, error_description, status, request_id]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+          example: invalid_credentials
+        error_description:
+          type: string
+          description: Human-readable description
+          example: Email or password is incorrect
+        status:
+          type: integer
+          example: 401
+        request_id:
+          type: string
+          example: req_0192f5e0-7c1a-7000-8000-000000000001
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: verified
+
+    AccountLockedError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: account_locked
+        error_description:
+          type: string
+        status:
+          type: integer
+          example: 429
+        request_id:
+          type: string
+        retry_after:
+          type: integer
+          description: Seconds until unlock
+
+    # ── Auth ────────────────────────────────────────────
+    SignupRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 15
+          maxLength: 64
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    VerifyEmailRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Link-based verification token
+        code:
+          type: string
+          description: OTP verification code
+        email:
+          type: string
+          format: email
+          description: Required when using code-based verification
+
+    ResendVerificationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    PasswordResetConfirmRequest:
+      type: object
+      required: [token, new_password]
+      properties:
+        token:
+          type: string
+        new_password:
+          type: string
+          minLength: 15
+          maxLength: 64
+
+    PasswordChangeRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password:
+          type: string
+        new_password:
+          type: string
+          minLength: 15
+          maxLength: 64
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          example: usr_0192f5e0-7c1a-7000-8000-000000000001
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    AuthResult:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 1800
+        user:
+          $ref: "#/components/schemas/UserInfo"
+        verification_token:
+          type: string
+          description: Present on signup (link-based verification)
+        verification_code:
+          type: string
+          description: Present on signup (OTP-based verification)
+
+    ResendResult:
+      type: object
+      properties:
+        verification_token:
+          type: string
+        verification_code:
+          type: string
+
+    # ── Token ───────────────────────────────────────────
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 1800
+
+    CreateCustomTokenRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+        claims:
+          type: object
+          additionalProperties: true
+        expires_in:
+          type: integer
+          description: TTL in seconds (max 3600)
+
+    CreateCustomTokenResponse:
+      type: object
+      properties:
+        custom_token:
+          type: string
+
+    ExchangeCustomTokenRequest:
+      type: object
+      required: [custom_token]
+      properties:
+        custom_token:
+          type: string
+
+    IntrospectRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+
+    IntrospectionResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        sub:
+          type: string
+        scope:
+          type: string
+        exp:
+          type: integer
+          format: int64
+        iat:
+          type: integer
+          format: int64
+        project_id:
+          type: string
+        token_type:
+          type: string
+        jti:
+          type: string
+
+    RevokeRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+
+    JWKS:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    # ── Session ─────────────────────────────────────────
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        ip:
+          type: string
+        user_agent:
+          type: string
+        acr:
+          type: string
+        amr:
+          type: array
+          items:
+            type: string
+        last_activity:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+
+    SessionListResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+
+    # ── Admin ───────────────────────────────────────────
+    AdminSetupRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 15
+          maxLength: 64
+
+    AdminLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AdminLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [owner, admin]
+        created_at:
+          type: string
+          format: date-time
+
+    AdminSetupResult:
+      type: object
+      properties:
+        admin:
+          $ref: "#/components/schemas/AdminUser"
+        project:
+          $ref: "#/components/schemas/Project"
+        api_keys:
+          $ref: "#/components/schemas/APIKeys"
+
+    AdminInviteRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [owner, admin]
+
+    AdminInviteResult:
+      type: object
+      properties:
+        admin:
+          $ref: "#/components/schemas/AdminUser"
+        temporary_password:
+          type: string
+
+    DeactivateInactiveRequest:
+      type: object
+      properties:
+        days:
+          type: integer
+          default: 90
+          minimum: 30
+
+    # ── Project ─────────────────────────────────────────
+    ProjectConfig:
+      type: object
+      properties:
+        email_verification_method:
+          type: string
+          enum: [code, link]
+        email_verification_ttl:
+          type: integer
+          description: Seconds
+        password_min_length:
+          type: integer
+        password_max_length:
+          type: integer
+        mfa_enabled:
+          type: boolean
+        session_idle_timeout:
+          type: integer
+          description: Seconds (0 = no idle timeout)
+        session_abs_timeout:
+          type: integer
+          description: Seconds
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        config:
+          $ref: "#/components/schemas/ProjectConfig"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        config:
+          $ref: "#/components/schemas/ProjectConfig"
+
+    CreateProjectResponse:
+      type: object
+      properties:
+        project:
+          $ref: "#/components/schemas/Project"
+        api_keys:
+          $ref: "#/components/schemas/APIKeys"
+
+    UpdateProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        config:
+          $ref: "#/components/schemas/ProjectConfig"
+
+    APIKeys:
+      type: object
+      properties:
+        public_test:
+          type: string
+        secret_test:
+          type: string
+        public_live:
+          type: string
+        secret_live:
+          type: string
+
+    KeySummary:
+      type: object
+      properties:
+        id:
+          type: string
+        project_id:
+          type: string
+        key_prefix:
+          type: string
+        key_type:
+          type: string
+        name:
+          type: string
+        last_used:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        revoked:
+          type: boolean
+
+    RotateKeysRequest:
+      type: object
+      required: [key_type]
+      properties:
+        key_type:
+          type: string
+
+    RotateKeysResponse:
+      type: object
+      properties:
+        new_key:
+          type: string
+
+    # ── Admin Users ─────────────────────────────────────
+    AdminCreateUserRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    AdminUpdateUserRequest:
+      type: object
+      properties:
+        email_verified:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+
+    AdminBanUserRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    UserDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        project_id:
+          type: string
+        email:
+          type: string
+        email_verified:
+          type: boolean
+        banned:
+          type: boolean
+        ban_reason:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        active_sessions:
+          type: integer
+          format: int64
+        last_login_at:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+
+    UserCursor:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        id:
+          type: string
+
+    UserListResult:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserDetail"
+        next_cursor:
+          $ref: "#/components/schemas/UserCursor"
+        total:
+          type: integer
+          format: int64
+
+    ProjectAnalytics:
+      type: object
+      properties:
+        mau:
+          type: integer
+          format: int64
+        active_sessions:
+          type: integer
+          format: int64
+        total_users:
+          type: integer
+          format: int64
+        login_trend_24h:
+          type: integer
+          format: int64
+
+    # ── Audit ───────────────────────────────────────────
+    ActorInfo:
+      type: object
+      properties:
+        user_id:
+          type: string
+        ip:
+          type: string
+        user_agent:
+          type: string
+
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        project_id:
+          type: string
+        trace_id:
+          type: string
+        event_type:
+          type: string
+        actor:
+          $ref: "#/components/schemas/ActorInfo"
+        target_type:
+          type: string
+        target_id:
+          type: string
+        result:
+          type: string
+        auth_method:
+          type: string
+        risk_score:
+          type: number
+          format: float
+        metadata:
+          type: object
+          additionalProperties: true
+        prev_hash:
+          type: string
+        event_hash:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AuditCursor:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        id:
+          type: string
+
+    AuditListResult:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+        next_cursor:
+          $ref: "#/components/schemas/AuditCursor"
+        total:
+          type: integer
+          format: int64
+
+    IntegrityReport:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        total:
+          type: integer
+        broken_at:
+          type: object
+          properties:
+            event_id:
+              type: string
+            index:
+              type: integer

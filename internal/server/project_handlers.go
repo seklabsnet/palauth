@@ -40,7 +40,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		cfg = *req.Config
 	}
 
-	prj, err := s.projectSvc.Create(r.Context(), req.Name, cfg)
+	prj, err := s.projectSvc.Create(r.Context(), req.Name, &cfg)
 	if err != nil {
 		if errors.Is(err, project.ErrEmptyName) {
 			s.WriteError(w, r, http.StatusBadRequest, "name_required", "Project name is required")
@@ -120,7 +120,7 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		cfg = existing.Config
 	}
 
-	prj, err := s.projectSvc.Update(r.Context(), projectID, req.Name, cfg)
+	prj, err := s.projectSvc.Update(r.Context(), projectID, req.Name, &cfg)
 	if err != nil {
 		if errors.Is(err, project.ErrNotFound) {
 			s.WriteError(w, r, http.StatusNotFound, "not_found", "Project not found")

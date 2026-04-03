@@ -137,7 +137,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 
 	mfaSvc := mfa.NewService(pool, rdb, authKEK, testPepper, auditSvc, sessionSvc, emailSender, nil, logger)
 
-	projectSvc := project.NewService(pool, logger)
+	projectSvc := project.NewService(pool, nil, logger)
 	jwtSvc, err := token.NewJWTService(token.JWTConfig{
 		Algorithm: token.AlgPS256,
 		Logger:    logger,

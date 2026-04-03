@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/id"
 )
@@ -20,15 +22,30 @@ var (
 	ErrInvalidJSON = errors.New("invalid project config JSON")
 )
 
+// SocialProviderConfig holds configuration for a single social login provider.
+type SocialProviderConfig struct {
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"` // encrypted at rest in DB
+	Enabled      bool   `json:"enabled"`
+	// Apple-specific
+	TeamID     string `json:"team_id,omitempty"`
+	KeyID      string `json:"key_id,omitempty"`
+	PrivateKey string `json:"private_key,omitempty"` // encrypted at rest in DB
+	// Microsoft-specific
+	Tenant string `json:"tenant,omitempty"` // default: "common"
+}
+
 // Config holds project-level settings stored as JSONB.
 type Config struct {
-	EmailVerificationMethod string `json:"email_verification_method"` // "code" or "link"
-	EmailVerificationTTL    int    `json:"email_verification_ttl"`    // seconds
-	PasswordMinLength       int    `json:"password_min_length"`
-	PasswordMaxLength       int    `json:"password_max_length"`
-	MFAEnabled              bool   `json:"mfa_enabled"`
-	SessionIdleTimeout      int    `json:"session_idle_timeout"` // seconds, 0 = no idle timeout
-	SessionAbsTimeout       int    `json:"session_abs_timeout"`  // seconds
+	EmailVerificationMethod string                          `json:"email_verification_method"` // "code" or "link"
+	EmailVerificationTTL    int                             `json:"email_verification_ttl"`    // seconds
+	PasswordMinLength       int                             `json:"password_min_length"`
+	PasswordMaxLength       int                             `json:"password_max_length"`
+	MFAEnabled              bool                            `json:"mfa_enabled"`
+	SessionIdleTimeout      int                             `json:"session_idle_timeout"` // seconds, 0 = no idle timeout
+	SessionAbsTimeout       int                             `json:"session_abs_timeout"`  // seconds
+	SocialProviders         map[string]SocialProviderConfig `json:"social_providers,omitempty"`
+	AllowedRedirectURIs     []string                        `json:"allowed_redirect_uris,omitempty"`
 }
 
 // DefaultConfig returns sensible defaults for a new project.
@@ -56,28 +73,39 @@ type Project struct {
 // Service manages project CRUD operations.
 type Service struct {
 	db     *pgxpool.Pool
+	kek    []byte // KEK for encrypting social provider secrets
 	logger *slog.Logger
 }
 
 // NewService creates a new project service.
-func NewService(db *pgxpool.Pool, logger *slog.Logger) *Service {
-	return &Service{db: db, logger: logger}
+func NewService(db *pgxpool.Pool, kek []byte, logger *slog.Logger) *Service {
+	return &Service{db: db, kek: kek, logger: logger}
 }
 
 // Create creates a new project with the given name and config.
-func (s *Service) Create(ctx context.Context, name string, cfg Config) (*Project, error) {
+func (s *Service) Create(ctx context.Context, name string, cfg *Config) (*Project, error) {
 	if name == "" {
 		return nil, ErrEmptyName
 	}
 
-	configJSON, err := json.Marshal(cfg)
+	projectID := id.New("prj_")
+
+	// Work on a copy to avoid mutating the caller's config.
+	cfgCopy := *cfg
+
+	// Encrypt social provider secrets before storing.
+	if err := s.encryptSocialSecrets(&cfgCopy, projectID); err != nil {
+		return nil, err
+	}
+
+	configJSON, err := json.Marshal(cfgCopy)
 	if err != nil {
 		return nil, fmt.Errorf("marshal config: %w", err)
 	}
 
 	q := sqlc.New(s.db)
 	row, err := q.CreateProject(ctx, sqlc.CreateProjectParams{
-		ID:     id.New("prj_"),
+		ID:     projectID,
 		Name:   name,
 		Config: configJSON,
 	})
@@ -85,7 +113,7 @@ func (s *Service) Create(ctx context.Context, name string, cfg Config) (*Project
 		return nil, fmt.Errorf("create project: %w", err)
 	}
 
-	return toProject(&row)
+	return s.toProject(&row)
 }
 
 // Get retrieves a project by ID.
@@ -99,16 +127,24 @@ func (s *Service) Get(ctx context.Context, projectID string) (*Project, error) {
 		return nil, fmt.Errorf("get project: %w", err)
 	}
 
-	return toProject(&row)
+	return s.toProject(&row)
 }
 
 // Update updates a project's name and config.
-func (s *Service) Update(ctx context.Context, projectID, name string, cfg Config) (*Project, error) {
+func (s *Service) Update(ctx context.Context, projectID, name string, cfg *Config) (*Project, error) {
 	if name == "" {
 		return nil, ErrEmptyName
 	}
 
-	configJSON, err := json.Marshal(cfg)
+	// Work on a copy to avoid mutating the caller's config.
+	cfgCopy := *cfg
+
+	// Encrypt social provider secrets before storing.
+	if err := s.encryptSocialSecrets(&cfgCopy, projectID); err != nil {
+		return nil, err
+	}
+
+	configJSON, err := json.Marshal(cfgCopy)
 	if err != nil {
 		return nil, fmt.Errorf("marshal config: %w", err)
 	}
@@ -126,7 +162,7 @@ func (s *Service) Update(ctx context.Context, projectID, name string, cfg Config
 		return nil, fmt.Errorf("update project: %w", err)
 	}
 
-	return toProject(&row)
+	return s.toProject(&row)
 }
 
 // Delete deletes a project by ID. Returns ErrNotFound if the project does not exist.
@@ -152,7 +188,7 @@ func (s *Service) List(ctx context.Context) ([]Project, error) {
 
 	projects := make([]Project, 0, len(rows))
 	for _, row := range rows {
-		p, err := toProject(&row)
+		p, err := s.toProject(&row)
 		if err != nil {
 			return nil, err
 		}
@@ -162,10 +198,85 @@ func (s *Service) List(ctx context.Context) ([]Project, error) {
 	return projects, nil
 }
 
-func toProject(row *sqlc.Project) (*Project, error) {
+// encryptSocialSecrets encrypts client_secret and private_key fields in social provider configs.
+func (s *Service) encryptSocialSecrets(cfg *Config, projectID string) error {
+	if len(s.kek) == 0 || cfg.SocialProviders == nil {
+		return nil
+	}
+	for name, pc := range cfg.SocialProviders {
+		aad := []byte("social-secret:" + projectID + ":" + name)
+		if pc.ClientSecret != "" {
+			enc, err := crypto.Encrypt([]byte(pc.ClientSecret), s.kek, aad)
+			if err != nil {
+				return fmt.Errorf("encrypt client_secret for %s: %w", name, err)
+			}
+			pc.ClientSecret = base64.StdEncoding.EncodeToString(enc)
+		}
+		if pc.PrivateKey != "" {
+			enc, err := crypto.Encrypt([]byte(pc.PrivateKey), s.kek, aad)
+			if err != nil {
+				return fmt.Errorf("encrypt private_key for %s: %w", name, err)
+			}
+			pc.PrivateKey = base64.StdEncoding.EncodeToString(enc)
+		}
+		cfg.SocialProviders[name] = pc
+	}
+	return nil
+}
+
+// decryptSocialSecrets decrypts client_secret and private_key fields in social provider configs.
+func (s *Service) decryptSocialSecrets(cfg *Config, projectID string) error {
+	if len(s.kek) == 0 || cfg.SocialProviders == nil {
+		return nil
+	}
+	for name, pc := range cfg.SocialProviders {
+		aad := []byte("social-secret:" + projectID + ":" + name)
+		if pc.ClientSecret != "" {
+			enc, err := base64.StdEncoding.DecodeString(pc.ClientSecret)
+			if err != nil {
+				return fmt.Errorf("decode client_secret for %s: %w", name, err)
+			}
+			dec, err := crypto.Decrypt(enc, s.kek, aad)
+			if err != nil {
+				return fmt.Errorf("decrypt client_secret for %s: %w", name, err)
+			}
+			pc.ClientSecret = string(dec)
+		}
+		if pc.PrivateKey != "" {
+			enc, err := base64.StdEncoding.DecodeString(pc.PrivateKey)
+			if err != nil {
+				return fmt.Errorf("decode private_key for %s: %w", name, err)
+			}
+			dec, err := crypto.Decrypt(enc, s.kek, aad)
+			if err != nil {
+				return fmt.Errorf("decrypt private_key for %s: %w", name, err)
+			}
+			pc.PrivateKey = string(dec)
+		}
+		cfg.SocialProviders[name] = pc
+	}
+	return nil
+}
+
+// GetAllowedRedirectURIs returns the configured allowed redirect URIs for a project.
+// Implements social.RedirectURIValidator.
+func (s *Service) GetAllowedRedirectURIs(ctx context.Context, projectID string) ([]string, error) {
+	p, err := s.Get(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	return p.Config.AllowedRedirectURIs, nil
+}
+
+func (s *Service) toProject(row *sqlc.Project) (*Project, error) {
 	var cfg Config
 	if err := json.Unmarshal(row.Config, &cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal project config: %w", err)
+	}
+
+	// Decrypt social provider secrets on read.
+	if err := s.decryptSocialSecrets(&cfg, row.ID); err != nil {
+		return nil, err
 	}
 
 	p := &Project{

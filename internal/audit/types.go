@@ -29,6 +29,9 @@ const (
 	EventMFAVerifyFailure            = "mfa.verify.failure"
 	EventMFARemove                   = "mfa.remove"
 	EventMFARecoveryUsed             = "mfa.recovery.used"
+	EventSocialLogin                 = "auth.social.login"
+	EventSocialLink                  = "social.link"
+	EventSocialUnlink                = "social.unlink"
 )
 
 // AllEventTypes lists all valid event types for validation.
@@ -60,4 +63,7 @@ var AllEventTypes = []string{
 	EventMFAVerifyFailure,
 	EventMFARemove,
 	EventMFARecoveryUsed,
+	EventSocialLogin,
+	EventSocialLink,
+	EventSocialUnlink,
 }

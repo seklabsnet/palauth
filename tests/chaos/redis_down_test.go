@@ -215,7 +215,7 @@ func newTestAuthServiceWithLockout(t *testing.T, pool *pgxpool.Pool, rdb *redis.
 	t.Helper()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
-	projectSvc := project.NewService(pool, logger)
+	projectSvc := project.NewService(pool, nil, logger)
 
 	jwtSvc, err := token.NewJWTService(token.JWTConfig{
 		Algorithm: token.AlgPS256,

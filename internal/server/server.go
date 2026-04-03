@@ -33,6 +33,7 @@ import (
 	"github.com/palauth/palauth/internal/ratelimit"
 	palredis "github.com/palauth/palauth/internal/redis"
 	"github.com/palauth/palauth/internal/session"
+	"github.com/palauth/palauth/internal/social"
 	"github.com/palauth/palauth/internal/token"
 )
 
@@ -54,13 +55,13 @@ type Server struct {
 	sessionSvc   *session.Service
 	authSvc      *auth.Service
 	mfaSvc       *mfa.Service
+	socialSvc    *social.Service
 	rl           *ratelimit.RouteMiddlewares
 }
 
 func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredis.Client) *Server {
 	r := chi.NewRouter()
 
-	projectSvc := project.NewService(db, logger)
 	apikeySvc := apikey.NewService(db, logger)
 
 	// Derive audit KEK from pepper via HMAC-SHA256 for key separation.
@@ -103,6 +104,8 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	authKEKMac.Write([]byte("auth-email-kek"))
 	authKEK := authKEKMac.Sum(nil)
 
+	projectSvc := project.NewService(db, authKEK, logger)
+
 	var breachChecker *crypto.BreachChecker
 	if cfg.Auth.HIBPBaseURL != "" {
 		breachChecker = crypto.NewBreachCheckerWithURL(cfg.Auth.HIBPBaseURL)
@@ -140,6 +143,16 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	// Admin user management service.
 	adminUserSvc := admin.NewUserService(db, auditSvc, sessionSvc, breachChecker, emailSender, emailRenderer, cfg.Auth.Pepper, authKEK, logger)
 
+	// Social login service.
+	var socialSvc *social.Service
+	if rdb != nil {
+		socialSvc = social.NewService(db, rdb.Unwrap(), jwtSvc, refreshSvc, auditSvc, cfg.Auth.Pepper, authKEK, logger)
+		socialSvc.SetRedirectURIValidator(projectSvc)
+		if mfaSvc != nil {
+			socialSvc.SetMFAChecker(mfaSvc)
+		}
+	}
+
 	// Rate limit middlewares.
 	var rl *ratelimit.RouteMiddlewares
 	if rdb != nil {
@@ -163,6 +176,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		customSvc:    customSvc,
 		authSvc:      authSvc,
 		mfaSvc:       mfaSvc,
+		socialSvc:    socialSvc,
 		rl:           rl,
 	}
 
@@ -243,6 +257,11 @@ func (s *Server) setupRoutes() {
 		r.Post("/token/refresh", s.handleRefreshToken)
 		r.Post("/token/exchange", s.handleExchangeCustomToken)
 
+		// OAuth social login routes.
+		r.Get("/oauth/{provider}/authorize", s.handleOAuthAuthorize)
+		r.Get("/oauth/{provider}/callback", s.handleOAuthCallback)
+		r.Post("/oauth/credential", s.handleCredentialExchange)
+
 		// MFA routes (require mfa_token, no session).
 		if s.mfaSvc != nil {
 			r.Post("/mfa/challenge", s.handleMFAChallenge)
@@ -258,6 +277,11 @@ func (s *Server) setupRoutes() {
 			r.Delete("/sessions/{id}", s.handleRevokeSession)
 			r.Delete("/sessions", s.handleRevokeAllSessions)
 			r.Post("/logout", s.handleLogout)
+
+			// Social identity management routes (require session).
+			r.Get("/identities", s.handleListIdentities)
+			r.Post("/identities/link", s.handleLinkIdentity)
+			r.Delete("/identities/{id}", s.handleUnlinkIdentity)
 
 			// MFA management routes (require session).
 			if s.mfaSvc != nil {

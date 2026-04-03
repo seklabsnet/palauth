@@ -56,6 +56,16 @@ type EncryptionKey struct {
 	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
 }
 
+type Identity struct {
+	ID             string             `json:"id"`
+	ProjectID      string             `json:"project_id"`
+	UserID         string             `json:"user_id"`
+	Provider       string             `json:"provider"`
+	ProviderUserID string             `json:"provider_user_id"`
+	ProviderData   []byte             `json:"provider_data"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type MfaEnrollment struct {
 	ID              string             `json:"id"`
 	ProjectID       string             `json:"project_id"`

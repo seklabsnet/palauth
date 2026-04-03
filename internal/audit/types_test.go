@@ -39,6 +39,9 @@ func TestEventTypeConstants(t *testing.T) {
 		{"mfa verify failure", EventMFAVerifyFailure, "mfa.verify.failure"},
 		{"mfa remove", EventMFARemove, "mfa.remove"},
 		{"mfa recovery used", EventMFARecoveryUsed, "mfa.recovery.used"},
+		{"social login", EventSocialLogin, "auth.social.login"},
+		{"social link", EventSocialLink, "social.link"},
+		{"social unlink", EventSocialUnlink, "social.unlink"},
 	}
 
 	for _, tt := range tests {
@@ -77,8 +80,11 @@ func TestAllEventTypesContainsAll(t *testing.T) {
 		EventMFAVerifyFailure,
 		EventMFARemove,
 		EventMFARecoveryUsed,
+		EventSocialLogin,
+		EventSocialLink,
+		EventSocialUnlink,
 	}
 
 	assert.Equal(t, expected, AllEventTypes)
-	assert.Len(t, AllEventTypes, 27)
+	assert.Len(t, AllEventTypes, 30)
 }

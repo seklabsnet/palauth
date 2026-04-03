@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/palauth/palauth/internal/config"
 	"github.com/palauth/palauth/internal/database"
@@ -21,6 +23,11 @@ func main() {
 }
 
 func run() error {
+	// Handle healthz subcommand for Docker healthcheck (no config needed)
+	if len(os.Args) > 1 && os.Args[1] == "healthz" {
+		return runHealthcheck()
+	}
+
 	configPath := flag.String("config", "", "path to YAML config file")
 	migrate := flag.Bool("migrate", false, "run database migrations and exit")
 	flag.Parse()
@@ -84,6 +91,23 @@ func setupLogger(cfg *config.Config) *slog.Logger {
 		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
 	}
 	return slog.New(handler)
+}
+
+func runHealthcheck() error {
+	port := os.Getenv("PALAUTH_SERVER_PORT")
+	if port == "" {
+		port = "3000"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://localhost:%s/healthz", port))
+	if err != nil {
+		return fmt.Errorf("healthcheck failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthcheck returned status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func parseLogLevel(level string) slog.Level {

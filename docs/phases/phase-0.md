@@ -1070,11 +1070,11 @@ POST   /admin/users/invite                → { email, role } → admin kullanic
 - `.env.example` — Gerekli env var'lar
 
 **Kabul kriterleri:**
-- [ ] `docker compose up` → her sey ayaga kalkiyor
-- [ ] Go image ~15MB (scratch base)
-- [ ] Health check'ler calisiyor
-- [ ] Hot reload dev modunda calisiyor
-- [ ] `docker compose down && docker compose up` → veri korunuyor (volume)
+- [x] `docker compose up` → her sey ayaga kalkiyor
+- [x] Go image ~15MB (scratch base)
+- [x] Health check'ler calisiyor
+- [x] Hot reload dev modunda calisiyor
+- [x] `docker compose down && docker compose up` → veri korunuyor (volume)
 
 **Bagimlilk:** T0.1-T0.16
 

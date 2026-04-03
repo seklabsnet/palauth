@@ -1,0 +1,10 @@
+.git
+bin
+tmp
+dashboard
+node_modules
+sdk
+docs
+.env
+.env.*
+*.md

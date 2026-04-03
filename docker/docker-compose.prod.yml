@@ -1,20 +1,28 @@
 services:
-  server:
+  palauth:
     build:
       context: ..
       dockerfile: docker/Dockerfile.server
     ports:
       - "3000:3000"
     environment:
-      PALAUTH_DATABASE_URL: postgres://palauth:palauth@postgres:5432/palauth?sslmode=disable
-      PALAUTH_REDIS_URL: redis://redis:6379
-      PALAUTH_PEPPER: ${PALAUTH_PEPPER}
+      PALAUTH_DATABASE_URL: postgres://palauth:${POSTGRES_PASSWORD:-palauth}@postgres:5432/palauth?sslmode=disable
+      PALAUTH_REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379
+      PALAUTH_AUTH_PEPPER: ${PALAUTH_AUTH_PEPPER}
       PALAUTH_EMAIL_PROVIDER: console
+      PALAUTH_SERVER_HOST: 0.0.0.0
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/palauth", "healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
 
   dashboard:
     build:
@@ -23,16 +31,18 @@ services:
     ports:
       - "3001:3000"
     environment:
-      PALAUTH_URL: http://server:3000
+      PALAUTH_URL: http://palauth:3000
     depends_on:
-      - server
+      palauth:
+        condition: service_healthy
+    restart: unless-stopped
 
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: palauth
-      POSTGRES_PASSWORD: palauth
       POSTGRES_DB: palauth
+      POSTGRES_USER: palauth
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-palauth}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -40,14 +50,19 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:-changeme}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD --no-auth-warning ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
 volumes:
   pgdata:

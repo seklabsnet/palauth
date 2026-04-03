@@ -1,15 +1,16 @@
 FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
+RUN apk add --no-cache git
 COPY go.mod go.sum ./
 RUN go mod download
+RUN go install github.com/air-verse/air@v1.61.7
 COPY . .
-RUN CGO_ENABLED=0 go build -o /palauth ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /palauth ./cmd/server
 
-FROM alpine:3.21
-
-RUN apk --no-cache add ca-certificates tzdata
-COPY --from=builder /palauth /usr/local/bin/palauth
-
+FROM scratch
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /palauth /palauth
+COPY --from=builder /app/migrations /migrations
 EXPOSE 3000
-ENTRYPOINT ["palauth"]
+ENTRYPOINT ["/palauth"]

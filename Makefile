@@ -1,4 +1,4 @@
-.PHONY: build test lint migrate migrate-down sqlc dev dev-down clean openapi-validate
+.PHONY: build test lint migrate migrate-down sqlc dev dev-down clean openapi-validate docker-build docker-up docker-down docker-logs docker-dev docker-dev-down
 
 BINARY := palauth
 BUILD_DIR := bin
@@ -30,6 +30,24 @@ dev-down:
 
 openapi-validate:
 	npx --yes @redocly/cli lint api/openapi.yaml --skip-rule no-unused-components
+
+docker-build:
+	docker compose -f docker/docker-compose.prod.yml build
+
+docker-up:
+	docker compose -f docker/docker-compose.prod.yml up -d
+
+docker-down:
+	docker compose -f docker/docker-compose.prod.yml down
+
+docker-logs:
+	docker compose -f docker/docker-compose.prod.yml logs -f
+
+docker-dev:
+	docker compose -f docker/docker-compose.dev.yml up
+
+docker-dev-down:
+	docker compose -f docker/docker-compose.dev.yml down
 
 clean:
 	rm -rf $(BUILD_DIR)

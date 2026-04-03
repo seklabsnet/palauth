@@ -52,6 +52,7 @@ type AuthConfig struct {
 	LockoutDuration  int    `koanf:"lockout_duration"`
 	MFALockout       int    `koanf:"mfa_lockout_threshold"`
 	InactiveDays     int    `koanf:"inactive_days"`
+	HIBPBaseURL      string `koanf:"hibp_base_url"` // Override for testing; empty = real HIBP API
 }
 
 type LogConfig struct {

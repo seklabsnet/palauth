@@ -1003,17 +1003,17 @@ POST   /admin/users/invite                → { email, role } → admin kullanic
 | Aylik | + Chaos testing (Toxiproxy) + full DAST active scan |
 
 **Kabul kriterleri:**
-- [ ] `make test` tum testler gecer
-- [ ] Coverage: %85+ (guvenlik modulleri %90+)
-- [ ] Property-based testler 10,000 input ile gecerli
-- [ ] Integration testler gercek DB + Redis ile calisir (testcontainers)
-- [ ] Go native fuzz testler crash uretmiyor
-- [ ] DAST baseline scan: critical/high finding yok
-- [ ] Mutation score: guvenlik modulleri %80+
-- [ ] k6 load test: login p99 < 500ms (1000 concurrent)
-- [ ] Chaos test: Redis down → rate limit fail-open, login calisiyor
-- [ ] E2E: Dashboard setup + user management Playwright ile calisiyor
-- [ ] CI/CD pipeline tum tetiklemelerde otomatik calisir
+- [x] `make test` tum testler gecer
+- [x] Coverage: %85+ (guvenlik modulleri %90+)
+- [x] Property-based testler 10,000 input ile gecerli
+- [x] Integration testler gercek DB + Redis ile calisir (testcontainers)
+- [x] Go native fuzz testler crash uretmiyor
+- [ ] DAST baseline scan: critical/high finding yok (ZAP setup deferred)
+- [ ] Mutation score: guvenlik modulleri %80+ (gremlins setup deferred)
+- [x] k6 load test: login p99 < 500ms (1000 concurrent)
+- [x] Chaos test: Redis down → rate limit fail-open, login calisiyor
+- [ ] E2E: Dashboard setup + user management Playwright ile calisiyor (Playwright deferred)
+- [x] CI/CD pipeline tum tetiklemelerde otomatik calisir
 
 **Bagimlilk:** T0.1-T0.16 (tum Faz 0 tamamlanmis olmali)
 

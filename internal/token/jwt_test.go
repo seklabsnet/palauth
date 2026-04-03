@@ -368,6 +368,42 @@ func TestJWTService_IssueVerify_Property(t *testing.T) {
 	})
 }
 
+func TestJWTService_ExpGreaterThanIat_Property(t *testing.T) {
+	svcPS256 := newTestJWTService(t, AlgPS256)
+	svcES256 := newTestJWTService(t, AlgES256)
+	svcs := map[string]*JWTService{AlgPS256: svcPS256, AlgES256: svcES256}
+
+	rapid.Check(t, func(t *rapid.T) {
+		alg := rapid.SampledFrom([]string{AlgPS256, AlgES256}).Draw(t, "alg")
+		svc := svcs[alg]
+
+		ttlMinutes := rapid.IntRange(1, 120).Draw(t, "ttl_minutes")
+		ttl := time.Duration(ttlMinutes) * time.Minute
+
+		tokenStr, err := svc.Issue(&IssueParams{
+			UserID:    "usr_test",
+			ProjectID: "prj_test",
+			AuthTime:  time.Now(),
+			TTL:       ttl,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		claims, err := svc.Verify(tokenStr)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !claims.ExpiresAt.After(claims.IssuedAt) {
+			t.Fatalf("exp (%v) must be after iat (%v)", claims.ExpiresAt, claims.IssuedAt)
+		}
+		if claims.AuthTime == 0 {
+			t.Fatal("auth_time must not be zero")
+		}
+	})
+}
+
 func TestJWTService_TableDriven_VerifyErrors(t *testing.T) {
 	svc := newTestJWTService(t, AlgPS256)
 

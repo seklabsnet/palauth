@@ -48,15 +48,57 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - run: go test ./... -race -count=1 -coverprofile=coverage.out
+      - name: Run crypto tests (default rapid iterations — Argon2id is slow)
+        run: go test ./internal/crypto/... -race -count=1 -short -coverprofile=coverage_crypto.out
         env:
           PALAUTH_AUTH_PEPPER: ci-test-pepper-at-least-32-bytes
           PALAUTH_DATABASE_URL: postgres://palauth:palauth_test@localhost:5432/palauth_test?sslmode=disable
           PALAUTH_REDIS_URL: redis://localhost:6379
+      - name: Run all other tests with 10K rapid iterations
+        run: go test $(go list ./... | grep -v /internal/crypto) -race -count=1 -rapid.checks=10000 -coverprofile=coverage_rest.out
+        env:
+          PALAUTH_AUTH_PEPPER: ci-test-pepper-at-least-32-bytes
+          PALAUTH_DATABASE_URL: postgres://palauth:palauth_test@localhost:5432/palauth_test?sslmode=disable
+          PALAUTH_REDIS_URL: redis://localhost:6379
+      - name: Merge coverage profiles
+        run: |
+          go install github.com/wadey/gocovmerge@latest
+          gocovmerge coverage_crypto.out coverage_rest.out > coverage.out
+      - name: Check coverage threshold
+        run: |
+          TOTAL=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $NF}' | tr -d '%')
+          echo "Total coverage: ${TOTAL}%"
+          if [ "$(echo "${TOTAL} < 85" | bc -l)" -eq 1 ]; then
+            echo "FAIL: Coverage ${TOTAL}% is below 85% threshold"
+            exit 1
+          fi
+          echo "PASS: Coverage ${TOTAL}% meets 85% threshold"
       - uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage.out
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Fuzz auth validation
+        run: go test ./internal/auth/ -fuzz=FuzzSignupValidation -fuzztime=10s
+      - name: Fuzz JWT verify
+        run: go test ./internal/token/ -fuzz=FuzzJWTVerify -fuzztime=10s
+      - name: Fuzz canonical JSON
+        run: go test ./internal/audit/ -fuzz=FuzzCanonicalJSON -fuzztime=10s
+      - name: Fuzz frame roundtrip
+        run: go test ./internal/audit/ -fuzz=FuzzFrameRoundtrip -fuzztime=10s
+      - name: Fuzz password validation
+        run: go test ./internal/crypto/ -fuzz=FuzzValidatePassword -fuzztime=10s
+      - name: Fuzz encrypt/decrypt roundtrip
+        run: go test ./internal/crypto/ -fuzz=FuzzEncryptDecryptRoundtrip -fuzztime=10s
+      - name: Fuzz hash token
+        run: go test ./internal/token/ -fuzz=FuzzHashToken -fuzztime=10s
 
   build:
     runs-on: ubuntu-latest

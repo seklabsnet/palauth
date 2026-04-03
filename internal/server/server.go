@@ -101,7 +101,12 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	authKEKMac.Write([]byte("auth-email-kek"))
 	authKEK := authKEKMac.Sum(nil)
 
-	breachChecker := crypto.NewBreachChecker()
+	var breachChecker *crypto.BreachChecker
+	if cfg.Auth.HIBPBaseURL != "" {
+		breachChecker = crypto.NewBreachCheckerWithURL(cfg.Auth.HIBPBaseURL)
+	} else {
+		breachChecker = crypto.NewBreachChecker()
+	}
 
 	// Email service.
 	emailSender, err := email.NewSender(&cfg.Email, logger)

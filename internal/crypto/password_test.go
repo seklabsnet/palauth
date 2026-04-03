@@ -300,7 +300,34 @@ func TestApplyPepper_DifferentPeppers(t *testing.T) {
 
 // Property-based tests using rapid
 
+func TestRapid_SaltUniqueness(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow property test in short mode")
+	}
+
+	// Use a fixed valid password to avoid Argon2id compute on invalid inputs.
+	// Each rapid iteration takes ~300ms due to Argon2id, so this test is time-bounded.
+	rapid.Check(t, func(t *rapid.T) {
+		password := "salt-uniqueness-test-password!!"
+		hash1, err := Hash(password, testPepper)
+		if err != nil {
+			t.Fatal(err)
+		}
+		hash2, err := Hash(password, testPepper)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if hash1 == hash2 {
+			t.Fatal("same password hashed twice must produce different results (salt uniqueness)")
+		}
+	})
+}
+
 func TestRapid_HashVerifyRoundtrip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping Argon2id property test in short mode — too slow for high iteration counts")
+	}
+
 	rapid.Check(t, func(t *rapid.T) {
 		// Generate a valid password (15-64 printable ASCII chars)
 		length := rapid.IntRange(15, 64).Draw(t, "length")

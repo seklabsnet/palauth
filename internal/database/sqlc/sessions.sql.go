@@ -11,6 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countActiveSessionsByProject = `-- name: CountActiveSessionsByProject :one
+SELECT count(*) FROM sessions WHERE project_id = $1 AND revoked_at IS NULL
+`
+
+func (q *Queries) CountActiveSessionsByProject(ctx context.Context, projectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveSessionsByProject, projectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countActiveSessionsByUser = `-- name: CountActiveSessionsByUser :one
+SELECT count(*) FROM sessions WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL
+`
+
+type CountActiveSessionsByUserParams struct {
+	UserID    string `json:"user_id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) CountActiveSessionsByUser(ctx context.Context, arg CountActiveSessionsByUserParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveSessionsByUser, arg.UserID, arg.ProjectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (id, project_id, user_id, ip, user_agent, device_fp_hash, acr, amr, idle_timeout_at, abs_timeout_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)

@@ -39,3 +39,9 @@ SELECT * FROM sessions WHERE id = $1 AND project_id = $2 AND revoked_at IS NULL;
 
 -- name: GetSessionByProjectAndUser :one
 SELECT * FROM sessions WHERE id = $1 AND project_id = $2 AND user_id = $3 AND revoked_at IS NULL;
+
+-- name: CountActiveSessionsByProject :one
+SELECT count(*) FROM sessions WHERE project_id = $1 AND revoked_at IS NULL;
+
+-- name: CountActiveSessionsByUser :one
+SELECT count(*) FROM sessions WHERE user_id = $1 AND project_id = $2 AND revoked_at IS NULL;

@@ -844,17 +844,17 @@ POST   /admin/users/invite                → { email, role } → admin kullanic
 ```
 
 **Kabul kriterleri:**
-- [ ] Admin user olusturabiliyor
-- [ ] Filtreleme calisiyor (email arama, banned filtre)
-- [ ] Pagination calisiyor (cursor-based)
-- [ ] Ban calisiyor — banned user login olamiyor
-- [ ] Delete calisiyor — user siliniyor + DEK revoke + `gdpr.erasure` audit event + PII okunamiyor
-- [ ] Audit log hash chain delete sonrasi hala gecerli (ciphertext degismedi)
-- [ ] Inaktif hesap 90 gun kontrolu calisiyor (cron job)
-- [ ] Analytics endpoint calisiyor (MAU, login trendi)
-- [ ] Admin davet calisiyor (email + rol)
-- [ ] Admin password reset calisiyor → email gonderilir + tum session'lar sonlanir
-- [ ] Tum islemler audit logda
+- [x] Admin user olusturabiliyor
+- [x] Filtreleme calisiyor (email arama, banned filtre)
+- [x] Pagination calisiyor (cursor-based)
+- [x] Ban calisiyor — banned user login olamiyor
+- [x] Delete calisiyor — user siliniyor + DEK revoke + `gdpr.erasure` audit event + PII okunamiyor
+- [x] Audit log hash chain delete sonrasi hala gecerli (ciphertext degismedi)
+- [x] Inaktif hesap 90 gun kontrolu calisiyor (cron job)
+- [x] Analytics endpoint calisiyor (MAU, login trendi)
+- [x] Admin davet calisiyor (email + rol)
+- [x] Admin password reset calisiyor → email gonderilir + tum session'lar sonlanir
+- [x] Tum islemler audit logda
 
 **Bagimlilk:** T0.7 (user), T0.11 (audit), T0.6 (apikey — admin auth)
 

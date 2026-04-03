@@ -22,6 +22,7 @@ const (
 	EventAdminConfigChange    = "admin.config.change"
 	EventAdminKeyRotate              = "admin.key.rotate"
 	EventAdminUserDeactivateInactive = "admin.user.deactivate_inactive"
+	EventAdminInvite                 = "admin.invite"
 	EventGDPRErasure                 = "gdpr.erasure"
 )
 
@@ -47,5 +48,6 @@ var AllEventTypes = []string{
 	EventAdminConfigChange,
 	EventAdminKeyRotate,
 	EventAdminUserDeactivateInactive,
+	EventAdminInvite,
 	EventGDPRErasure,
 }

@@ -36,22 +36,23 @@ import (
 )
 
 type Server struct {
-	cfg        *config.Config
-	router     *chi.Mux
-	logger     *slog.Logger
-	http       *http.Server
-	db         *pgxpool.Pool
-	redis      *palredis.Client
-	adminSvc   *admin.Service
-	projectSvc *project.Service
-	apikeySvc  *apikey.Service
-	auditSvc   *audit.Service
-	jwtSvc     *token.JWTService
-	refreshSvc *token.RefreshService
-	customSvc  *token.CustomTokenService
-	sessionSvc *session.Service
-	authSvc    *auth.Service
-	rl         *ratelimit.RouteMiddlewares
+	cfg          *config.Config
+	router       *chi.Mux
+	logger       *slog.Logger
+	http         *http.Server
+	db           *pgxpool.Pool
+	redis        *palredis.Client
+	adminSvc     *admin.Service
+	adminUserSvc *admin.UserService
+	projectSvc   *project.Service
+	apikeySvc    *apikey.Service
+	auditSvc     *audit.Service
+	jwtSvc       *token.JWTService
+	refreshSvc   *token.RefreshService
+	customSvc    *token.CustomTokenService
+	sessionSvc   *session.Service
+	authSvc      *auth.Service
+	rl           *ratelimit.RouteMiddlewares
 }
 
 func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredis.Client) *Server {
@@ -60,18 +61,18 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	projectSvc := project.NewService(db, logger)
 	apikeySvc := apikey.NewService(db, logger)
 
-	// Derive admin JWT signing key from pepper via HMAC-SHA256 for key separation.
-	// In T0.8 this moves to go-jose with proper key management.
-	mac := hmac.New(sha256.New, []byte(cfg.Auth.Pepper))
-	mac.Write([]byte("admin-jwt-signing"))
-	signingKey := mac.Sum(nil)
-	adminSvc := admin.NewService(db, cfg.Auth.Pepper, signingKey, logger)
-
 	// Derive audit KEK from pepper via HMAC-SHA256 for key separation.
 	auditMac := hmac.New(sha256.New, []byte(cfg.Auth.Pepper))
 	auditMac.Write([]byte("audit-log-kek"))
 	auditKEK := auditMac.Sum(nil)
 	auditSvc := audit.NewService(db, auditKEK, logger)
+
+	// Derive admin JWT signing key from pepper via HMAC-SHA256 for key separation.
+	// In T0.8 this moves to go-jose with proper key management.
+	mac := hmac.New(sha256.New, []byte(cfg.Auth.Pepper))
+	mac.Write([]byte("admin-jwt-signing"))
+	signingKey := mac.Sum(nil)
+	adminSvc := admin.NewService(db, cfg.Auth.Pepper, signingKey, auditSvc, logger)
 
 	// Token services.
 	jwtAlg := token.AlgPS256
@@ -121,6 +122,9 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	sessionSvc := session.NewService(db, auditSvc, logger)
 	authSvc := auth.NewService(db, projectSvc, jwtSvc, refreshSvc, auditSvc, breachChecker, lockoutSvc, emailSender, emailRenderer, cfg.Auth.Pepper, authKEK, logger)
 
+	// Admin user management service.
+	adminUserSvc := admin.NewUserService(db, auditSvc, sessionSvc, breachChecker, emailSender, emailRenderer, cfg.Auth.Pepper, authKEK, logger)
+
 	// Rate limit middlewares.
 	var rl *ratelimit.RouteMiddlewares
 	if rdb != nil {
@@ -128,21 +132,22 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	}
 
 	s := &Server{
-		cfg:        cfg,
-		router:     r,
-		logger:     logger,
-		db:         db,
-		redis:      rdb,
-		adminSvc:   adminSvc,
-		projectSvc: projectSvc,
-		apikeySvc:  apikeySvc,
-		auditSvc:   auditSvc,
-		sessionSvc: sessionSvc,
-		jwtSvc:     jwtSvc,
-		refreshSvc: refreshSvc,
-		customSvc:  customSvc,
-		authSvc:    authSvc,
-		rl:         rl,
+		cfg:          cfg,
+		router:       r,
+		logger:       logger,
+		db:           db,
+		redis:        rdb,
+		adminSvc:     adminSvc,
+		adminUserSvc: adminUserSvc,
+		projectSvc:   projectSvc,
+		apikeySvc:    apikeySvc,
+		auditSvc:     auditSvc,
+		sessionSvc:   sessionSvc,
+		jwtSvc:       jwtSvc,
+		refreshSvc:   refreshSvc,
+		customSvc:    customSvc,
+		authSvc:      authSvc,
+		rl:           rl,
 	}
 
 	s.setupMiddleware()
@@ -256,7 +261,26 @@ func (s *Server) setupRoutes() {
 			r.Get("/audit-logs", s.handleListAuditLogs)
 			r.Post("/audit-logs/verify", s.handleVerifyAuditLogs)
 			r.Get("/audit-logs/export", s.handleExportAuditLogs)
+
+			// User CRUD.
+			r.Post("/users", s.handleAdminCreateUser)
+			r.Get("/users", s.handleAdminListUsers)
+			r.Get("/users/{uid}", s.handleAdminGetUser)
+			r.Put("/users/{uid}", s.handleAdminUpdateUser)
+			r.Delete("/users/{uid}", s.handleAdminDeleteUser)
+			r.Post("/users/{uid}/ban", s.handleAdminBanUser)
+			r.Post("/users/{uid}/unban", s.handleAdminUnbanUser)
+			r.Post("/users/{uid}/reset-password", s.handleAdminResetPassword)
+
+			// Analytics.
+			r.Get("/analytics", s.handleProjectAnalytics)
 		})
+
+		// Admin invite (not project-scoped).
+		r.Post("/users/invite", s.handleAdminInvite)
+
+		// Inactive deactivation (cron endpoint).
+		r.Post("/deactivate-inactive", s.handleDeactivateInactive)
 	})
 }
 

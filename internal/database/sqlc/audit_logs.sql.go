@@ -38,6 +38,25 @@ func (q *Queries) CountAuditLogsByType(ctx context.Context, arg CountAuditLogsBy
 	return count, err
 }
 
+const countRecentAuditLogsByType = `-- name: CountRecentAuditLogsByType :one
+SELECT count(*) FROM audit_logs
+WHERE project_id = $1 AND event_type = $2
+  AND created_at > now() - make_interval(hours => $3::int)
+`
+
+type CountRecentAuditLogsByTypeParams struct {
+	ProjectID string `json:"project_id"`
+	EventType string `json:"event_type"`
+	Column3   int32  `json:"column_3"`
+}
+
+func (q *Queries) CountRecentAuditLogsByType(ctx context.Context, arg CountRecentAuditLogsByTypeParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentAuditLogsByType, arg.ProjectID, arg.EventType, arg.Column3)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAuditLog = `-- name: CreateAuditLog :one
 INSERT INTO audit_logs (id, project_id, trace_id, event_type, actor_encrypted, target_type, target_id, result, auth_method, risk_score, metadata_encrypted, prev_hash, event_hash)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)

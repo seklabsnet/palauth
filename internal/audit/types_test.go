@@ -32,6 +32,7 @@ func TestEventTypeConstants(t *testing.T) {
 		{"admin config change", EventAdminConfigChange, "admin.config.change"},
 		{"admin key rotate", EventAdminKeyRotate, "admin.key.rotate"},
 		{"admin user deactivate inactive", EventAdminUserDeactivateInactive, "admin.user.deactivate_inactive"},
+		{"admin invite", EventAdminInvite, "admin.invite"},
 		{"gdpr erasure", EventGDPRErasure, "gdpr.erasure"},
 	}
 
@@ -64,9 +65,10 @@ func TestAllEventTypesContainsAll(t *testing.T) {
 		EventAdminConfigChange,
 		EventAdminKeyRotate,
 		EventAdminUserDeactivateInactive,
+		EventAdminInvite,
 		EventGDPRErasure,
 	}
 
 	assert.Equal(t, expected, AllEventTypes)
-	assert.Len(t, AllEventTypes, 21)
+	assert.Len(t, AllEventTypes, 22)
 }

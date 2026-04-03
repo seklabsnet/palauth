@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/palauth/palauth/internal/apikey"
+	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/id"
@@ -25,10 +26,11 @@ import (
 
 var (
 	ErrAdminAlreadyExists = errors.New("admin user already exists")
-	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrInvalidToken       = errors.New("invalid or expired admin token")
-	ErrEmailRequired      = errors.New("email is required")
-	ErrPasswordRequired   = errors.New("password is required")
+	ErrInvalidCredentials      = errors.New("invalid email or password")
+	ErrInvalidToken            = errors.New("invalid or expired admin token")
+	ErrEmailRequired           = errors.New("email is required")
+	ErrPasswordRequired        = errors.New("password is required")
+	ErrInsufficientPrivilege   = errors.New("insufficient privilege to invite this role")
 )
 
 const adminTokenExpiry = 24 * time.Hour
@@ -61,15 +63,17 @@ type Service struct {
 	db         *pgxpool.Pool
 	pepper     string
 	signingKey []byte
+	auditSvc   *audit.Service
 	logger     *slog.Logger
 }
 
 // NewService creates a new admin service.
-func NewService(db *pgxpool.Pool, pepper string, signingKey []byte, logger *slog.Logger) *Service {
+func NewService(db *pgxpool.Pool, pepper string, signingKey []byte, auditSvc *audit.Service, logger *slog.Logger) *Service {
 	return &Service{
 		db:         db,
 		pepper:     pepper,
 		signingKey: signingKey,
+		auditSvc:   auditSvc,
 		logger:     logger,
 	}
 }

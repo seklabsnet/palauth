@@ -42,3 +42,8 @@ SELECT count(*) FROM audit_logs WHERE project_id = $1;
 
 -- name: CountAuditLogsByType :one
 SELECT count(*) FROM audit_logs WHERE project_id = $1 AND event_type = $2;
+
+-- name: CountRecentAuditLogsByType :one
+SELECT count(*) FROM audit_logs
+WHERE project_id = $1 AND event_type = $2
+  AND created_at > now() - make_interval(hours => $3::int);

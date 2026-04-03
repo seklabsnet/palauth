@@ -7,21 +7,37 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const banUser = `-- name: BanUser :exec
 UPDATE users SET banned = true, ban_reason = $2, updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND project_id = $3
 `
 
 type BanUserParams struct {
 	ID        string  `json:"id"`
 	BanReason *string `json:"ban_reason"`
+	ProjectID string  `json:"project_id"`
 }
 
 func (q *Queries) BanUser(ctx context.Context, arg BanUserParams) error {
-	_, err := q.db.Exec(ctx, banUser, arg.ID, arg.BanReason)
+	_, err := q.db.Exec(ctx, banUser, arg.ID, arg.BanReason, arg.ProjectID)
 	return err
+}
+
+const countActiveUsersByProject = `-- name: CountActiveUsersByProject :one
+SELECT count(*) FROM users
+WHERE project_id = $1
+  AND last_login_at > now() - interval '30 days'
+`
+
+func (q *Queries) CountActiveUsersByProject(ctx context.Context, projectID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveUsersByProject, projectID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countUsersByProject = `-- name: CountUsersByProject :one
@@ -78,17 +94,102 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users WHERE id = $1
+DELETE FROM users WHERE id = $1 AND project_id = $2
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, deleteUser, id)
+type DeleteUserParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) DeleteUser(ctx context.Context, arg DeleteUserParams) error {
+	_, err := q.db.Exec(ctx, deleteUser, arg.ID, arg.ProjectID)
+	return err
+}
+
+const deleteUserConsents = `-- name: DeleteUserConsents :exec
+DELETE FROM user_consents WHERE user_id = $1 AND project_id = $2
+`
+
+type DeleteUserConsentsParams struct {
+	UserID    string `json:"user_id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) DeleteUserConsents(ctx context.Context, arg DeleteUserConsentsParams) error {
+	_, err := q.db.Exec(ctx, deleteUserConsents, arg.UserID, arg.ProjectID)
+	return err
+}
+
+const deleteUserEncryptionKeys = `-- name: DeleteUserEncryptionKeys :exec
+DELETE FROM encryption_keys WHERE user_id = $1 AND project_id = $2
+`
+
+type DeleteUserEncryptionKeysParams struct {
+	UserID    *string `json:"user_id"`
+	ProjectID *string `json:"project_id"`
+}
+
+func (q *Queries) DeleteUserEncryptionKeys(ctx context.Context, arg DeleteUserEncryptionKeysParams) error {
+	_, err := q.db.Exec(ctx, deleteUserEncryptionKeys, arg.UserID, arg.ProjectID)
+	return err
+}
+
+const deleteUserPasswordHistory = `-- name: DeleteUserPasswordHistory :exec
+DELETE FROM password_history WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserPasswordHistory(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, deleteUserPasswordHistory, userID)
+	return err
+}
+
+const deleteUserRefreshTokens = `-- name: DeleteUserRefreshTokens :exec
+DELETE FROM refresh_tokens WHERE user_id = $1 AND project_id = $2
+`
+
+type DeleteUserRefreshTokensParams struct {
+	UserID    string `json:"user_id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) DeleteUserRefreshTokens(ctx context.Context, arg DeleteUserRefreshTokensParams) error {
+	_, err := q.db.Exec(ctx, deleteUserRefreshTokens, arg.UserID, arg.ProjectID)
+	return err
+}
+
+const deleteUserSessions = `-- name: DeleteUserSessions :exec
+DELETE FROM sessions WHERE user_id = $1 AND project_id = $2
+`
+
+type DeleteUserSessionsParams struct {
+	UserID    string `json:"user_id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) DeleteUserSessions(ctx context.Context, arg DeleteUserSessionsParams) error {
+	_, err := q.db.Exec(ctx, deleteUserSessions, arg.UserID, arg.ProjectID)
+	return err
+}
+
+const deleteUserVerificationTokens = `-- name: DeleteUserVerificationTokens :exec
+DELETE FROM verification_tokens WHERE user_id = $1 AND project_id = $2
+`
+
+type DeleteUserVerificationTokensParams struct {
+	UserID    string `json:"user_id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) DeleteUserVerificationTokens(ctx context.Context, arg DeleteUserVerificationTokensParams) error {
+	_, err := q.db.Exec(ctx, deleteUserVerificationTokens, arg.UserID, arg.ProjectID)
 	return err
 }
 
 const getInactiveUsers = `-- name: GetInactiveUsers :many
 SELECT id, project_id FROM users
-WHERE last_login_at < now() - make_interval(days => $1::int)
+WHERE (last_login_at < now() - make_interval(days => $1::int)
+       OR (last_login_at IS NULL AND created_at < now() - make_interval(days => $1::int)))
 AND banned = false
 `
 
@@ -175,6 +276,52 @@ func (q *Queries) GetUserByID(ctx context.Context, arg GetUserByIDParams) (User,
 	return i, err
 }
 
+const listUsersByEmailHash = `-- name: ListUsersByEmailHash :many
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+WHERE project_id = $1 AND email_hash = $2
+ORDER BY created_at DESC, id DESC
+LIMIT $3
+`
+
+type ListUsersByEmailHashParams struct {
+	ProjectID string `json:"project_id"`
+	EmailHash []byte `json:"email_hash"`
+	Limit     int32  `json:"limit"`
+}
+
+func (q *Queries) ListUsersByEmailHash(ctx context.Context, arg ListUsersByEmailHashParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersByEmailHash, arg.ProjectID, arg.EmailHash, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.EmailEncrypted,
+			&i.EmailHash,
+			&i.PasswordHash,
+			&i.EmailVerified,
+			&i.Banned,
+			&i.BanReason,
+			&i.Metadata,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsersByProject = `-- name: ListUsersByProject :many
 SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
@@ -218,13 +365,243 @@ func (q *Queries) ListUsersByProject(ctx context.Context, arg ListUsersByProject
 	return items, nil
 }
 
-const unbanUser = `-- name: UnbanUser :exec
-UPDATE users SET banned = false, ban_reason = NULL, updated_at = now()
-WHERE id = $1
+const listUsersCursor = `-- name: ListUsersCursor :many
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+WHERE project_id = $1
+  AND (created_at < $2 OR (created_at = $2 AND id < $3))
+ORDER BY created_at DESC, id DESC
+LIMIT $4
 `
 
-func (q *Queries) UnbanUser(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, unbanUser, id)
+type ListUsersCursorParams struct {
+	ProjectID       string             `json:"project_id"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        string             `json:"cursor_id"`
+	Lim             int32              `json:"lim"`
+}
+
+func (q *Queries) ListUsersCursor(ctx context.Context, arg ListUsersCursorParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersCursor,
+		arg.ProjectID,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.EmailEncrypted,
+			&i.EmailHash,
+			&i.PasswordHash,
+			&i.EmailVerified,
+			&i.Banned,
+			&i.BanReason,
+			&i.Metadata,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUsersCursorBanned = `-- name: ListUsersCursorBanned :many
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+WHERE project_id = $1
+  AND banned = $2
+  AND (created_at < $3 OR (created_at = $3 AND id < $4))
+ORDER BY created_at DESC, id DESC
+LIMIT $5
+`
+
+type ListUsersCursorBannedParams struct {
+	ProjectID       string             `json:"project_id"`
+	Banned          bool               `json:"banned"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        string             `json:"cursor_id"`
+	Lim             int32              `json:"lim"`
+}
+
+func (q *Queries) ListUsersCursorBanned(ctx context.Context, arg ListUsersCursorBannedParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersCursorBanned,
+		arg.ProjectID,
+		arg.Banned,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.EmailEncrypted,
+			&i.EmailHash,
+			&i.PasswordHash,
+			&i.EmailVerified,
+			&i.Banned,
+			&i.BanReason,
+			&i.Metadata,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUsersFirst = `-- name: ListUsersFirst :many
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+WHERE project_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT $2
+`
+
+type ListUsersFirstParams struct {
+	ProjectID string `json:"project_id"`
+	Limit     int32  `json:"limit"`
+}
+
+func (q *Queries) ListUsersFirst(ctx context.Context, arg ListUsersFirstParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersFirst, arg.ProjectID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.EmailEncrypted,
+			&i.EmailHash,
+			&i.PasswordHash,
+			&i.EmailVerified,
+			&i.Banned,
+			&i.BanReason,
+			&i.Metadata,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUsersFirstBanned = `-- name: ListUsersFirstBanned :many
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+WHERE project_id = $1 AND banned = $2
+ORDER BY created_at DESC, id DESC
+LIMIT $3
+`
+
+type ListUsersFirstBannedParams struct {
+	ProjectID string `json:"project_id"`
+	Banned    bool   `json:"banned"`
+	Limit     int32  `json:"limit"`
+}
+
+func (q *Queries) ListUsersFirstBanned(ctx context.Context, arg ListUsersFirstBannedParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersFirstBanned, arg.ProjectID, arg.Banned, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.EmailEncrypted,
+			&i.EmailHash,
+			&i.PasswordHash,
+			&i.EmailVerified,
+			&i.Banned,
+			&i.BanReason,
+			&i.Metadata,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unbanUser = `-- name: UnbanUser :exec
+UPDATE users SET banned = false, ban_reason = NULL, updated_at = now()
+WHERE id = $1 AND project_id = $2
+`
+
+type UnbanUserParams struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) UnbanUser(ctx context.Context, arg UnbanUserParams) error {
+	_, err := q.db.Exec(ctx, unbanUser, arg.ID, arg.ProjectID)
+	return err
+}
+
+const updateUserEmailAndMetadata = `-- name: UpdateUserEmailAndMetadata :exec
+UPDATE users SET
+  email_verified = $2,
+  metadata = $3,
+  updated_at = now()
+WHERE id = $1 AND project_id = $4
+`
+
+type UpdateUserEmailAndMetadataParams struct {
+	ID            string `json:"id"`
+	EmailVerified bool   `json:"email_verified"`
+	Metadata      []byte `json:"metadata"`
+	ProjectID     string `json:"project_id"`
+}
+
+func (q *Queries) UpdateUserEmailAndMetadata(ctx context.Context, arg UpdateUserEmailAndMetadataParams) error {
+	_, err := q.db.Exec(ctx, updateUserEmailAndMetadata,
+		arg.ID,
+		arg.EmailVerified,
+		arg.Metadata,
+		arg.ProjectID,
+	)
 	return err
 }
 
@@ -250,6 +627,22 @@ type UpdateUserLastLoginParams struct {
 
 func (q *Queries) UpdateUserLastLogin(ctx context.Context, arg UpdateUserLastLoginParams) error {
 	_, err := q.db.Exec(ctx, updateUserLastLogin, arg.ID, arg.ProjectID)
+	return err
+}
+
+const updateUserMetadata = `-- name: UpdateUserMetadata :exec
+UPDATE users SET metadata = $2, updated_at = now()
+WHERE id = $1 AND project_id = $3
+`
+
+type UpdateUserMetadataParams struct {
+	ID        string `json:"id"`
+	Metadata  []byte `json:"metadata"`
+	ProjectID string `json:"project_id"`
+}
+
+func (q *Queries) UpdateUserMetadata(ctx context.Context, arg UpdateUserMetadataParams) error {
+	_, err := q.db.Exec(ctx, updateUserMetadata, arg.ID, arg.Metadata, arg.ProjectID)
 	return err
 }
 

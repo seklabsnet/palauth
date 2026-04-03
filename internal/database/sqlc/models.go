@@ -14,6 +14,7 @@ type AdminUser struct {
 	PasswordHash string             `json:"password_hash"`
 	Role         string             `json:"role"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	HasMfa       bool               `json:"has_mfa"`
 }
 
 type ApiKey struct {
@@ -55,6 +56,16 @@ type EncryptionKey struct {
 	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
 }
 
+type MfaEnrollment struct {
+	ID              string             `json:"id"`
+	ProjectID       string             `json:"project_id"`
+	UserID          string             `json:"user_id"`
+	Type            string             `json:"type"`
+	SecretEncrypted []byte             `json:"secret_encrypted"`
+	Verified        bool               `json:"verified"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
 type PasswordHistory struct {
 	ID        string             `json:"id"`
 	UserID    string             `json:"user_id"`
@@ -68,6 +79,16 @@ type Project struct {
 	Config    []byte             `json:"config"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RecoveryCode struct {
+	ID        string             `json:"id"`
+	UserID    string             `json:"user_id"`
+	ProjectID string             `json:"project_id"`
+	CodeHash  string             `json:"code_hash"`
+	Used      bool               `json:"used"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
 }
 
 type RefreshToken struct {
@@ -112,6 +133,7 @@ type User struct {
 	LastLoginAt    pgtype.Timestamptz `json:"last_login_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	HasMfa         bool               `json:"has_mfa"`
 }
 
 type UserConsent struct {

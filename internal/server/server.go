@@ -28,6 +28,7 @@ import (
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/email"
 	"github.com/palauth/palauth/internal/id"
+	"github.com/palauth/palauth/internal/mfa"
 	"github.com/palauth/palauth/internal/project"
 	"github.com/palauth/palauth/internal/ratelimit"
 	palredis "github.com/palauth/palauth/internal/redis"
@@ -52,6 +53,7 @@ type Server struct {
 	customSvc    *token.CustomTokenService
 	sessionSvc   *session.Service
 	authSvc      *auth.Service
+	mfaSvc       *mfa.Service
 	rl           *ratelimit.RouteMiddlewares
 }
 
@@ -127,6 +129,14 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 	sessionSvc := session.NewService(db, auditSvc, logger)
 	authSvc := auth.NewService(db, projectSvc, jwtSvc, refreshSvc, auditSvc, breachChecker, lockoutSvc, emailSender, emailRenderer, cfg.Auth.Pepper, authKEK, logger)
 
+	// MFA service.
+	var mfaSvc *mfa.Service
+	if rdb != nil {
+		mfaSvc = mfa.NewService(db, rdb.Unwrap(), authKEK, cfg.Auth.Pepper, auditSvc, sessionSvc, emailSender, emailRenderer, logger)
+		authSvc.SetMFAChecker(mfaSvc)
+		adminSvc.SetMFAChecker(mfaSvc)
+	}
+
 	// Admin user management service.
 	adminUserSvc := admin.NewUserService(db, auditSvc, sessionSvc, breachChecker, emailSender, emailRenderer, cfg.Auth.Pepper, authKEK, logger)
 
@@ -152,6 +162,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		refreshSvc:   refreshSvc,
 		customSvc:    customSvc,
 		authSvc:      authSvc,
+		mfaSvc:       mfaSvc,
 		rl:           rl,
 	}
 
@@ -198,6 +209,13 @@ func (s *Server) setupRoutes() {
 		r.Use(CacheControl)
 		r.Post("/admin/setup", s.handleAdminSetup)
 		r.Post("/admin/login", s.handleAdminLogin)
+
+		// Admin MFA routes (no admin auth required — uses MFA token from login).
+		if s.mfaSvc != nil {
+			r.Post("/admin/mfa/enroll", s.handleAdminMFAEnroll)
+			r.Post("/admin/mfa/verify", s.handleAdminMFAVerifyEnrollment)
+			r.Post("/admin/mfa/challenge", s.handleAdminMFAChallenge)
+		}
 	})
 
 	// JWKS endpoint (public, no auth).
@@ -225,6 +243,14 @@ func (s *Server) setupRoutes() {
 		r.Post("/token/refresh", s.handleRefreshToken)
 		r.Post("/token/exchange", s.handleExchangeCustomToken)
 
+		// MFA routes (require mfa_token, no session).
+		if s.mfaSvc != nil {
+			r.Post("/mfa/challenge", s.handleMFAChallenge)
+			r.Post("/mfa/recovery", s.handleMFARecovery)
+			r.Post("/mfa/email/challenge", s.handleMFAEmailChallenge)
+			r.Post("/mfa/email/verify", s.handleMFAEmailVerify)
+		}
+
 		// Authenticated routes (require valid session).
 		r.Group(func(r chi.Router) {
 			r.Use(s.sessionMiddleware)
@@ -232,6 +258,16 @@ func (s *Server) setupRoutes() {
 			r.Delete("/sessions/{id}", s.handleRevokeSession)
 			r.Delete("/sessions", s.handleRevokeAllSessions)
 			r.Post("/logout", s.handleLogout)
+
+			// MFA management routes (require session).
+			if s.mfaSvc != nil {
+				r.Post("/mfa/enroll", s.handleMFAEnroll)
+				r.Post("/mfa/verify", s.handleMFAVerifyEnrollment)
+				r.Get("/mfa/factors", s.handleMFAFactors)
+				r.Delete("/mfa/factors/{id}", s.handleMFARemoveFactor)
+				r.Post("/mfa/recovery-codes/regenerate", s.handleMFARegenerateRecoveryCodes)
+				r.Post("/mfa/email/enroll", s.handleMFAEmailEnroll)
+			}
 		})
 	})
 

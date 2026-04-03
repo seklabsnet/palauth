@@ -147,6 +147,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		UserAgent: &ua,
 	})
 	if err != nil {
+		// Check if MFA is required.
+		var mfaErr *auth.MFARequiredError
+		if errors.As(err, &mfaErr) {
+			s.WriteJSON(w, http.StatusOK, map[string]any{
+				"mfa_required": true,
+				"mfa_token":    mfaErr.MFAToken,
+				"factors":      mfaErr.Factors,
+			})
+			return
+		}
+
 		switch {
 		case errors.Is(err, auth.ErrEmailRequired):
 			s.WriteError(w, r, http.StatusBadRequest, "email_required", "A valid email address is required")

@@ -217,3 +217,46 @@ func TestToAdminUser_InvalidTimestamp(t *testing.T) {
 	admin := toAdminUser(&row)
 	assert.Equal(t, "", admin.CreatedAt)
 }
+
+func TestAdminProjectID(t *testing.T) {
+	assert.Equal(t, "__admin__", AdminProjectID)
+}
+
+func TestMFARequiredError(t *testing.T) {
+	err := &MFARequiredError{
+		AdminID:     "adm_test-123",
+		MFAEnrolled: true,
+		MFAToken:    "token123",
+	}
+	assert.Equal(t, "admin MFA is required", err.Error())
+	assert.Equal(t, "adm_test-123", err.AdminID)
+	assert.True(t, err.MFAEnrolled)
+	assert.Equal(t, "token123", err.MFAToken)
+}
+
+func TestMFARequiredError_NotEnrolled(t *testing.T) {
+	err := &MFARequiredError{
+		AdminID:     "adm_test-456",
+		MFAEnrolled: false,
+		MFAToken:    "token456",
+	}
+	assert.Equal(t, "admin MFA is required", err.Error())
+	assert.False(t, err.MFAEnrolled)
+}
+
+func TestIssueAdminToken(t *testing.T) {
+	svc := &Service{
+		signingKey: []byte("test-signing-key-at-least-32-bytes!"),
+	}
+
+	token, err := svc.issueAdminToken("adm_test-123", "owner")
+	require.NoError(t, err)
+	assert.NotEmpty(t, token)
+
+	// Verify the token is valid.
+	claims, err := svc.ValidateToken(token)
+	require.NoError(t, err)
+	assert.Equal(t, "adm_test-123", claims.Sub)
+	assert.Equal(t, "owner", claims.Role)
+	assert.True(t, claims.Exp > time.Now().Unix())
+}

@@ -24,6 +24,16 @@ var (
 	ErrAccountLocked      = errors.New("account is locked")
 )
 
+// MFARequiredError is returned when MFA verification is needed to complete login.
+type MFARequiredError struct {
+	MFAToken string
+	Factors  []string
+}
+
+func (e *MFARequiredError) Error() string {
+	return "MFA verification required"
+}
+
 // LoginResult contains the result of a successful login.
 type LoginResult struct {
 	AccessToken  string   `json:"access_token"`
@@ -175,6 +185,34 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*LoginResult,
 	// Password correct — reset failed counter.
 	if s.lockoutSvc != nil {
 		_ = s.lockoutSvc.Reset(ctx, params.ProjectID, user.ID)
+	}
+
+	// Check MFA: if user has MFA enrolled, return MFA token instead of access token.
+	if s.mfaChecker != nil && user.HasMfa {
+		hasMFA, factors, err := s.mfaChecker.HasMFA(ctx, params.ProjectID, user.ID)
+		if err != nil {
+			return nil, 0, fmt.Errorf("check mfa: %w", err)
+		}
+		if hasMFA && len(factors) > 0 {
+			ip := ""
+			ua := ""
+			if params.IP != nil {
+				ip = *params.IP
+			}
+			if params.UserAgent != nil {
+				ua = *params.UserAgent
+			}
+
+			mfaToken, err := s.mfaChecker.IssueMFATokenForLogin(ctx, user.ID, params.ProjectID, ip, ua)
+			if err != nil {
+				return nil, 0, fmt.Errorf("issue mfa token: %w", err)
+			}
+
+			return nil, 0, &MFARequiredError{
+				MFAToken: mfaToken,
+				Factors:  factors,
+			}
+		}
 	}
 
 	// Update last_login_at.

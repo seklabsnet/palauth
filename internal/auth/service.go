@@ -29,6 +29,12 @@ var (
 	ErrOTPMaxAttempts   = errors.New("maximum verification attempts exceeded")
 )
 
+// MFAChecker checks if a user has MFA enrolled and issues MFA tokens.
+type MFAChecker interface {
+	HasMFA(ctx context.Context, projectID, userID string) (bool, []string, error)
+	IssueMFATokenForLogin(ctx context.Context, userID, projectID, ip, userAgent string) (string, error)
+}
+
 // Service handles authentication operations: signup, login, email verification, resend.
 type Service struct {
 	db             *pgxpool.Pool
@@ -38,6 +44,7 @@ type Service struct {
 	auditSvc       *audit.Service
 	breachChecker  *crypto.BreachChecker
 	lockoutSvc     *LockoutService
+	mfaChecker     MFAChecker
 	emailSender    email.Sender
 	emailRenderer  *email.TemplateRenderer
 	pepper         string
@@ -81,6 +88,12 @@ func NewService(
 		emailHashKey:  emailHashKey,
 		logger:        logger,
 	}
+}
+
+// SetMFAChecker sets the MFA checker on the service. This is called after
+// construction to break the circular dependency between auth and mfa packages.
+func (s *Service) SetMFAChecker(checker MFAChecker) {
+	s.mfaChecker = checker
 }
 
 // normalizeEmail lowercases and trims whitespace from an email address.

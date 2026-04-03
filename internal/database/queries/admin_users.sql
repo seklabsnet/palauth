@@ -17,3 +17,6 @@ DELETE FROM admin_users WHERE id = $1;
 
 -- name: CountAdmins :one
 SELECT count(*) FROM admin_users;
+
+-- name: UpdateAdminHasMFA :exec
+UPDATE admin_users SET has_mfa = $2 WHERE id = $1;

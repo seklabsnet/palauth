@@ -22,3 +22,7 @@ WHERE user_id = $1 AND project_id = $2 AND key_type = 'user_dek' AND revoked_at 
 -- name: RevokeUserDEKByProject :exec
 UPDATE encryption_keys SET revoked_at = now()
 WHERE user_id = $1 AND project_id = $2 AND key_type = 'user_dek' AND revoked_at IS NULL;
+
+-- name: GetEncryptionKeyByTypeAndUser :one
+SELECT * FROM encryption_keys
+WHERE user_id = $1 AND project_id = $2 AND key_type = $3 AND revoked_at IS NULL;

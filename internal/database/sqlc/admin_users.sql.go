@@ -25,7 +25,7 @@ func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
 const createAdminUser = `-- name: CreateAdminUser :one
 INSERT INTO admin_users (id, email, password_hash, role)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, password_hash, role, created_at
+RETURNING id, email, password_hash, role, created_at, has_mfa
 `
 
 type CreateAdminUserParams struct {
@@ -49,6 +49,7 @@ func (q *Queries) CreateAdminUser(ctx context.Context, arg CreateAdminUserParams
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.HasMfa,
 	)
 	return i, err
 }
@@ -63,7 +64,7 @@ func (q *Queries) DeleteAdmin(ctx context.Context, id string) error {
 }
 
 const getAdminByEmail = `-- name: GetAdminByEmail :one
-SELECT id, email, password_hash, role, created_at FROM admin_users WHERE email = $1
+SELECT id, email, password_hash, role, created_at, has_mfa FROM admin_users WHERE email = $1
 `
 
 func (q *Queries) GetAdminByEmail(ctx context.Context, email string) (AdminUser, error) {
@@ -75,12 +76,13 @@ func (q *Queries) GetAdminByEmail(ctx context.Context, email string) (AdminUser,
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.HasMfa,
 	)
 	return i, err
 }
 
 const getAdminByID = `-- name: GetAdminByID :one
-SELECT id, email, password_hash, role, created_at FROM admin_users WHERE id = $1
+SELECT id, email, password_hash, role, created_at, has_mfa FROM admin_users WHERE id = $1
 `
 
 func (q *Queries) GetAdminByID(ctx context.Context, id string) (AdminUser, error) {
@@ -92,6 +94,7 @@ func (q *Queries) GetAdminByID(ctx context.Context, id string) (AdminUser, error
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.HasMfa,
 	)
 	return i, err
 }
@@ -130,4 +133,18 @@ func (q *Queries) ListAdmins(ctx context.Context) ([]ListAdminsRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAdminHasMFA = `-- name: UpdateAdminHasMFA :exec
+UPDATE admin_users SET has_mfa = $2 WHERE id = $1
+`
+
+type UpdateAdminHasMFAParams struct {
+	ID     string `json:"id"`
+	HasMfa bool   `json:"has_mfa"`
+}
+
+func (q *Queries) UpdateAdminHasMFA(ctx context.Context, arg UpdateAdminHasMFAParams) error {
+	_, err := q.db.Exec(ctx, updateAdminHasMFA, arg.ID, arg.HasMfa)
+	return err
 }

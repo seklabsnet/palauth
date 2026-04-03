@@ -54,7 +54,7 @@ func (q *Queries) CountUsersByProject(ctx context.Context, projectID string) (in
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, project_id, email_encrypted, email_hash, password_hash, metadata)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at
+RETURNING id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa
 `
 
 type CreateUserParams struct {
@@ -89,6 +89,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.HasMfa,
 	)
 	return i, err
 }
@@ -219,7 +220,7 @@ func (q *Queries) GetInactiveUsers(ctx context.Context, dollar_1 int32) ([]GetIn
 }
 
 const getUserByEmailHash = `-- name: GetUserByEmailHash :one
-SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users WHERE project_id = $1 AND email_hash = $2
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa FROM users WHERE project_id = $1 AND email_hash = $2
 `
 
 type GetUserByEmailHashParams struct {
@@ -243,12 +244,13 @@ func (q *Queries) GetUserByEmailHash(ctx context.Context, arg GetUserByEmailHash
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.HasMfa,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users WHERE id = $1 AND project_id = $2
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa FROM users WHERE id = $1 AND project_id = $2
 `
 
 type GetUserByIDParams struct {
@@ -272,12 +274,13 @@ func (q *Queries) GetUserByID(ctx context.Context, arg GetUserByIDParams) (User,
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.HasMfa,
 	)
 	return i, err
 }
 
 const listUsersByEmailHash = `-- name: ListUsersByEmailHash :many
-SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa FROM users
 WHERE project_id = $1 AND email_hash = $2
 ORDER BY created_at DESC, id DESC
 LIMIT $3
@@ -311,6 +314,7 @@ func (q *Queries) ListUsersByEmailHash(ctx context.Context, arg ListUsersByEmail
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.HasMfa,
 		); err != nil {
 			return nil, err
 		}
@@ -323,7 +327,7 @@ func (q *Queries) ListUsersByEmailHash(ctx context.Context, arg ListUsersByEmail
 }
 
 const listUsersByProject = `-- name: ListUsersByProject :many
-SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa FROM users WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListUsersByProjectParams struct {
@@ -354,6 +358,7 @@ func (q *Queries) ListUsersByProject(ctx context.Context, arg ListUsersByProject
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.HasMfa,
 		); err != nil {
 			return nil, err
 		}
@@ -366,7 +371,7 @@ func (q *Queries) ListUsersByProject(ctx context.Context, arg ListUsersByProject
 }
 
 const listUsersCursor = `-- name: ListUsersCursor :many
-SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa FROM users
 WHERE project_id = $1
   AND (created_at < $2 OR (created_at = $2 AND id < $3))
 ORDER BY created_at DESC, id DESC
@@ -407,6 +412,7 @@ func (q *Queries) ListUsersCursor(ctx context.Context, arg ListUsersCursorParams
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.HasMfa,
 		); err != nil {
 			return nil, err
 		}
@@ -419,7 +425,7 @@ func (q *Queries) ListUsersCursor(ctx context.Context, arg ListUsersCursorParams
 }
 
 const listUsersCursorBanned = `-- name: ListUsersCursorBanned :many
-SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa FROM users
 WHERE project_id = $1
   AND banned = $2
   AND (created_at < $3 OR (created_at = $3 AND id < $4))
@@ -463,6 +469,7 @@ func (q *Queries) ListUsersCursorBanned(ctx context.Context, arg ListUsersCursor
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.HasMfa,
 		); err != nil {
 			return nil, err
 		}
@@ -475,7 +482,7 @@ func (q *Queries) ListUsersCursorBanned(ctx context.Context, arg ListUsersCursor
 }
 
 const listUsersFirst = `-- name: ListUsersFirst :many
-SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa FROM users
 WHERE project_id = $1
 ORDER BY created_at DESC, id DESC
 LIMIT $2
@@ -508,6 +515,7 @@ func (q *Queries) ListUsersFirst(ctx context.Context, arg ListUsersFirstParams) 
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.HasMfa,
 		); err != nil {
 			return nil, err
 		}
@@ -520,7 +528,7 @@ func (q *Queries) ListUsersFirst(ctx context.Context, arg ListUsersFirstParams) 
 }
 
 const listUsersFirstBanned = `-- name: ListUsersFirstBanned :many
-SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at FROM users
+SELECT id, project_id, email_encrypted, email_hash, password_hash, email_verified, banned, ban_reason, metadata, last_login_at, created_at, updated_at, has_mfa FROM users
 WHERE project_id = $1 AND banned = $2
 ORDER BY created_at DESC, id DESC
 LIMIT $3
@@ -554,6 +562,7 @@ func (q *Queries) ListUsersFirstBanned(ctx context.Context, arg ListUsersFirstBa
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.HasMfa,
 		); err != nil {
 			return nil, err
 		}

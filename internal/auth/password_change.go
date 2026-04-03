@@ -144,3 +144,31 @@ func (s *Service) ChangePassword(ctx context.Context, projectID, userID, current
 
 	return nil
 }
+
+// VerifyPassword checks if the given password matches the user's stored password.
+// Used for re-authentication (e.g., before removing MFA).
+func (s *Service) VerifyPassword(ctx context.Context, projectID, userID, password string) error {
+	q := sqlc.New(s.db)
+
+	user, err := q.GetUserByID(ctx, sqlc.GetUserByIDParams{
+		ID:        userID,
+		ProjectID: projectID,
+	})
+	if err != nil {
+		return fmt.Errorf("get user: %w", err)
+	}
+
+	if user.PasswordHash == nil {
+		return ErrInvalidCredentials
+	}
+
+	match, err := crypto.Verify(password, *user.PasswordHash, s.pepper)
+	if err != nil {
+		return fmt.Errorf("verify password: %w", err)
+	}
+	if !match {
+		return ErrInvalidCredentials
+	}
+
+	return nil
+}

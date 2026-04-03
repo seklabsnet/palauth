@@ -25,13 +25,30 @@ import (
 )
 
 var (
-	ErrAdminAlreadyExists = errors.New("admin user already exists")
-	ErrInvalidCredentials      = errors.New("invalid email or password")
-	ErrInvalidToken            = errors.New("invalid or expired admin token")
-	ErrEmailRequired           = errors.New("email is required")
-	ErrPasswordRequired        = errors.New("password is required")
-	ErrInsufficientPrivilege   = errors.New("insufficient privilege to invite this role")
+	ErrAdminAlreadyExists    = errors.New("admin user already exists")
+	ErrInvalidCredentials    = errors.New("invalid email or password")
+	ErrInvalidToken          = errors.New("invalid or expired admin token")
+	ErrEmailRequired         = errors.New("email is required")
+	ErrPasswordRequired      = errors.New("password is required")
+	ErrInsufficientPrivilege = errors.New("insufficient privilege to invite this role")
 )
+
+// AdminProjectID is the synthetic project ID used to scope admin MFA enrollments.
+// Admin users do not belong to a project, so we use this constant.
+const AdminProjectID = "__admin__"
+
+// MFARequiredError is returned when admin login succeeds but MFA is required.
+// If MFAEnrolled is false, the admin must enroll in MFA first.
+// If MFAEnrolled is true, the admin must complete an MFA challenge.
+type MFARequiredError struct {
+	AdminID     string
+	MFAEnrolled bool
+	MFAToken    string
+}
+
+func (e *MFARequiredError) Error() string {
+	return "admin MFA is required"
+}
 
 const adminTokenExpiry = 24 * time.Hour
 
@@ -58,13 +75,25 @@ type SetupResult struct {
 	APIKeys *apikey.APIKeys  `json:"api_keys"`
 }
 
+// MFAChecker is the interface for checking and managing admin MFA.
+type MFAChecker interface {
+	HasMFA(ctx context.Context, projectID, userID string) (hasMFA bool, factorTypes []string, err error)
+	IssueMFATokenForLogin(ctx context.Context, userID, projectID, ip, userAgent string) (string, error)
+}
+
 // Service manages admin authentication.
 type Service struct {
 	db         *pgxpool.Pool
 	pepper     string
 	signingKey []byte
 	auditSvc   *audit.Service
+	mfaChecker MFAChecker
 	logger     *slog.Logger
+}
+
+// SetMFAChecker sets the MFA checker for admin login enforcement.
+func (s *Service) SetMFAChecker(checker MFAChecker) {
+	s.mfaChecker = checker
 }
 
 // NewService creates a new admin service.
@@ -210,7 +239,10 @@ func (s *Service) Setup(ctx context.Context, email, password string) (*SetupResu
 }
 
 // Login authenticates an admin user and returns a JWT token.
-func (s *Service) Login(ctx context.Context, email, password string) (string, error) {
+// If MFA is enforced and the admin has MFA enrolled, returns MFARequiredError.
+// If MFA is enforced and the admin does NOT have MFA enrolled, returns MFARequiredError
+// with MFAEnrolled=false so the frontend can force enrollment.
+func (s *Service) Login(ctx context.Context, email, password, ip, userAgent string) (string, error) {
 	if email == "" {
 		return "", ErrEmailRequired
 	}
@@ -237,11 +269,54 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, er
 		return "", ErrInvalidCredentials
 	}
 
-	// Issue admin JWT.
+	// Admin MFA enforcement (SOC 2 + PCI DSS 8.4.1).
+	if s.mfaChecker != nil {
+		if adminRow.HasMfa {
+			// Admin has MFA enrolled — require MFA challenge.
+			mfaToken, mfaErr := s.mfaChecker.IssueMFATokenForLogin(ctx, adminRow.ID, AdminProjectID, ip, userAgent)
+			if mfaErr != nil {
+				return "", fmt.Errorf("issue admin mfa token: %w", mfaErr)
+			}
+			return "", &MFARequiredError{
+				AdminID:     adminRow.ID,
+				MFAEnrolled: true,
+				MFAToken:    mfaToken,
+			}
+		}
+
+		// Admin does NOT have MFA enrolled — force enrollment.
+		// Issue a temporary MFA token so the frontend can enroll.
+		mfaToken, mfaErr := s.mfaChecker.IssueMFATokenForLogin(ctx, adminRow.ID, AdminProjectID, ip, userAgent)
+		if mfaErr != nil {
+			return "", fmt.Errorf("issue admin mfa token: %w", mfaErr)
+		}
+		return "", &MFARequiredError{
+			AdminID:     adminRow.ID,
+			MFAEnrolled: false,
+			MFAToken:    mfaToken,
+		}
+	}
+
+	return s.issueAdminToken(adminRow.ID, adminRow.Role)
+}
+
+// IssueTokenAfterMFA issues an admin JWT after successful MFA verification.
+func (s *Service) IssueTokenAfterMFA(ctx context.Context, adminID string) (string, error) {
+	q := sqlc.New(s.db)
+	adminRow, err := q.GetAdminByID(ctx, adminID)
+	if err != nil {
+		return "", fmt.Errorf("get admin: %w", err)
+	}
+
+	return s.issueAdminToken(adminRow.ID, adminRow.Role)
+}
+
+// issueAdminToken creates and signs an admin JWT.
+func (s *Service) issueAdminToken(adminID, role string) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		Sub:  adminRow.ID,
-		Role: adminRow.Role,
+		Sub:  adminID,
+		Role: role,
 		Iat:  now.Unix(),
 		Exp:  now.Add(adminTokenExpiry).Unix(),
 	}

@@ -24,6 +24,11 @@ const (
 	EventAdminUserDeactivateInactive = "admin.user.deactivate_inactive"
 	EventAdminInvite                 = "admin.invite"
 	EventGDPRErasure                 = "gdpr.erasure"
+	EventMFAEnroll                   = "mfa.enroll"
+	EventMFAVerifySuccess            = "mfa.verify.success"
+	EventMFAVerifyFailure            = "mfa.verify.failure"
+	EventMFARemove                   = "mfa.remove"
+	EventMFARecoveryUsed             = "mfa.recovery.used"
 )
 
 // AllEventTypes lists all valid event types for validation.
@@ -50,4 +55,9 @@ var AllEventTypes = []string{
 	EventAdminUserDeactivateInactive,
 	EventAdminInvite,
 	EventGDPRErasure,
+	EventMFAEnroll,
+	EventMFAVerifySuccess,
+	EventMFAVerifyFailure,
+	EventMFARemove,
+	EventMFARecoveryUsed,
 }

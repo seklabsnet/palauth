@@ -44,6 +44,32 @@ func (q *Queries) CreateEncryptionKey(ctx context.Context, arg CreateEncryptionK
 	return i, err
 }
 
+const getEncryptionKeyByTypeAndUser = `-- name: GetEncryptionKeyByTypeAndUser :one
+SELECT id, project_id, user_id, encrypted_key, key_type, created_at, revoked_at FROM encryption_keys
+WHERE user_id = $1 AND project_id = $2 AND key_type = $3 AND revoked_at IS NULL
+`
+
+type GetEncryptionKeyByTypeAndUserParams struct {
+	UserID    *string `json:"user_id"`
+	ProjectID *string `json:"project_id"`
+	KeyType   string  `json:"key_type"`
+}
+
+func (q *Queries) GetEncryptionKeyByTypeAndUser(ctx context.Context, arg GetEncryptionKeyByTypeAndUserParams) (EncryptionKey, error) {
+	row := q.db.QueryRow(ctx, getEncryptionKeyByTypeAndUser, arg.UserID, arg.ProjectID, arg.KeyType)
+	var i EncryptionKey
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.UserID,
+		&i.EncryptedKey,
+		&i.KeyType,
+		&i.CreatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const getProjectDEK = `-- name: GetProjectDEK :one
 SELECT id, project_id, user_id, encrypted_key, key_type, created_at, revoked_at FROM encryption_keys
 WHERE project_id = $1 AND key_type = 'project_dek' AND revoked_at IS NULL

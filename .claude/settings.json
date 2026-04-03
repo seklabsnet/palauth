@@ -32,7 +32,14 @@
       "Bash(mkdir *)",
       "Bash(cat *)",
       "Bash(head *)",
-      "Bash(wc *)"
+      "Bash(wc *)",
+      "Bash(cd *)",
+      "Bash(vitest:*)",
+      "Bash(npx vitest:*)",
+      "Bash(pnpm vitest:*)",
+      "Bash(pnpm test:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:*)"
     ]
   },
   "env": {

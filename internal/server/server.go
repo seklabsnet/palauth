@@ -27,6 +27,7 @@ import (
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/email"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/mfa"
 	"github.com/palauth/palauth/internal/project"
@@ -56,6 +57,7 @@ type Server struct {
 	authSvc      *auth.Service
 	mfaSvc       *mfa.Service
 	socialSvc    *social.Service
+	hookEngine   *hook.Engine
 	rl           *ratelimit.RouteMiddlewares
 }
 
@@ -153,6 +155,27 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		}
 	}
 
+	// Hook engine: derive KEK from pepper for signing key encryption.
+	var hookEngine *hook.Engine
+	if db != nil {
+		hookKEKMac := hmac.New(sha256.New, []byte(cfg.Auth.Pepper))
+		hookKEKMac.Write([]byte("hook-signing-kek"))
+		hookKEK := hookKEKMac.Sum(nil)
+		hookEngine = hook.NewEngine(db, hookKEK, logger, cfg.DevMode)
+
+		// Wire hook engine into all services.
+		authSvc.SetHookCaller(hookEngine)
+		jwtSvc.SetHookCaller(hookEngine)
+		refreshSvc.SetHookCaller(hookEngine)
+		sessionSvc.SetHookCaller(hookEngine)
+		if mfaSvc != nil {
+			mfaSvc.SetHookCaller(hookEngine)
+		}
+		if socialSvc != nil {
+			socialSvc.SetHookCaller(hookEngine)
+		}
+	}
+
 	// Rate limit middlewares.
 	var rl *ratelimit.RouteMiddlewares
 	if rdb != nil {
@@ -177,6 +200,7 @@ func New(cfg *config.Config, logger *slog.Logger, db *pgxpool.Pool, rdb *palredi
 		authSvc:      authSvc,
 		mfaSvc:       mfaSvc,
 		socialSvc:    socialSvc,
+		hookEngine:   hookEngine,
 		rl:           rl,
 	}
 
@@ -336,6 +360,14 @@ func (s *Server) setupRoutes() {
 			r.Post("/users/{uid}/ban", s.handleAdminBanUser)
 			r.Post("/users/{uid}/unban", s.handleAdminUnbanUser)
 			r.Post("/users/{uid}/reset-password", s.handleAdminResetPassword)
+
+			// Hook management.
+			r.Get("/hooks", s.handleListHooks)
+			r.Post("/hooks", s.handleCreateHook)
+			r.Put("/hooks/{hid}", s.handleUpdateHook)
+			r.Delete("/hooks/{hid}", s.handleDeleteHook)
+			r.Post("/hooks/{hid}/test", s.handleTestHook)
+			r.Get("/hooks/{hid}/logs", s.handleHookLogs)
 
 			// Analytics.
 			r.Get("/analytics", s.handleProjectAnalytics)

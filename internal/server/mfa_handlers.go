@@ -559,7 +559,7 @@ func (s *Server) completeMFALogin(w http.ResponseWriter, r *http.Request, projec
 	}
 
 	// Issue JWT access token.
-	accessToken, err := s.jwtSvc.Issue(&token.IssueParams{
+	accessToken, err := s.jwtSvc.IssueWithContext(r.Context(), &token.IssueParams{
 		UserID:    tokenData.UserID,
 		SessionID: sessionID,
 		ProjectID: projectID,

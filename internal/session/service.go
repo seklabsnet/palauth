@@ -14,6 +14,7 @@ import (
 
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 )
 
@@ -25,9 +26,15 @@ var (
 
 // Service handles session lifecycle operations.
 type Service struct {
-	db       *pgxpool.Pool
-	auditSvc *audit.Service
-	logger   *slog.Logger
+	db         *pgxpool.Pool
+	auditSvc   *audit.Service
+	hookCaller hook.Caller
+	logger     *slog.Logger
+}
+
+// SetHookCaller sets the hook caller on the session service.
+func (s *Service) SetHookCaller(caller hook.Caller) {
+	s.hookCaller = caller
 }
 
 // NewService creates a new session service.
@@ -213,6 +220,13 @@ func (s *Service) Revoke(ctx context.Context, sessionID, projectID, userID strin
 		Result:    "success",
 		ProjectID: projectID,
 	})
+
+	// Fire after.session.revoke hook asynchronously.
+	if s.hookCaller != nil {
+		s.hookCaller.ExecuteAsync(ctx, projectID, hook.EventAfterSessionRevoke, hook.Payload{
+			User: &hook.UserInfo{ID: userID},
+		})
+	}
 
 	return nil
 }

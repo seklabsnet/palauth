@@ -69,6 +69,8 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 			s.WriteError(w, r, http.StatusBadRequest, "password_too_long", "Password must be at most 64 characters")
 		case errors.Is(err, crypto.ErrPasswordBreached):
 			s.WriteError(w, r, http.StatusBadRequest, "password_breached", "This password has been found in a data breach and cannot be used")
+		case errors.Is(err, auth.ErrHookDenied):
+			s.WriteError(w, r, http.StatusForbidden, "hook_denied", "Operation denied by hook")
 		case errors.Is(err, auth.ErrSignupFailed):
 			// Generic error for duplicate email — same as any validation error
 			// to prevent user enumeration.
@@ -163,6 +165,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			s.WriteError(w, r, http.StatusBadRequest, "email_required", "A valid email address is required")
 		case errors.Is(err, auth.ErrPasswordRequired):
 			s.WriteError(w, r, http.StatusBadRequest, "password_required", "Password is required")
+		case errors.Is(err, auth.ErrHookDenied):
+			s.WriteError(w, r, http.StatusForbidden, "hook_denied", "Operation denied by hook")
 		case errors.Is(err, auth.ErrInvalidCredentials):
 			s.WriteError(w, r, http.StatusUnauthorized, "invalid_credentials", "Email or password is incorrect")
 		case errors.Is(err, auth.ErrUserBanned):

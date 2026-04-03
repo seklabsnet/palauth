@@ -56,6 +56,31 @@ type EncryptionKey struct {
 	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
 }
 
+type HookConfig struct {
+	ID                  string             `json:"id"`
+	ProjectID           string             `json:"project_id"`
+	Event               string             `json:"event"`
+	Url                 string             `json:"url"`
+	SigningKeyEncrypted []byte             `json:"signing_key_encrypted"`
+	TimeoutMs           int32              `json:"timeout_ms"`
+	FailureMode         string             `json:"failure_mode"`
+	Enabled             bool               `json:"enabled"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type HookLog struct {
+	ID             string             `json:"id"`
+	HookConfigID   string             `json:"hook_config_id"`
+	ProjectID      string             `json:"project_id"`
+	Event          string             `json:"event"`
+	RequestBody    []byte             `json:"request_body"`
+	ResponseBody   []byte             `json:"response_body"`
+	ResponseStatus *int32             `json:"response_status"`
+	LatencyMs      int32              `json:"latency_ms"`
+	Result         string             `json:"result"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Identity struct {
 	ID             string             `json:"id"`
 	ProjectID      string             `json:"project_id"`

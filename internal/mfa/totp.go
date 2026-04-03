@@ -16,6 +16,7 @@ import (
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 )
 
@@ -216,6 +217,20 @@ func (s *Service) VerifyTOTPEnrollment(ctx context.Context, projectID, userID, c
 // ValidateTOTPChallenge validates a TOTP code during MFA challenge (login flow).
 // Includes lockout checking and replay protection.
 func (s *Service) ValidateTOTPChallenge(ctx context.Context, projectID, userID, code string) error {
+	// Execute before.mfa.verify hook — deny blocks MFA verification.
+	if s.hookCaller != nil {
+		hookPayload := hook.Payload{
+			User: &hook.UserInfo{ID: userID},
+		}
+		_, hookErr := s.hookCaller.ExecuteBlocking(ctx, projectID, hook.EventBeforeMFAVerify, hookPayload)
+		if hookErr != nil {
+			if errors.Is(hookErr, hook.ErrHookDenied) {
+				return hook.ErrHookDenied
+			}
+			return fmt.Errorf("before.mfa.verify hook: %w", hookErr)
+		}
+	}
+
 	// Check lockout.
 	if s.lockoutSvc != nil {
 		locked, _, err := s.lockoutSvc.Check(ctx, projectID, userID)

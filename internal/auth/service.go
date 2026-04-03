@@ -13,6 +13,7 @@ import (
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/email"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/project"
 	"github.com/palauth/palauth/internal/token"
 )
@@ -27,6 +28,7 @@ var (
 	ErrSignupFailed     = errors.New("signup failed")
 	ErrHIBPUnavailable  = errors.New("password breach check unavailable, please retry")
 	ErrOTPMaxAttempts   = errors.New("maximum verification attempts exceeded")
+	ErrHookDenied       = errors.New("operation denied by hook")
 )
 
 // MFAChecker checks if a user has MFA enrolled and issues MFA tokens.
@@ -45,6 +47,7 @@ type Service struct {
 	breachChecker  *crypto.BreachChecker
 	lockoutSvc     *LockoutService
 	mfaChecker     MFAChecker
+	hookCaller     hook.Caller
 	emailSender    email.Sender
 	emailRenderer  *email.TemplateRenderer
 	pepper         string
@@ -96,6 +99,11 @@ func (s *Service) SetMFAChecker(checker MFAChecker) {
 	s.mfaChecker = checker
 }
 
+// SetHookCaller sets the hook caller on the service.
+func (s *Service) SetHookCaller(caller hook.Caller) {
+	s.hookCaller = caller
+}
+
 // normalizeEmail lowercases and trims whitespace from an email address.
 func normalizeEmail(addr string) string {
 	return strings.ToLower(strings.TrimSpace(addr))
@@ -106,4 +114,12 @@ func (s *Service) auditLog(ctx context.Context, event *audit.Event) {
 	if s.auditSvc != nil {
 		s.auditSvc.Log(ctx, event) //nolint:errcheck // best-effort audit
 	}
+}
+
+// derefString safely dereferences a string pointer, returning empty string for nil.
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

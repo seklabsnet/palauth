@@ -258,7 +258,7 @@ func (s *Server) handleExchangeCustomToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Issue normal tokens.
-	accessToken, err := s.jwtSvc.Issue(&token.IssueParams{
+	accessToken, err := s.jwtSvc.IssueWithContext(r.Context(), &token.IssueParams{
 		UserID:    claims.Subject,
 		SessionID: session.ID,
 		ProjectID: projectID,

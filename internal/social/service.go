@@ -21,6 +21,7 @@ import (
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/session"
 	"github.com/palauth/palauth/internal/token"
@@ -80,11 +81,17 @@ type Service struct {
 	refreshSvc           *token.RefreshService
 	auditSvc             *audit.Service
 	mfaChecker           MFAChecker
+	hookCaller           hook.Caller
 	redirectURIValidator RedirectURIValidator
 	kek                  []byte
 	emailHashKey         []byte
 	pepper               string
 	logger               *slog.Logger
+}
+
+// SetHookCaller sets the hook caller on the social service.
+func (s *Service) SetHookCaller(caller hook.Caller) {
+	s.hookCaller = caller
 }
 
 // NewService creates a new social login service.
@@ -233,6 +240,20 @@ func (s *Service) ListIdentities(ctx context.Context, projectID, userID string) 
 
 // LinkIdentity links a social provider to an existing authenticated user.
 func (s *Service) LinkIdentity(ctx context.Context, projectID, userID, providerName, credential string) error {
+	// Execute before.social.link hook — deny blocks account linking.
+	if s.hookCaller != nil {
+		hookPayload := hook.Payload{
+			User: &hook.UserInfo{ID: userID},
+		}
+		_, hookErr := s.hookCaller.ExecuteBlocking(ctx, projectID, hook.EventBeforeSocialLink, hookPayload)
+		if hookErr != nil {
+			if errors.Is(hookErr, hook.ErrHookDenied) {
+				return hook.ErrHookDenied
+			}
+			return fmt.Errorf("before.social.link hook: %w", hookErr)
+		}
+	}
+
 	provider, ok := s.providers[providerName]
 	if !ok {
 		return ErrUnsupportedProvider
@@ -434,7 +455,7 @@ func (s *Service) createSessionAndTokens(ctx context.Context, q *sqlc.Queries, p
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 
-	accessToken, err := s.jwtSvc.Issue(&token.IssueParams{
+	accessToken, err := s.jwtSvc.IssueWithContext(ctx, &token.IssueParams{
 		UserID:    user.ID,
 		SessionID: sessionID,
 		ProjectID: projectID,

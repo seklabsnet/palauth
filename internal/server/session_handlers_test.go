@@ -71,7 +71,7 @@ func TestSessionMiddleware_MissingSessionID(t *testing.T) {
 	s := newTestServer(t)
 
 	// Issue a JWT without session_id.
-	tok, err := s.jwtSvc.Issue(&token.IssueParams{
+	tok, err := s.jwtSvc.IssueWithContext(context.Background(),&token.IssueParams{
 		UserID:    "usr_test",
 		ProjectID: "prj_test",
 		AuthTime:  time.Now(),
@@ -101,7 +101,7 @@ func TestSessionMiddleware_ValidJWT_SetsContext(t *testing.T) {
 	// Here we only verify JWT parsing works up to the session validation call.
 	s := newTestServer(t)
 
-	tok, err := s.jwtSvc.Issue(&token.IssueParams{
+	tok, err := s.jwtSvc.IssueWithContext(context.Background(),&token.IssueParams{
 		UserID:    "usr_test",
 		SessionID: "sess_test-123",
 		ProjectID: "prj_test",

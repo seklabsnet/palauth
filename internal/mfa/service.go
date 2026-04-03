@@ -14,6 +14,7 @@ import (
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
 	"github.com/palauth/palauth/internal/email"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/session"
 )
@@ -40,10 +41,16 @@ type Service struct {
 	pepper        string
 	auditSvc      *audit.Service
 	sessionSvc    *session.Service
+	hookCaller    hook.Caller
 	emailSender   email.Sender
 	emailRenderer *email.TemplateRenderer
 	lockoutSvc    *LockoutService
 	logger        *slog.Logger
+}
+
+// SetHookCaller sets the hook caller on the MFA service.
+func (s *Service) SetHookCaller(caller hook.Caller) {
+	s.hookCaller = caller
 }
 
 // NewService creates a new MFA service.

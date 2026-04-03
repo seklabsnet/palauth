@@ -1,6 +1,7 @@
 package token
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -15,6 +16,8 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
+
+	"github.com/palauth/palauth/internal/hook"
 )
 
 // Algorithm constants for JWT signing.
@@ -82,11 +85,17 @@ type signingKey struct {
 
 // JWTService handles JWT issuance and verification.
 type JWTService struct {
-	mu      sync.RWMutex
-	keys    []signingKey // most recent last
-	fapi    bool
-	ttl     time.Duration
-	logger  *slog.Logger
+	mu         sync.RWMutex
+	keys       []signingKey // most recent last
+	fapi       bool
+	ttl        time.Duration
+	hookCaller hook.Caller
+	logger     *slog.Logger
+}
+
+// SetHookCaller sets the hook caller on the JWT service.
+func (s *JWTService) SetHookCaller(caller hook.Caller) {
+	s.hookCaller = caller
 }
 
 // JWTConfig configures the JWT service.
@@ -182,7 +191,41 @@ func (s *JWTService) currentKey() (signingKey, error) {
 }
 
 // Issue creates and signs a JWT access token.
+//
+// Deprecated: Use IssueWithContext for hook support.
 func (s *JWTService) Issue(params *IssueParams) (string, error) {
+	return s.IssueWithContext(context.Background(), params)
+}
+
+// IssueWithContext creates and signs a JWT access token with context for hook execution.
+func (s *JWTService) IssueWithContext(ctx context.Context, params *IssueParams) (string, error) {
+	// Execute before.token.issue hook — can inject custom_claims.
+	if s.hookCaller != nil && params.ProjectID != "" {
+		hookPayload := hook.Payload{
+			User: &hook.UserInfo{ID: params.UserID},
+		}
+		resp, hookErr := s.hookCaller.ExecuteBlocking(ctx, params.ProjectID, hook.EventBeforeTokenIssue, hookPayload)
+		if hookErr != nil {
+			if errors.Is(hookErr, hook.ErrHookDenied) {
+				return "", hook.ErrHookDenied
+			}
+			// Non-deny errors propagate — respects hook's failure_mode setting.
+			return "", fmt.Errorf("before.token.issue hook: %w", hookErr)
+		} else if resp != nil && resp.CustomClaims != nil {
+			if params.CustomClaims == nil {
+				params.CustomClaims = make(map[string]any)
+			}
+			for k, v := range resp.CustomClaims {
+				params.CustomClaims[k] = v
+			}
+		}
+	}
+
+	return s.issueInternal(params)
+}
+
+// issueInternal is the actual JWT signing implementation.
+func (s *JWTService) issueInternal(params *IssueParams) (string, error) {
 	key, err := s.currentKey()
 	if err != nil {
 		return "", err

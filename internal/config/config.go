@@ -21,6 +21,7 @@ type Config struct {
 	Email    email.Config   `koanf:"email"`
 	Log      LogConfig      `koanf:"log"`
 	FIPS     bool           `koanf:"fips"`
+	DevMode  bool           `koanf:"dev_mode"` // Enables HTTP hook URLs; NEVER set in production
 }
 
 type ServerConfig struct {

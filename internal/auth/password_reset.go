@@ -13,6 +13,7 @@ import (
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 )
 
@@ -46,6 +47,18 @@ func (s *Service) RequestReset(ctx context.Context, projectID, email string) err
 		}
 		s.logger.Error("password reset lookup failed", "error", err)
 		return nil // enumeration prevention
+	}
+
+	// Execute before.password.reset hook — deny blocks reset.
+	if s.hookCaller != nil {
+		hookPayload := hook.Payload{
+			User: &hook.UserInfo{ID: user.ID},
+		}
+		_, hookErr := s.hookCaller.ExecuteBlocking(ctx, projectID, hook.EventBeforePasswordReset, hookPayload)
+		if hookErr != nil {
+			s.logger.Info("password reset denied by hook", "user_id", user.ID, "project_id", projectID)
+			return nil // enumeration prevention: always return nil
+		}
 	}
 
 	// Generate 256-bit token.

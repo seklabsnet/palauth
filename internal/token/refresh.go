@@ -14,6 +14,7 @@ import (
 
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 )
 
@@ -45,9 +46,15 @@ type RefreshResult struct {
 type RefreshService struct {
 	db          *pgxpool.Pool
 	jwt         *JWTService
+	hookCaller  hook.Caller
 	ttl         time.Duration
 	gracePeriod time.Duration
 	logger      *slog.Logger
+}
+
+// SetHookCaller sets the hook caller on the refresh service.
+func (s *RefreshService) SetHookCaller(caller hook.Caller) {
+	s.hookCaller = caller
 }
 
 // NewRefreshService creates a new refresh token service.
@@ -107,6 +114,20 @@ var ErrProjectMismatch = errors.New("refresh token does not belong to this proje
 // The entire operation runs inside a single serialized transaction with
 // SELECT ... FOR UPDATE to prevent TOCTOU race conditions.
 func (s *RefreshService) Rotate(ctx context.Context, oldPlainToken, projectID string, issueParams *IssueParams) (*RefreshResult, error) {
+	// Execute before.token.refresh hook — deny blocks token refresh.
+	if s.hookCaller != nil {
+		hookPayload := hook.Payload{
+			User: &hook.UserInfo{ID: issueParams.UserID},
+		}
+		_, hookErr := s.hookCaller.ExecuteBlocking(ctx, projectID, hook.EventBeforeTokenRefresh, hookPayload)
+		if hookErr != nil {
+			if errors.Is(hookErr, hook.ErrHookDenied) {
+				return nil, hook.ErrHookDenied
+			}
+			return nil, fmt.Errorf("before.token.refresh hook: %w", hookErr)
+		}
+	}
+
 	oldHash := hashToken(oldPlainToken)
 
 	// Begin transaction — ALL reads and writes happen inside this transaction

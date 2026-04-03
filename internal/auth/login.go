@@ -13,6 +13,7 @@ import (
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/session"
 	"github.com/palauth/palauth/internal/token"
@@ -163,6 +164,17 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*LoginResult,
 			Metadata:   map[string]any{"reason": "invalid_password"},
 		})
 
+		// Fire after.login.failed hook asynchronously.
+		if s.hookCaller != nil {
+			s.hookCaller.ExecuteAsync(ctx, params.ProjectID, hook.EventAfterLoginFailed, hook.Payload{
+				User: &hook.UserInfo{ID: user.ID},
+				Context: &hook.ContextInfo{
+					IP:        derefString(params.IP),
+					UserAgent: derefString(params.UserAgent),
+				},
+			})
+		}
+
 		return nil, 0, ErrInvalidCredentials
 	}
 
@@ -185,6 +197,28 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*LoginResult,
 	// Password correct — reset failed counter.
 	if s.lockoutSvc != nil {
 		_ = s.lockoutSvc.Reset(ctx, params.ProjectID, user.ID)
+	}
+
+	// Execute before.login hook — deny blocks login.
+	if s.hookCaller != nil {
+		hookPayload := hook.Payload{
+			User:    &hook.UserInfo{ID: user.ID},
+			Context: &hook.ContextInfo{},
+		}
+		if params.IP != nil {
+			hookPayload.Context.IP = *params.IP
+		}
+		if params.UserAgent != nil {
+			hookPayload.Context.UserAgent = *params.UserAgent
+		}
+		resp, hookErr := s.hookCaller.ExecuteBlocking(ctx, params.ProjectID, hook.EventBeforeLogin, hookPayload)
+		if hookErr != nil {
+			if errors.Is(hookErr, hook.ErrHookDenied) {
+				s.logger.Info("login denied by hook", "user_id", user.ID, "project_id", params.ProjectID, "reason", resp.Reason)
+				return nil, 0, ErrHookDenied
+			}
+			return nil, 0, fmt.Errorf("before.login hook: %w", hookErr)
+		}
 	}
 
 	// Check MFA: if user has MFA enrolled, return MFA token instead of access token.
@@ -249,7 +283,7 @@ func (s *Service) Login(ctx context.Context, params *LoginParams) (*LoginResult,
 	}
 
 	// Issue JWT access token.
-	accessToken, err := s.jwtSvc.Issue(&token.IssueParams{
+	accessToken, err := s.jwtSvc.IssueWithContext(ctx, &token.IssueParams{
 		UserID:    user.ID,
 		SessionID: sessionID,
 		ProjectID: params.ProjectID,

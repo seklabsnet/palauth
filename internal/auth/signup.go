@@ -16,6 +16,7 @@ import (
 	"github.com/palauth/palauth/internal/audit"
 	"github.com/palauth/palauth/internal/crypto"
 	"github.com/palauth/palauth/internal/database/sqlc"
+	"github.com/palauth/palauth/internal/hook"
 	"github.com/palauth/palauth/internal/id"
 	"github.com/palauth/palauth/internal/session"
 	"github.com/palauth/palauth/internal/token"
@@ -115,6 +116,22 @@ func (s *Service) Signup(ctx context.Context, email, password, projectID string)
 	passwordHash, err := crypto.Hash(password, s.pepper)
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	// Execute before.user.create hook — deny blocks user creation.
+	if s.hookCaller != nil {
+		hookPayload := hook.Payload{
+			User: &hook.UserInfo{Email: email},
+		}
+		resp, hookErr := s.hookCaller.ExecuteBlocking(ctx, projectID, hook.EventBeforeUserCreate, hookPayload)
+		if hookErr != nil {
+			if errors.Is(hookErr, hook.ErrHookDenied) {
+				s.logger.Info("signup denied by hook", "project_id", projectID, "reason", resp.Reason)
+				return nil, ErrHookDenied
+			}
+			// For non-deny errors (timeout with deny mode, etc.), propagate.
+			return nil, fmt.Errorf("before.user.create hook: %w", hookErr)
+		}
 	}
 
 	// Get project config for verification method.
@@ -234,7 +251,7 @@ func (s *Service) Signup(ctx context.Context, email, password, projectID string)
 	}
 
 	// Issue JWT access token (outside transaction — stateless, no DB write).
-	accessToken, err := s.jwtSvc.Issue(&token.IssueParams{
+	accessToken, err := s.jwtSvc.IssueWithContext(ctx, &token.IssueParams{
 		UserID:    userID,
 		SessionID: sessionID,
 		ProjectID: projectID,

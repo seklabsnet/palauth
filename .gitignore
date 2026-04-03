@@ -6,3 +6,5 @@ tmp/
 *.out
 sdk/typescript/client/node_modules/
 sdk/typescript/server/node_modules/
+dashboard/node_modules/
+dashboard/.next/

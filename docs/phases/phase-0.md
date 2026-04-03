@@ -909,14 +909,14 @@ POST   /admin/users/invite                → { email, role } → admin kullanic
 - Global → Admin Users: Dashboard erisim rolleri
 
 **Kabul kriterleri:**
-- [ ] `docker compose up` → dashboard localhost:3001'de calisir
-- [ ] Setup wizard calisiyor — admin + project + key'ler olusur
-- [ ] Project listesi gorunuyor
-- [ ] User listesi gorunuyor, arama calisiyor
-- [ ] Ban/unban calisiyor
-- [ ] API key goruntulenebiliyor, kopyalanabiliyor
-- [ ] Audit log stream gorunuyor, filtre calisiyor
-- [ ] Verify integrity butonu calisiyor
+- [x] `docker compose up` → dashboard localhost:3001'de calisir
+- [x] Setup wizard calisiyor — admin + project + key'ler olusur
+- [x] Project listesi gorunuyor
+- [x] User listesi gorunuyor, arama calisiyor
+- [x] Ban/unban calisiyor
+- [x] API key goruntulenebiliyor, kopyalanabiliyor
+- [x] Audit log stream gorunuyor, filtre calisiyor
+- [x] Verify integrity butonu calisiyor
 
 **Bagimlilk:** T0.6, T0.14 (admin API endpoint'leri mevcut olmali)
 
